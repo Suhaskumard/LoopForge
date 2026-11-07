@@ -1,0 +1,41 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: loopforge
+          POSTGRES_PASSWORD: loopforge
+          POSTGRES_DB: loopforge_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U loopforge" --health-interval 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: ruff check . && ruff format --check .
+      - run: mypy app
+      - name: Tests on SQLite (coverage floor)
+        run: pytest -q --cov=app --cov-fail-under=95
+      - name: Tests on Postgres
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
+        run: pytest -q
+      - name: Migration up/down on Postgres
+        env:
+          DATABASE_URL: postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
+        run: alembic upgrade head && alembic downgrade base
+      - name: Image builds
+        working-directory: .
+        run: docker build -t loopforge-backend backend

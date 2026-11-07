@@ -1,0 +1,2 @@
+# ADR-0006: Short access JWT + rotating refresh tokens
+Status: accepted. Decision: 15-min HS256 access token carrying token_version; opaque refresh token stored only as SHA-256, rotated on each use, reuse revokes the family; rate-limit state in DB so it works across workers. Rejected: long-lived JWTs (no revocation), in-memory limiter (breaks with >1 worker), server sessions (statefulness without benefit here).
