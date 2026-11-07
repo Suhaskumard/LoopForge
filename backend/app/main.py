@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.api import ws
 from app.api.errors import install_error_handlers
-from app.api.v1 import agents, auth, projects, runs, tasks
+from app.api.v1 import agents, analytics, auth, projects, runs, tasks
 from app.config import settings
 from app.database import session
 from app.middleware import RequestContextMiddleware
@@ -23,6 +25,7 @@ api_v1.include_router(tasks.router)
 api_v1.include_router(runs.router)
 api_v1.include_router(runs.iterations_router)
 api_v1.include_router(agents.router)
+api_v1.include_router(analytics.router)
 
 log = logging.getLogger("loopforge.startup")
 
@@ -55,12 +58,20 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     lifespan=lifespan,
     title="LoopForge",
-    version="0.4.0",
+    version="0.5.0",
     description="Autonomous, feedback-driven AI software engineering platform.",
 )
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "If-Match"],
+    expose_headers=["ETag", "X-Request-ID"],
+)
 install_error_handlers(app)
 app.include_router(api_v1)
+app.include_router(ws.router)
 
 
 @app.get("/health", tags=["ops"])

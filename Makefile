@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -53,3 +53,12 @@ gate4:     ## Phase 1-4 gates, Decision Engine coverage and the feedback-loop de
 
 demo4:     ## print Phase 4 exit-gate evidence (no API key or Docker needed)
 	$(PY) scripts/demo_phase4.py
+
+gate5:     ## Phase 1-5 gates, frontend checks and the KPI-vs-database demo
+	bash scripts/phase5_gate.sh
+
+demo5:     ## print Phase 5 exit-gate evidence (no API key, Docker or browser needed)
+	$(PY) scripts/demo_phase5.py
+
+ui-demo:   ## API with a scripted loop on :8000 - run `npm run dev` in frontend/ for the dashboard
+	$(PY) scripts/dev_demo_server.py

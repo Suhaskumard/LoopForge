@@ -2,7 +2,7 @@
 
 Autonomous, feedback-driven AI software-engineering platform: natural-language requirement → plan → generated Python → sandboxed tests → independent review → deterministic retry/accept/escalate, until measurable acceptance criteria are met.
 
-**Status:** Phase 1 (Foundation) and Phase 2 (Agent Intelligence: Planner + Builder, LangGraph, workspaces) complete. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise).
+**Status:** Phases 1–5 complete (foundation, agents, sandbox, feedback loop, dashboard + analytics). Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise).
 
 ## Quick start
 ```bash
@@ -13,6 +13,8 @@ make gate2                                 # Phase 1 + Phase 2 gate and the evid
 make demo2                                 # Phase 2 exit-gate evidence, no API key needed
 WITH_PG=1 make gate                        # ...and the suite on Postgres (docker compose up -d db first)
 ```
+make gate5                                 # everything above + frontend checks + KPI-vs-DB demo
+make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
 ## Phase 2 configuration

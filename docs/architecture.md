@@ -4,7 +4,7 @@ LoopForge is a **modular monolith** (ADR-0001) of six layers; evaluation feeds d
 
 | Layer | Responsibility | Package / tech | Status |
 |---|---|---|---|
-| Presentation | Task builder, workflow viewer, analytics | `frontend/` React + Vite | Phase 5 |
+| Presentation | Command center, task builder, live workflow, code/evaluation views, analytics, report | `frontend/` React + Vite | **Phase 5 ✔** |
 | API | Auth, projects, tasks, events, health | `backend/app/api` FastAPI | **Phase 1 ✔** |
 | Orchestration | Shared state, checkpoints, Decision Engine | `app/orchestrator` LangGraph | **Phase 4 ✔** feedback loop, Decision Engine, persistent checkpoints |
 | Intelligence | Planner, Builder, Verifier, Repair, Reviewer, Documentation | `app/agents` | **Planner, Builder, Verifier, Repair, Reviewer ✔ (Phases 2–4)**; Documentation Phase 6 |
@@ -26,6 +26,11 @@ PENDING ─start→ PLANNING ─Planner (LLM → ProjectPlan)→ GENERATING ─B
 - `app/services/llm_client.py` — `OpenAIClient` / `FakeLLMClient` behind one protocol (ADR-0007).
 - `app/services/workspace.py` — `<WORKSPACE_ROOT>/<task_id>/iter_<n>/`; path confinement, no symlinks/junctions, validate-all-then-write, atomic writes, sha256 `artifacts` rows.
 - `app/demo/employee_management.py` — canned, *working* demo plan + project for deterministic tests (`LLM_PROVIDER=fake`).
+
+## Phase 5 — interface and analytics
+- `services/analytics_service.py` is the single owner of every KPI formula (cancelled excluded from success rate; latest `test_results` row per iteration, so no double counting; cost = tokens × `COST_PER_1K_TOKENS`, an *estimate*).
+- `services/event_stream.py` + `api/ws.py` stream spec §8.2 events from database rows (ADR-0010).
+- `frontend/`: seven screens (Command Center, Task Creation, Live Workflow with React Flow, Code Workspace with diff of any two iterations, Evaluation Center, Loop Analytics, Final Report). `make ui-demo` + `npm run dev` runs it with a scripted loop, no API key or Docker.
 
 ## Key design rules (from the spec)
 1. Evidence over assertion · 2. Maker ≠ checker · 3. Deterministic control (no LLM in the loop controller) · 4. Revalidate everything · 5. Bounded by default · 6. Isolation first · 7. Full traceability · 8. Loop before interface.

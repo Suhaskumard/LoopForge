@@ -31,6 +31,15 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /iterations/{id}/logs | Bearer | execution logs of the iteration |
 | GET | /tasks/{id}/iterations/{n}/test-results | Bearer | `test_results` rows: totals, `details.failures[]` (nodeid, message, traceback), `timed_out` |
 | GET | /tasks/{id}/iterations/{n}/logs | Bearer | execution stdout/stderr stored as `log` artifacts, with sha256 |
+| GET | /iterations/{id}/diff?against={iteration_id} | Bearer | compare with **any** iteration of the same task (default: the previous one); other task's id → 404 |
+| GET | /iterations/{id}/files/{path} | Bearer | file content as it was in that iteration |
+| GET | /tasks/{id}/download | Bearer | zip of the latest iteration's recorded source files |
+| GET | /analytics/overview | Bearer | KPIs (spec §9.1): success rate, avg iterations, test pass rate, avg quality, avg time, avg cost (estimate), failure distribution, repair outcomes. `null` = not computable |
+| GET | /analytics/tasks/{id} | Bearer | per-iteration tests, quality trend, tokens, estimated cost, execution time |
+| GET | /analytics/iterations/{id} | Bearer | one iteration: tests, per-agent tokens/time, decision |
+| GET | /analytics/agents | Bearer | per-agent runs, success rate, average duration, tokens |
+| GET | /agents/{name}/status | Bearer | last run and counters for one agent |
+| WS | /ws/tasks/{id}?token=<access JWT> | token | live events: `task_started agent_started agent_completed sandbox_started tests_completed iteration_completed retry_scheduled escalated task_completed task_cancelled` (+ `task_failed`). History is replayed on connect; closes after the terminal event. Close codes: 4401 bad token, 4404 unknown/foreign task, 4429 too many sockets |
 | GET | /agents | Bearer | the six agents, which are implemented, and what each may not do |
 | GET | /health · /health/ready | – | liveness · DB readiness (503 if down) |
 

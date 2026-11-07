@@ -29,11 +29,21 @@
 | Endless loops / runaway cost | Iteration, token and wall-clock limits plus repeated-failure fingerprinting all escalate (100% branch-covered) | `orchestrator/decision.py` |
 | Container compromise blast radius | Multi-stage image, non-root UID 10001, HEALTHCHECK | `backend/Dockerfile` |
 
+## Phase 5 additions (dashboard)
+| Threat | Control | Where / proof |
+|---|---|---|
+| WebSocket hijack / foreign task streams | JWT (`token` query) verified like REST incl. `tv`; foreign and unknown tasks both close 4404; per-user connection cap (4429) | `api/ws.py`, `test_phase5_ws.py` |
+| Cross-origin API use | CORS allow-list from `CORS_ORIGINS` (no wildcard), explicit methods/headers | `main.py`, `test_cors_allows_only_the_configured_origin` |
+| XSS via generated code / model output | Rendered strictly as text; `dangerouslySetInnerHTML` is a lint error; nginx CSP; tested with a script-bearing diff | `frontend/src/__tests__/ui.test.tsx`, `nginx.conf` |
+| Token theft in the browser | Access token in memory only; refresh token in sessionStorage, rotating, replay revokes the family; single-flight refresh | ADR-0011, `client.test.ts` |
+| Analytics leaking across tenants | Every aggregate is joined through `projects.user_id`; foreign ids 404 | `test_analytics_are_owner_scoped` |
+
 ## Known limits (honest list)
 - Rate-limit key uses the direct client IP; behind a proxy configure trusted `X-Forwarded-For` handling (Phase 7/10).
 - HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).
 - No email verification or password reset yet.
 - Phase 3 executes generated code only inside the sandbox. Ordinary Docker containers are **not** an absolute security boundary against hostile code; evaluate gVisor/Firecracker and rootless Docker for stronger isolation (spec §13.1). No custom seccomp/AppArmor profile ships yet (Docker defaults apply). Dependency vulnerability scanning and hash-verified retrieval (Addendum §19.2 items 4-6) are not implemented; the approved-package list is the only control.
+- WebSocket tokens travel in the URL query: keep access logs from recording query strings; tokens expire in 15 minutes.
 - Prompt-injection defences reduce, but do not eliminate, the chance a real model is misled; the hard guarantees are the schema/workspace refusals and the absence of any shell or network capability in agents.
 - Cancel is cooperative: the loop checks before each step, so an in-flight sandbox run finishes (bounded by its timeout) before the task stops.
 - Resume is guarded per process only; two server processes could resume the same task (see ADR-0009).

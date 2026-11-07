@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.database.models import User
+from app.database.session import get_db
+from app.schemas.analytics import AgentStatusOut
 from app.schemas.run import AgentInfo
+from app.services import analytics_service
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -56,3 +60,13 @@ AGENTS = [
 @router.get("", response_model=list[AgentInfo])
 def list_agents(_: User = Depends(get_current_user)) -> list[AgentInfo]:
     return AGENTS
+
+
+@router.get("/{name}/status", response_model=AgentStatusOut)
+def agent_status(
+    name: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> AgentStatusOut:
+    match = next((a.name for a in AGENTS if a.name.lower() == name.lower()), None)
+    if match is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown agent")
+    return analytics_service.agent_status(db, user.id, match)

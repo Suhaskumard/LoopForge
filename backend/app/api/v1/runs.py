@@ -1,6 +1,8 @@
 """Start a task and inspect what the agents produced (owner-scoped; foreign ids are 404)."""
 
+import io
 import uuid
+import zipfile
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response, status
@@ -170,6 +172,30 @@ def read_file(
     return FileContentOut(path=file_path, sha256=known[file_path].file_hash, content=content)
 
 
+@router.get("/{task_id}/download")
+def download(
+    task_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> Response:
+    """Zip of the latest iteration's recorded source files (final report, screen 7)."""
+    task = _task(db, user, task_id)
+    iteration = _latest_iteration(db, task)
+    if iteration is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No files yet")
+    base = workspace.iteration_dir(task.id, iteration.iteration_number)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for a in _source_artifacts(db, iteration):
+            try:
+                z.writestr(a.file_name, workspace.read_file(base, a.file_name))
+            except WorkspaceError:
+                continue
+    return Response(
+        buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="task-{task.id}.zip"'},
+    )
+
+
 def _iteration(db: Session, task: Task, number: int) -> Iteration:
     it = db.scalars(
         select(Iteration).where(Iteration.task_id == task.id, Iteration.iteration_number == number)
@@ -337,20 +363,50 @@ def iteration_detail(
 
 @iterations_router.get("/{iteration_id}/diff", response_model=IterationDiffOut)
 def iteration_diff(
-    iteration_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    iteration_id: uuid.UUID,
+    against: uuid.UUID | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> IterationDiffOut:
-    """Code changes this iteration made relative to the previous one (all files for the first)."""
+    """Code changes of this iteration relative to the previous one (all files for the first), or
+    relative to any other iteration of the same task via `?against=<iteration id>`."""
     task, it = _owned_iteration(db, user, iteration_id)
-    previous = db.scalars(
-        select(Iteration)
-        .where(Iteration.task_id == task.id, Iteration.iteration_number < it.iteration_number)
-        .order_by(Iteration.iteration_number.desc())
-    ).first()
-    against = previous.iteration_number if previous else None
-    diffs = workspace.diff_iterations(task.id, against, it.iteration_number)
+    if against is not None:
+        base = db.get(Iteration, against)
+        if base is None or base.task_id != task.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Iteration not found")
+    else:
+        base = db.scalars(
+            select(Iteration)
+            .where(Iteration.task_id == task.id, Iteration.iteration_number < it.iteration_number)
+            .order_by(Iteration.iteration_number.desc())
+        ).first()
+    base_number = base.iteration_number if base else None
+    diffs = workspace.diff_iterations(task.id, base_number, it.iteration_number)
     return IterationDiffOut(
-        iteration=it.iteration_number, against=against, files=[FileDiffOut(**d) for d in diffs]
+        iteration=it.iteration_number, against=base_number, files=[FileDiffOut(**d) for d in diffs]
     )
+
+
+@iterations_router.get("/{iteration_id}/files/{file_path:path}", response_model=FileContentOut)
+def iteration_file(
+    iteration_id: uuid.UUID,
+    file_path: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileContentOut:
+    """Content of one recorded source file as it was in *this* iteration (code workspace)."""
+    task, it = _owned_iteration(db, user, iteration_id)
+    known = {a.file_name: a for a in _source_artifacts(db, it)}
+    if file_path not in known:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
+    try:
+        content = workspace.read_file(
+            workspace.iteration_dir(task.id, it.iteration_number), file_path
+        )
+    except WorkspaceError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found") from None
+    return FileContentOut(path=file_path, sha256=known[file_path].file_hash, content=content)
 
 
 @iterations_router.get("/{iteration_id}/logs", response_model=list[LogOut])

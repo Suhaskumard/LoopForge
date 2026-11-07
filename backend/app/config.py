@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     login_max_attempts: int = 5
     login_window_seconds: int = 300
+    # Phase 5
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    ws_poll_seconds: float = 1.0
+    ws_max_connections_per_user: int = 10
+    # Estimated blended price per 1k tokens (USD). There is no billing data: cost is tokens x rate.
+    cost_per_1k_tokens: float = 0.002
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:
