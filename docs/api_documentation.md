@@ -16,6 +16,13 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /tasks/{id} | Bearer | returns `ETag` |
 | POST | /tasks/{id}/status | Bearer | Phase-1 stand-in; invalid transition → 409; `If-Match` supported |
 | GET | /tasks/{id}/events | Bearer | audit trail |
+| POST | /tasks/{id}/start | Bearer | **202**; PENDING → PLANNING, then Planner→Builder run in the background. 409 unless PENDING; 412 on stale `If-Match`; 503 if the LLM provider is not configured |
+| GET | /tasks/{id}/plan | Bearer | validated plan of the latest iteration (404 until planned) |
+| GET | /tasks/{id}/requirements | Bearer | `REQ-###` records: type, priority, `impl_mapping`, verification status |
+| GET | /tasks/{id}/agent-runs | Bearer | chronological runs: agent, status (`success|failed|timeout`), tokens, duration, error |
+| GET | /tasks/{id}/files | Bearer | generated files (path, sha256) of the latest iteration |
+| GET | /tasks/{id}/files/{path} | Bearer | file content; only files recorded as artifacts; confined to the workspace |
+| GET | /agents | Bearer | the six agents, which are implemented, and what each may not do |
 | GET | /health · /health/ready | – | liveness · DB readiness (503 if down) |
 
 Errors: `{"error":{"code","message","request_id","details?"}}`. Codes: `bad_request unauthorized forbidden not_found conflict precondition_failed validation_error rate_limited unavailable internal_error`. Every response carries `X-Request-ID`.

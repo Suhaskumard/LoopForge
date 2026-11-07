@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -32,3 +32,9 @@ migrate:
 
 gate:      ## Phase 1 exit gate, one command
 	bash scripts/phase1_gate.sh
+
+gate2:     ## Phase 1 + Phase 2 gates and the evidence demo
+	bash scripts/phase2_gate.sh
+
+demo2:     ## print Phase 2 exit-gate evidence (no API key needed)
+	$(PY) scripts/demo_phase2.py

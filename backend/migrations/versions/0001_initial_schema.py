@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-11-07 17:18:58.876507
+Create Date: 2026-11-07 17:47:02.461938
 """
 from alembic import op
 import sqlalchemy as sa
@@ -124,6 +124,7 @@ def upgrade() -> None:
     sa.Column('tokens_used', sa.Integer(), nullable=False),
     sa.Column('duration_seconds', sa.Float(), nullable=False),
     sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('started_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['iteration_id'], ['iterations.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

@@ -13,10 +13,16 @@
 | Invalid state in DB | CHECK constraints (status values, iterations ≥1), UNIQUE (task, iteration#), UNIQUE (task, req_id) | `models.py`, `test_hardening.py` |
 | Info leaks via errors | Unhandled exceptions return a generic 500 + request id; details only in server logs | `api/errors.py` |
 | Clickjacking / sniffing / caching | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` | `middleware.py` |
+| Prompt injection (requirement text, repo files, model output) | Untrusted text fenced in `<untrusted_input>` with spoofed delimiters neutralised; fixed security policy leads every system prompt; model output is data, validated by strict schemas — it can never cause an action | `agents/base.py`, `test_agents.py::test_injection*` |
+| Path traversal / workspace escape by generated code | Schema rejects `..`, absolute, drive, UNC, backslash, hidden files, odd extensions; workspace re-resolves paths, refuses symlinks/junctions, validates **all** paths before writing **any**; Builder emits file changes only (no shell) | `schemas/plan.py`, `services/workspace.py`, `test_workspace.py`, `test_phase2_flow.py::test_file_endpoint_*` |
+| Malformed / hostile model output | Strict Pydantic (`extra=forbid`), logged as `agent_output_rejected`, one bounded corrective retry, then FAIL; nothing partially persisted | `test_two_malformed_outputs_fail_and_persist_nothing` |
+| Runaway cost | Backend-enforced token budget after every call → ESCALATED; transport retries capped with capped backoff | `utils/token_tracker.py`, `test_token_budget_*` |
+| Unsafe dependencies in plans | Dependency specifiers must be `name[==version]`; URLs/VCS/shell metacharacters rejected | `ProjectPlan._deps` |
 | Container compromise blast radius | Multi-stage image, non-root UID 10001, HEALTHCHECK | `backend/Dockerfile` |
 
 ## Known limits (honest list)
 - Rate-limit key uses the direct client IP; behind a proxy configure trusted `X-Forwarded-For` handling (Phase 7/10).
 - HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).
 - No email verification or password reset yet.
-- Generated-code sandboxing is Phase 3 and is **not** covered here.
+- Generated code is **written but never executed** in Phase 2. Sandboxed execution (Docker hardening, dependency controls) is Phase 3 and is not covered here.
+- Prompt-injection defences reduce, but do not eliminate, the chance a real model is misled; the hard guarantees are the schema/workspace refusals and the absence of any shell or network capability in agents.

@@ -126,6 +126,7 @@ class AgentRun(Base):
     tokens_used: Mapped[int] = mapped_column(Integer, default=0)
     duration_seconds: Mapped[float] = mapped_column(Float, default=0.0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(default=_now)
     iteration: Mapped[Iteration] = relationship(back_populates="agent_runs")
 
 

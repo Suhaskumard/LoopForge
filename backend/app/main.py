@@ -4,7 +4,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, status
 from sqlalchemy import text
 
 from app.api.errors import install_error_handlers
-from app.api.v1 import auth, projects, tasks
+from app.api.v1 import agents, auth, projects, runs, tasks
 from app.database import session
 from app.middleware import RequestContextMiddleware
 from app.utils.logging import configure_logging
@@ -15,10 +15,12 @@ api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
 api_v1.include_router(projects.router)
 api_v1.include_router(tasks.router)
+api_v1.include_router(runs.router)
+api_v1.include_router(agents.router)
 
 app = FastAPI(
     title="LoopForge",
-    version="0.2.0",
+    version="0.3.0",
     description="Autonomous, feedback-driven AI software engineering platform.",
 )
 app.add_middleware(RequestContextMiddleware)

@@ -15,3 +15,5 @@ python-multipart==0.0.20
 pytest-cov==6.0.0
 hypothesis==6.122.3
 mypy==1.13.0
+openai==3.46.0
+langgraph==1.2.20

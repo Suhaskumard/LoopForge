@@ -16,6 +16,11 @@ engine = make_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def get_session_factory() -> sessionmaker[Session]:
+    """Dependency so background work can open its own sessions (overridable in tests)."""
+    return SessionLocal
+
+
 def get_db() -> Iterator[Session]:
     db = SessionLocal()
     try:

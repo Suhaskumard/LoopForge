@@ -12,7 +12,7 @@ from app.database.session import SessionLocal  # noqa: E402
 from app.services import task_service  # noqa: E402
 from app.utils.security import hash_password  # noqa: E402
 
-DEMO_EMAIL = "demo@loopforge.local"
+DEMO_EMAIL = "demo@example.com"
 DEMO_REQUIREMENT = (
     "Develop a FastAPI-based employee management system with authentication, "
     "CRUD endpoints, input validation and unit tests."
