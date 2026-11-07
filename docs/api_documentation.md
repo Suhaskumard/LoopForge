@@ -16,12 +16,19 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /tasks/{id} | Bearer | returns `ETag` |
 | POST | /tasks/{id}/status | Bearer | Phase-1 stand-in; invalid transition → 409; `If-Match` supported |
 | GET | /tasks/{id}/events | Bearer | audit trail |
-| POST | /tasks/{id}/start | Bearer | **202**; PENDING → PLANNING, then Planner→Builder run in the background. 409 unless PENDING; 412 on stale `If-Match`; 503 if the LLM provider is not configured |
+| POST | /tasks/{id}/start | Bearer | **202**; PENDING → PLANNING, then the loop (plan → build → test → review → decide → repair …) runs in the background until COMPLETED / ESCALATED / CANCELLED / FAILED. 409 unless PENDING; 412 on stale `If-Match`; 503 if the LLM provider is not configured |
 | GET | /tasks/{id}/plan | Bearer | validated plan of the latest iteration (404 until planned) |
 | GET | /tasks/{id}/requirements | Bearer | `REQ-###` records: type, priority, `impl_mapping`, verification status |
 | GET | /tasks/{id}/agent-runs | Bearer | chronological runs: agent, status (`success|failed|timeout`), tokens, duration, error |
 | GET | /tasks/{id}/files | Bearer | generated files (path, sha256) of the latest iteration |
 | GET | /tasks/{id}/files/{path} | Bearer | file content; only files recorded as artifacts; confined to the workspace |
+| POST | /tasks/{id}/cancel | Bearer | Stop a non-terminal task (→ CANCELLED); the loop notices before its next step. 409 if already finished |
+| POST | /tasks/{id}/retry | Bearer | FAILED/ESCALATED → PENDING; call `/start` afterwards for a fresh run with a new iteration budget (history is kept) |
+| POST | /tasks/{id}/resume | Bearer | **202**; continue an interrupted run from its checkpoint. 409 if nothing is resumable |
+| GET | /tasks/{id}/iterations | Bearer | versions v1..vN: status, tests, quality score, Decision Engine verdict, repair summary |
+| GET | /iterations/{id} | Bearer | one iteration: test results (with coverage), agent runs, review, Ruff/Bandit report, file hashes |
+| GET | /iterations/{id}/diff | Bearer | unified diffs against the previous iteration (all files for the first) |
+| GET | /iterations/{id}/logs | Bearer | execution logs of the iteration |
 | GET | /tasks/{id}/iterations/{n}/test-results | Bearer | `test_results` rows: totals, `details.failures[]` (nodeid, message, traceback), `timed_out` |
 | GET | /tasks/{id}/iterations/{n}/logs | Bearer | execution stdout/stderr stored as `log` artifacts, with sha256 |
 | GET | /agents | Bearer | the six agents, which are implemented, and what each may not do |

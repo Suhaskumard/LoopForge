@@ -62,3 +62,31 @@ def test_runner_rejects_non_allowlisted_commands(argv):
 def test_runner_accepts_the_real_pytest_command():
     validate_command(PYTEST_ARGV)
     validate_command(["ruff", "check", "/workspace"])
+
+
+@pytest.mark.parametrize("code", [125, 126, 127])
+def test_docker_level_failures_are_infrastructure_errors_not_test_failures(
+    monkeypatch, tmp_path, code
+):
+    import subprocess
+
+    from app.execution.sandbox import DockerSandbox, SandboxError
+
+    def fake_run(cmd, **kw):
+        return subprocess.CompletedProcess(cmd, code, b"", b"Cannot connect to the Docker daemon")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(SandboxError, match="Cannot connect"):
+        DockerSandbox().run(tmp_path, tmp_path / "out", PYTEST_ARGV, 5)
+
+
+def test_normal_pytest_exit_codes_are_results_not_errors(monkeypatch, tmp_path):
+    import subprocess
+
+    from app.execution.sandbox import DockerSandbox
+
+    monkeypatch.setattr(
+        subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, b"out", b"err")
+    )
+    result = DockerSandbox().run(tmp_path, tmp_path / "out", PYTEST_ARGV, 5)
+    assert result.exit_code == 1 and not result.timed_out

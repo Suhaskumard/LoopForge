@@ -8,3 +8,7 @@ node_modules/
 dist/
 workspaces/
 *.db
+
+.hypothesis/
+.coverage
+*.checkpoints.sqlite

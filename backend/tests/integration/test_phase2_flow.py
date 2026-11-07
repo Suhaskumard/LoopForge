@@ -66,7 +66,7 @@ def test_demo_requirement_produces_valid_plan_with_ids_and_criteria(client):
     assert {r["req_type"] for r in reqs} == {"security", "functional", "non_functional"}
     by_id = {r["req_id"]: r["impl_mapping"] for r in reqs}
     assert "app/routes.py" in by_id["REQ-002"] and by_id["REQ-007"] == ["tests/test_routes.py"]
-    assert all(r["verification_status"] == "pending" for r in reqs)  # nothing verified yet
+    assert all(r["verification_status"] == "verified" for r in reqs)  # tests + review passed
     done = _task(client, h, t["id"])
     assert done["acceptance_criteria"] == plan["acceptance_criteria"]
 
@@ -118,20 +118,28 @@ def test_status_lifecycle_audit_trail_and_agent_runs(client):
     client.llm.queue(*demo_responses())
     _start(client, h, t["id"])
     task = _task(client, h, t["id"])
-    assert task["status"] == "TESTING" and task["current_iteration"] == 1
+    assert task["status"] == "COMPLETED" and task["current_iteration"] == 1
     ev = _events(client, h, t["id"])
     assert _transitions(ev) == [
         ("PENDING", "PLANNING"),
         ("PLANNING", "GENERATING"),
         ("GENERATING", "EXECUTING"),
         ("EXECUTING", "TESTING"),
+        ("TESTING", "REVIEWING"),
+        ("REVIEWING", "COMPLETED"),
     ]
     generated = [e for e in ev if e["event_type"] == "files_generated"]
     assert generated and generated[0]["event_data"]["count"] == 10
-    assert ev[-1]["event_type"] == "tests_executed"
+    types = [e["event_type"] for e in ev]
+    assert "tests_executed" in types and types[-2:] == ["decision", "run_finished"]
 
     runs = client.get(f"/api/v1/tasks/{t['id']}/agent-runs", headers=h).json()
-    assert [r["agent_name"] for r in runs] == ["Planner", "Builder", "Verifier"]  # chronological
+    assert [r["agent_name"] for r in runs] == [
+        "Planner",
+        "Builder",
+        "Verifier",
+        "Reviewer",
+    ]  # chronological
     assert all(r["status"] == "success" for r in runs)
     llm_runs = [r for r in runs if r["agent_name"] != "Verifier"]  # Verifier uses no LLM
     assert all(r["tokens_used"] > 0 for r in llm_runs)
@@ -143,8 +151,8 @@ def test_start_is_only_allowed_from_pending(client):
     client.llm.queue(*demo_responses())
     assert _start(client, h, t["id"]).status_code == 202
     again = _start(client, h, t["id"])
-    assert again.status_code == 409 and "TESTING" in again.json()["error"]["message"]
-    assert len(client.llm.calls) == 2  # the second start never reached the LLM
+    assert again.status_code == 409 and "COMPLETED" in again.json()["error"]["message"]
+    assert len(client.llm.calls) == 3  # the second start never reached the LLM
 
 
 def test_start_honours_if_match(client):
@@ -249,7 +257,7 @@ def test_fake_provider_serves_the_demo_end_to_end(client, monkeypatch):
     monkeypatch.setattr(settings, "llm_provider", "fake")
     h, t = _setup(client)
     assert _start(client, h, t["id"]).status_code == 202
-    assert _task(client, h, t["id"])["status"] == "TESTING"
+    assert _task(client, h, t["id"])["status"] == "COMPLETED"
 
 
 # ---- files endpoint hardening -------------------------------------------------------------

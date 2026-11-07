@@ -29,7 +29,7 @@ def _results(client, h, tid):
 
 def test_passing_run_stores_real_results_and_logs(client):
     h, tid = _run(client)
-    assert _task(client, h, tid)["status"] == "TESTING"
+    assert _task(client, h, tid)["status"] == "COMPLETED"
     (res,) = _results(client, h, tid)
     assert (res["total_tests"], res["passed"], res["failed"]) == (3, 3, 0)
     logs = client.get(f"/api/v1/tasks/{tid}/iterations/1/logs", headers=h).json()
@@ -38,13 +38,15 @@ def test_passing_run_stores_real_results_and_logs(client):
     with Session(client.engine) as s:
         kinds = {a.artifact_type for a in s.scalars(select(Artifact))}
     assert kinds == {"source", "log"}
-    ev = _events(client, h, tid)
-    assert ev[-1]["event_type"] == "tests_executed" and ev[-1]["event_data"]["passed"] == 3
+    ev = [e for e in _events(client, h, tid) if e["event_type"] == "tests_executed"]
+    assert ev and ev[-1]["event_data"]["passed"] == 3
 
 
 def test_executes_only_allowlisted_command_on_the_iteration_directory(client):
     seen = {}
-    sb = FakeSandbox(hook=lambda ws, argv: seen.update(ws=ws, argv=argv))
+    sb = FakeSandbox(
+        hook=lambda ws, argv: seen.update(ws=ws, argv=argv) if argv[0] == "python" else None
+    )
     h, tid = _run(client, sb)
     assert seen["argv"][:3] == ["python", "-m", "pytest"]
     assert seen["ws"].name == "iter_1" and seen["ws"].parent.name == tid
@@ -57,7 +59,9 @@ def test_broken_code_yields_captured_failure_with_stack_trace(client):
     assert res["failed"] == 1 and res["passed"] == 1
     failure = res["details"]["failures"][0]
     assert failure["nodeid"].endswith("test_boom") and "assert 1 == 2" in failure["traceback"]
-    assert _task(client, h, tid)["status"] == "TESTING"  # failures are evidence, not crashes
+    # Failures are evidence, not crashes. Phase 4 then tries a repair; none is queued here, so the
+    # Repair agent fails and the task ends FAILED (the repair loop itself is in test_phase4_loop).
+    assert _task(client, h, tid)["status"] == "FAILED"
 
 
 def test_runaway_process_reported_as_timeout(client):

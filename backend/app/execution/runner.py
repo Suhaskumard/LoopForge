@@ -24,8 +24,11 @@ _ALLOWED: dict[tuple[str, ...], set[str]] = {
         "--json-report-file",
         "--rootdir",
         "--no-header",
-    },  # fmt: skip
+        "--cov",
+        "--cov-report",
+    },
     ("ruff", "check"): {"--output-format", "--no-cache"},
+    ("bandit",): {"-r", "-f", "-q", "-x"},
 }
 _ALLOWED_P_VALUES = {"no:cacheprovider"}
 _ROOTS = (CONTAINER_WORKSPACE, CONTAINER_OUT)

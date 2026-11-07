@@ -25,6 +25,7 @@ def _record(db: Session, ctx: AgentContext, summary: TestSummary, extra: dict[st
             passed=summary.passed,
             failed=summary.failed,
             skipped=summary.skipped,
+            coverage=summary.coverage,
             details={**summary.as_dict(), **extra},
         )
     )

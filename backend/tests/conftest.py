@@ -11,6 +11,7 @@ from app.database.models import Base
 from app.database.session import get_db, get_session_factory, make_engine
 from app.execution.fake_sandbox import FakeSandbox
 from app.main import app
+from app.orchestrator.checkpoint import close_checkpointers
 from app.services.llm_client import FakeLLMClient
 
 # Set TEST_DATABASE_URL (e.g. postgresql+psycopg://...) to run the whole suite on Postgres.
@@ -68,6 +69,7 @@ def client(db_path):
     c.engine = engine
     yield c
     app.dependency_overrides.clear()
+    close_checkpointers()
     engine.dispose()
 
 

@@ -16,6 +16,7 @@ os.environ.update(
         "DATABASE_URL": f"sqlite:///{work / 'demo.db'}",
         "WORKSPACE_ROOT": str(work / "workspaces"),
         "LLM_PROVIDER": "fake",
+        "SANDBOX_BACKEND": "fake",
         "ENVIRONMENT": "development",
     }
 )
@@ -92,7 +93,7 @@ for a in runs:
     print(f"   {a['agent_name']:<8} {a['status']:<8} tokens={a['tokens_used']:<6} {a['duration_seconds']:.3f}s")
 ok("token usage recorded in agent_runs", all(a["tokens_used"] > 0 for a in runs if a["agent_name"] != "Verifier"))
 status = client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"]
-ok(f"task advanced to TESTING by the Phase 3 executor (is {status})", status == "TESTING")
+ok(f"task driven on by the Phase 3/4 loop to COMPLETED (is {status})", status == "COMPLETED")
 
 print("\n=== 4. Malformed LLM output is rejected and logged, never silently accepted ===")
 bad = FakeLLMClient().queue("this is not JSON", {"project_name": "Bad Name!"})

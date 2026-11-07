@@ -9,15 +9,18 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.evaluation.classifier import extract_error_type
 from app.execution.runner import run_command
 from app.execution.sandbox import ExecResult, Sandbox
 
 REPORT_NAME = "report.json"
+COVERAGE_NAME = "coverage.json"
 PYTEST_ARGV = [
     "python", "-m", "pytest", "-q", "--tb=short",
     "-p", "no:cacheprovider",
     "--json-report", "--json-report-file=/out/report.json",
     "--rootdir=/workspace",
+    "--cov=/workspace", "--cov-report=json:/out/coverage.json",
 ]  # fmt: skip
 MAX_TRACE_CHARS = 6000
 
@@ -28,6 +31,11 @@ class TestFailure:
     nodeid: str
     message: str
     traceback: str
+    error_type: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.error_type:
+            self.error_type = extract_error_type(self.message, self.traceback)
 
 
 @dataclass
@@ -40,6 +48,7 @@ class TestSummary:
     exit_code: int = 0
     timed_out: bool = False
     report_found: bool = False
+    coverage: float | None = None
     duration_seconds: float = 0.0
     failures: list[TestFailure] = field(default_factory=list)
 
@@ -116,6 +125,18 @@ def run_tests(
 ) -> tuple[TestSummary, ExecResult]:
     report = out_dir / REPORT_NAME
     report.unlink(missing_ok=True)
+    (out_dir / COVERAGE_NAME).unlink(missing_ok=True)
     result = run_command(sandbox, workspace, out_dir, PYTEST_ARGV, timeout)
     raw = report.read_text(encoding="utf-8", errors="replace") if report.is_file() else ""
-    return parse_report(raw, result, timeout), result
+    summary = parse_report(raw, result, timeout)
+    summary.coverage = parse_coverage(out_dir / COVERAGE_NAME)
+    return summary, result
+
+
+def parse_coverage(path: Path) -> float | None:
+    """Total line coverage percent from coverage.py's JSON report, or None if unavailable."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return round(float(data["totals"]["percent_covered"]), 2)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None

@@ -42,3 +42,13 @@ def test_cannot_skip_stages():
 
 def test_every_status_has_a_rule():
     assert set(ALLOWED_TRANSITIONS) == set(TaskStatus)
+
+
+def test_halted_tasks_can_be_retried_but_finished_ones_cannot():
+    from app.services.task_service import RETRYABLE_STATES
+
+    assert RETRYABLE_STATES == {TaskStatus.FAILED, TaskStatus.ESCALATED}
+    for s in RETRYABLE_STATES:
+        assert ALLOWED_TRANSITIONS[s] == {TaskStatus.PENDING}
+    assert not (RETRYABLE_STATES & TERMINAL_STATES)
+    assert TERMINAL_STATES == {TaskStatus.COMPLETED, TaskStatus.CANCELLED}

@@ -23,6 +23,9 @@ SANDBOX_UID = 10001
 CONTAINER_WORKSPACE = "/workspace"
 CONTAINER_OUT = "/out"
 _TRUNCATED = "\n[output truncated]"
+# `docker run` exit codes meaning docker itself failed (125) or the command could not be
+# started inside the container (126 not executable, 127 not found).
+DOCKER_FAILURE_CODES = {125, 126, 127}
 
 
 class SandboxError(Exception):
@@ -70,6 +73,7 @@ def build_run_args(name: str, workspace: Path, out_dir: Path, argv: list[str]) -
         "--label", "loopforge.sandbox=1",
         "--env", "HOME=/tmp",
         "--env", "PYTHONDONTWRITEBYTECODE=1",
+        "--env", "COVERAGE_FILE=/tmp/.coverage",
         "--mount", f"type=bind,source={workspace},target={CONTAINER_WORKSPACE},readonly",
         "--mount", f"type=bind,source={out_dir},target={CONTAINER_OUT}",
         "--workdir", CONTAINER_WORKSPACE,
@@ -101,6 +105,11 @@ class DockerSandbox:
             raise SandboxError("docker CLI not found") from None
         finally:
             self._remove(name)  # explicit cleanup, always
+        if code in DOCKER_FAILURE_CODES and not timed_out:
+            # The container never ran the command (daemon down, image missing, bad command). That
+            # is an infrastructure failure, not a failing test: the loop must not "repair" code.
+            detail = _text(stderr).strip()[:300] or f"exit {code}"
+            raise SandboxError(f"docker could not run the sandbox: {detail}")
         limit = settings.sandbox_max_output_bytes
         return ExecResult(
             stdout=truncate(_text(stdout), limit),

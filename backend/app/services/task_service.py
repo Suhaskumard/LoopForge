@@ -21,12 +21,9 @@ class TaskStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-TERMINAL_STATES = {
-    TaskStatus.COMPLETED,
-    TaskStatus.FAILED,
-    TaskStatus.ESCALATED,
-    TaskStatus.CANCELLED,
-}
+TERMINAL_STATES = {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
+# Halted by the system (not by the user, not successful): a user may retry them (Phase 4).
+RETRYABLE_STATES = {TaskStatus.FAILED, TaskStatus.ESCALATED}
 
 _ABORTS = {TaskStatus.FAILED, TaskStatus.ESCALATED, TaskStatus.CANCELLED}
 
@@ -41,8 +38,8 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.REVIEWING: {TaskStatus.REPAIRING, TaskStatus.COMPLETED} | _ABORTS,
     TaskStatus.REPAIRING: {TaskStatus.EXECUTING} | _ABORTS,
     TaskStatus.COMPLETED: set(),
-    TaskStatus.FAILED: set(),
-    TaskStatus.ESCALATED: set(),
+    TaskStatus.FAILED: {TaskStatus.PENDING},
+    TaskStatus.ESCALATED: {TaskStatus.PENDING},
     TaskStatus.CANCELLED: set(),
 }
 

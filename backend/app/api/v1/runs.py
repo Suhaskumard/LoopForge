@@ -23,7 +23,11 @@ from app.execution.sandbox import Sandbox
 from app.schemas.run import (
     AgentRunOut,
     FileContentOut,
+    FileDiffOut,
     FileOut,
+    IterationDetailOut,
+    IterationDiffOut,
+    IterationOut,
     LogOut,
     PlanOut,
     RequirementOut,
@@ -35,6 +39,7 @@ from app.services.llm_client import LLMClient
 from app.services.workspace import WorkspaceError
 
 router = APIRouter(prefix="/tasks", tags=["runs"])
+iterations_router = APIRouter(prefix="/iterations", tags=["iterations"])
 
 
 def _task(db: Session, user: User, task_id: uuid.UUID) -> Task:
@@ -207,3 +212,150 @@ def logs(
             continue
         out.append(LogOut(name=a.file_name, sha256=a.file_hash, content=content))
     return out
+
+
+# ---- Phase 4: control + iteration history ------------------------------------------------
+
+
+def _iteration_out(it: Iteration) -> IterationOut:
+    fb = it.feedback
+    return IterationOut(
+        id=it.id,
+        task_id=it.task_id,
+        number=it.iteration_number,
+        status=it.status,
+        quality_score=it.quality_score,
+        started_at=it.started_at,
+        completed_at=it.completed_at,
+        tests=fb.get("tests", {}),
+        decision=fb.get("decision"),
+        repair=fb.get("repair"),
+    )
+
+
+@router.post("/{task_id}/cancel", response_model=TaskOut)
+def cancel(
+    task_id: uuid.UUID,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Task:
+    """Stop a running task. The loop notices before its next step; an in-flight sandbox run is
+    bounded by its timeout."""
+    task = task_service.get_owned_task_for_update(db, user.id, task_id)
+    if task is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    try:
+        task = task_service.transition(db, task, task_service.TaskStatus.CANCELLED)
+    except task_service.InvalidTransition as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    set_etag(response, task.version)
+    return task
+
+
+@router.post("/{task_id}/retry", response_model=TaskOut)
+def retry(
+    task_id: uuid.UUID,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Task:
+    """FAILED/ESCALATED -> PENDING. Call /start afterwards for a fresh run with a new budget."""
+    task = task_service.get_owned_task_for_update(db, user.id, task_id)
+    if task is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    try:
+        task = run_service.prepare_retry(db, task)
+    except run_service.NotStartable as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    set_etag(response, task.version)
+    return task
+
+
+@router.post("/{task_id}/resume", response_model=TaskOut, status_code=status.HTTP_202_ACCEPTED)
+def resume(
+    task_id: uuid.UUID,
+    background: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(get_llm),
+    sandbox: Sandbox = Depends(get_sandbox),
+    factory: sessionmaker[Session] = Depends(get_session_factory),
+) -> Task:
+    """Continue a run that was interrupted (e.g. the server restarted) from its checkpoint."""
+    task = _task(db, user, task_id)
+    if task.id not in run_service.interrupted_task_ids(db):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"task is {task.status}; nothing to resume")
+    background.add_task(run_service.resume_run, factory, task.id, llm, sandbox)
+    return task
+
+
+@router.get("/{task_id}/iterations", response_model=list[IterationOut])
+def list_iterations(
+    task_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[IterationOut]:
+    task = _task(db, user, task_id)
+    rows = db.scalars(
+        select(Iteration).where(Iteration.task_id == task.id).order_by(Iteration.iteration_number)
+    )
+    return [_iteration_out(it) for it in rows]
+
+
+def _owned_iteration(db: Session, user: User, iteration_id: uuid.UUID) -> tuple[Task, Iteration]:
+    it = db.get(Iteration, iteration_id)
+    task = task_service.get_owned_task(db, user.id, it.task_id) if it else None
+    if it is None or task is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Iteration not found")
+    return task, it
+
+
+@iterations_router.get("/{iteration_id}", response_model=IterationDetailOut)
+def iteration_detail(
+    iteration_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> IterationDetailOut:
+    _, it = _owned_iteration(db, user, iteration_id)
+    files = [
+        FileOut(
+            path=a.file_name,
+            sha256=a.file_hash,
+            iteration=it.iteration_number,
+            created_at=a.created_at,
+        )
+        for a in _source_artifacts(db, it)
+    ]
+    results = sorted(it.test_results, key=lambda r: r.created_at)
+    runs = sorted(it.agent_runs, key=lambda r: r.started_at)
+    return IterationDetailOut(
+        **_iteration_out(it).model_dump(),
+        test_results=[TestResultOut.model_validate(r) for r in results],
+        agent_runs=[AgentRunOut.model_validate(r) for r in runs],
+        review=it.feedback.get("review"),
+        quality=it.feedback.get("quality"),
+        files=files,
+    )
+
+
+@iterations_router.get("/{iteration_id}/diff", response_model=IterationDiffOut)
+def iteration_diff(
+    iteration_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> IterationDiffOut:
+    """Code changes this iteration made relative to the previous one (all files for the first)."""
+    task, it = _owned_iteration(db, user, iteration_id)
+    previous = db.scalars(
+        select(Iteration)
+        .where(Iteration.task_id == task.id, Iteration.iteration_number < it.iteration_number)
+        .order_by(Iteration.iteration_number.desc())
+    ).first()
+    against = previous.iteration_number if previous else None
+    diffs = workspace.diff_iterations(task.id, against, it.iteration_number)
+    return IterationDiffOut(
+        iteration=it.iteration_number, against=against, files=[FileDiffOut(**d) for d in diffs]
+    )
+
+
+@iterations_router.get("/{iteration_id}/logs", response_model=list[LogOut])
+def iteration_logs(
+    iteration_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[LogOut]:
+    task, it = _owned_iteration(db, user, iteration_id)
+    return logs(task.id, it.iteration_number, user, db)

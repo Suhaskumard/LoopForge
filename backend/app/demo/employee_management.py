@@ -6,6 +6,12 @@ project is real, working code so later phases can execute and test it.
 
 from typing import Any
 
+from app.schemas.loop import (
+    CriterionAssessment,
+    RepairOutput,
+    RequirementCoverage,
+    ReviewOutput,
+)
 from app.schemas.plan import BuilderOutput, FileChange, ProjectPlan
 
 DEMO_REQUIREMENT = (
@@ -362,6 +368,75 @@ def demo_plan() -> ProjectPlan:
     return ProjectPlan.model_validate(PLAN)
 
 
-def demo_responses() -> list[ProjectPlan | BuilderOutput]:
-    """Planner output followed by Builder output, in call order."""
-    return [demo_plan(), builder_output()]
+def demo_responses() -> list[ProjectPlan | BuilderOutput | ReviewOutput]:
+    """Planner, Builder and Reviewer outputs for a first-time-green run, in call order."""
+    return [demo_plan(), builder_output(), review_output()]
+
+
+# ---- Phase 4: feedback-loop fixtures (defect injection, repair, review) -----------------------
+
+_DEFECT = "employee = get_one(employee_id + 1)  # injected defect: wrong identifier"
+_FIXED = "employee = get_one(employee_id)"
+
+
+def defective_builder_output() -> BuilderOutput:
+    """The demo project with an injected defect: update looks up the wrong employee id."""
+    assert _FIXED in _ROUTES
+    files = [
+        FileChange(path=f.path, content=f.content.replace(_FIXED, _DEFECT))
+        if f.path == "app/routes.py"
+        else f
+        for f in builder_output().files
+    ]
+    return BuilderOutput(files=files)
+
+
+def repair_output() -> RepairOutput:
+    return RepairOutput(
+        root_cause="The update route looks up employee_id + 1, so it returns 404 for real ids.",
+        explanation="Use the requested employee_id for the lookup.",
+        changes=[FileChange(path="app/routes.py", content=_ROUTES, action="modify")],
+    )
+
+
+def review_output(*, met: bool = True) -> ReviewOutput:
+    return ReviewOutput(
+        critical_issues=[],
+        acceptance_criteria=[
+            CriterionAssessment(criterion=c, met=met, evidence="covered by tests/test_routes.py")
+            for c in PLAN["acceptance_criteria"]
+        ],
+        requirement_coverage=[
+            RequirementCoverage(req_id=r["req_id"], covered=met) for r in PLAN["requirements"]
+        ],
+        maintainability_notes=[],
+        quality_score=0.9,
+    )
+
+
+def failing_update_report() -> dict[str, Any]:
+    """What pytest reports for the injected defect (used by scripted sandboxes)."""
+    trace = (
+        "tests/test_routes.py:58: in test_update_and_delete\n"
+        "    assert updated.status_code == 200\n"
+        "E   assert 404 == 200\n"
+        "E    +  where 404 = <Response [404 Not Found]>.status_code\n"
+    )
+    return {
+        "summary": {"passed": 4, "failed": 1, "total": 5, "collected": 5},
+        "tests": [
+            {"nodeid": "tests/test_routes.py::test_create_and_read", "outcome": "passed"},
+            {
+                "nodeid": "tests/test_routes.py::test_update_and_delete",
+                "outcome": "failed",
+                "call": {"longrepr": trace, "crash": {"message": "assert 404 == 200"}},
+            },
+        ],
+    }
+
+
+def passing_report_for_demo() -> dict[str, Any]:
+    return {
+        "summary": {"passed": 5, "total": 5, "collected": 5},
+        "tests": [{"nodeid": "tests/test_routes.py::test_ok", "outcome": "passed"}],
+    }

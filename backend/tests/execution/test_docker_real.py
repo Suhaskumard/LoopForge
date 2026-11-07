@@ -92,3 +92,21 @@ def test_isolation_controls_hold_inside_the_container(tmp_path):
     )
     summary, _ = run_tests(DockerSandbox(), src, out, 60)
     assert summary.ok and summary.passed == 6, summary.failures
+
+
+def test_quality_tools_and_coverage_run_in_the_real_image(tmp_path):
+    from app.evaluation.quality import run_quality
+
+    src, out = _project(
+        tmp_path,
+        {"test_ok.py": "def test_ok():\n    assert True\n"},
+    )
+    (src / "app.py").write_text(
+        "import subprocess\n\n\ndef run(cmd: str) -> None:\n    subprocess.call(cmd, shell=True)\n",
+        encoding="utf-8",
+    )
+    summary, _ = run_tests(DockerSandbox(), src, out, 60)
+    assert summary.ok and summary.coverage is not None
+    report = run_quality(DockerSandbox(), src, out, 60)
+    assert not report.tool_errors
+    assert any(h["test_id"] == "B602" for h in report.bandit_high)  # shell=True flagged

@@ -148,3 +148,93 @@ def write_log(
     db.add(artifact)
     db.commit()
     return artifact
+
+
+def list_source_files(base: Path) -> list[str]:
+    """Relative POSIX paths of every regular file under `base` (symlinks/temp files skipped)."""
+    out: list[str] = []
+    for p in sorted(base.rglob("*")):
+        if p.is_file() and not _is_link(p) and not p.name.startswith(".tmp-"):
+            out.append(p.relative_to(base).as_posix())
+    return out
+
+
+def fork_iteration(
+    db: Session,
+    *,
+    task_id: uuid.UUID,
+    from_number: int,
+    to_iteration_id: uuid.UUID,
+    to_number: int,
+    changes: list[FileChange],
+) -> list[WrittenFile]:
+    """Create iteration N+1 as a copy of N with `changes` applied (idempotent, spec §5.5).
+
+    Every file of the new version is registered as a `source` artifact with its sha256, so each
+    iteration is a complete, independently inspectable snapshot.
+    """
+    src = iteration_dir(task_id, from_number)
+    dest = iteration_dir(task_id, to_number)
+    dest.mkdir(parents=True, exist_ok=True)
+    # Validate everything before touching the destination.
+    existing = list_source_files(src)
+    for rel in existing:
+        resolve_safe(src, rel)
+    targets = [(c, resolve_safe(dest, c.path)) for c in changes]
+    for rel in existing:
+        _atomic_write(resolve_safe(dest, rel), (src / rel).read_text(encoding="utf-8"))
+    for change, target in targets:
+        _atomic_write(target, change.content)
+
+    for old in db.query(Artifact).filter_by(iteration_id=to_iteration_id, artifact_type="source"):
+        db.delete(old)
+    db.flush()
+    written: list[WrittenFile] = []
+    for rel in list_source_files(dest):
+        text = (dest / rel).read_text(encoding="utf-8")
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        artifact = Artifact(
+            iteration_id=to_iteration_id,
+            artifact_type="source",
+            file_name=rel,
+            storage_path=str(dest / rel),
+            file_hash=digest,
+        )
+        db.add(artifact)
+        db.flush()
+        written.append(WrittenFile(rel, digest, len(text.encode("utf-8")), artifact.id))
+    db.commit()
+    return written
+
+
+def diff_iterations(
+    task_id: uuid.UUID, old_number: int | None, new_number: int
+) -> list[dict[str, str]]:
+    """Unified diffs of every file that differs between two iterations."""
+    import difflib
+
+    new_base = iteration_dir(task_id, new_number)
+    old_base = iteration_dir(task_id, old_number) if old_number is not None else None
+    old_files = set(list_source_files(old_base)) if old_base and old_base.is_dir() else set()
+    new_files = set(list_source_files(new_base)) if new_base.is_dir() else set()
+    out: list[dict[str, str]] = []
+    for rel in sorted(old_files | new_files):
+        before = (
+            (old_base / rel).read_text(encoding="utf-8") if old_base and rel in old_files else ""
+        )
+        after = (new_base / rel).read_text(encoding="utf-8") if rel in new_files else ""
+        if before == after and rel in old_files and rel in new_files:
+            continue
+        status = (
+            "added" if rel not in old_files else "removed" if rel not in new_files else "modified"
+        )
+        diff = "".join(
+            difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile=f"iter_{old_number}/{rel}" if old_number is not None else "/dev/null",
+                tofile=f"iter_{new_number}/{rel}",
+            )
+        )
+        out.append({"path": rel, "status": status, "diff": diff})
+    return out

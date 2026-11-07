@@ -19,6 +19,7 @@ os.environ.update(
         "DATABASE_URL": f"sqlite:///{work / 'demo.db'}",
         "WORKSPACE_ROOT": str(work / "workspaces"),
         "LLM_PROVIDER": "fake",
+        "SANDBOX_BACKEND": "fake",
         "ENVIRONMENT": "development",
     }
 )
@@ -70,7 +71,7 @@ logs = client.get(f"/api/v1/tasks/{tid}/iterations/1/logs", headers=h).json()
 print(f"   tests: {res['passed']} passed / {res['failed']} failed; logs: {[x['name'] for x in logs]}")
 ok("test_results row stored", res["total_tests"] == 3)
 ok("execution logs stored as artifacts", len(logs) == 2)
-ok("task is TESTING", client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"] == "TESTING")
+ok("task COMPLETED (green first run)", client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"] == "COMPLETED")
 
 print("\n=== A2. Deliberately broken code -> captured failure with stack trace ===")
 tid = run_task(FakeSandbox(failing_report()))

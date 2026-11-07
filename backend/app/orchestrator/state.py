@@ -26,3 +26,9 @@ class LoopForgeState(TypedDict):
     final_report: dict[str, Any] | None
     error: str | None
     escalate: bool
+    # Phase 4 additions (deterministic loop control)
+    iteration_in_run: int  # 1-based count of iterations in THIS run; max_iterations is per run
+    best_test_count: int  # largest suite seen; the suite may never shrink (anti-cheating guard)
+    decision: str | None
+    quality: dict[str, Any]  # ruff/bandit report of the current iteration
+    failure_report: dict[str, Any]

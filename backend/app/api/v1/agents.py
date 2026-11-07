@@ -32,14 +32,14 @@ AGENTS = [
     AgentInfo(
         name="Repair",
         role="Debugging and correction",
-        implemented=False,
+        implemented=True,
         phase=4,
         may_not="Mark its own fix as successful",
     ),
     AgentInfo(
         name="Reviewer",
         role="Code review and quality",
-        implemented=False,
+        implemented=True,
         phase=4,
         may_not="Rely only on LLM scores",
     ),

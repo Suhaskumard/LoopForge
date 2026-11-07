@@ -33,6 +33,19 @@ def failing_report() -> dict[str, Any]:
     }
 
 
+RUFF_CLEAN = "[]"
+BANDIT_CLEAN = json.dumps({"results": [], "errors": []})
+
+
+def _tool_result(argv: list[str]) -> ExecResult | None:
+    """Canned clean output for the quality tools (ruff / bandit)."""
+    if argv[0] == "ruff":
+        return ExecResult(RUFF_CLEAN, "", 0, False, 0.01)
+    if argv[0] == "bandit":
+        return ExecResult(BANDIT_CLEAN, "", 0, False, 0.01)
+    return None
+
+
 class FakeSandbox:
     def __init__(
         self,
@@ -55,6 +68,9 @@ class FakeSandbox:
         self.calls.append(argv)
         if self.hook:
             self.hook(workspace, argv)
+        tool = _tool_result(argv)
+        if tool is not None:
+            return tool
         out_dir.mkdir(parents=True, exist_ok=True)
         if self.report is not None:
             (out_dir / "report.json").write_text(json.dumps(self.report), encoding="utf-8")
@@ -63,3 +79,47 @@ class FakeSandbox:
         if self.timed_out:
             code = 124
         return ExecResult(self.stdout, self.stderr, code, self.timed_out, 0.01)
+
+
+class ScriptedSandbox:
+    """Plays a sequence of pytest reports, one per test run (for deterministic loop tests).
+
+    Items: a report dict, or an Exception instance/class to raise on that run (interruption).
+    Quality tools return clean output. The last item repeats once the script is exhausted.
+    """
+
+    def __init__(
+        self,
+        script: list[Any],
+        *,
+        stdout: str = "scripted run\n",
+        tool_outputs: dict[str, ExecResult] | None = None,
+    ) -> None:
+        self.script = list(script)
+        self.stdout = stdout
+        self.tool_outputs = tool_outputs or {}
+        self.pytest_runs = 0
+        self.calls: list[list[str]] = []
+        self.workspaces: list[Path] = []
+
+    def run(self, workspace: Path, out_dir: Path, argv: list[str], timeout: int) -> ExecResult:
+        self.calls.append(argv)
+        if argv[0] in self.tool_outputs:
+            return self.tool_outputs[argv[0]]
+        tool = _tool_result(argv)
+        if tool is not None:
+            return tool
+        self.workspaces.append(workspace)
+        item = self.script[min(self.pytest_runs, len(self.script) - 1)]
+        self.pytest_runs += 1
+        if isinstance(item, BaseException) or (
+            isinstance(item, type) and issubclass(item, BaseException)
+        ):
+            raise item
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "report.json").write_text(json.dumps(item), encoding="utf-8")
+        (out_dir / "coverage.json").write_text(
+            json.dumps({"totals": {"percent_covered": 91.5}}), encoding="utf-8"
+        )
+        failed = bool(item["summary"].get("failed"))
+        return ExecResult(self.stdout, "", 1 if failed else 0, False, 0.01)

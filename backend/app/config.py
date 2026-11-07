@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     max_iterations: int = 5
     max_execution_seconds: int = 120
     max_task_duration_seconds: int = 900
+    max_attempts_per_failure: int = 2
+    resume_on_startup: bool = False
     max_token_budget: int = 30000
     llm_provider: Literal["openai", "fake"] = "openai"
     llm_max_retries: int = 3
