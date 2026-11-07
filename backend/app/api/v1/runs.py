@@ -7,11 +7,28 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.dependencies import get_current_user, get_llm
+from app.api.dependencies import get_current_user, get_llm, get_sandbox
 from app.api.etag import check_if_match, set_etag
-from app.database.models import AgentRun, Artifact, Iteration, Requirement, Task, User
+from app.database.models import (
+    AgentRun,
+    Artifact,
+    Iteration,
+    Requirement,
+    Task,
+    TestResult,
+    User,
+)
 from app.database.session import get_db, get_session_factory
-from app.schemas.run import AgentRunOut, FileContentOut, FileOut, PlanOut, RequirementOut
+from app.execution.sandbox import Sandbox
+from app.schemas.run import (
+    AgentRunOut,
+    FileContentOut,
+    FileOut,
+    LogOut,
+    PlanOut,
+    RequirementOut,
+    TestResultOut,
+)
 from app.schemas.task import TaskOut
 from app.services import run_service, task_service, workspace
 from app.services.llm_client import LLMClient
@@ -44,6 +61,7 @@ def start(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(get_llm),
+    sandbox: Sandbox = Depends(get_sandbox),
     factory: sessionmaker[Session] = Depends(get_session_factory),
 ) -> Task:
     task = task_service.get_owned_task_for_update(db, user.id, task_id)
@@ -54,7 +72,7 @@ def start(
         task = run_service.prepare_start(db, task)
     except run_service.NotStartable as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
-    background.add_task(run_service.execute_run, factory, task.id, llm)
+    background.add_task(run_service.execute_run, factory, task.id, llm, sandbox)
     set_etag(response, task.version)
     return task
 
@@ -145,3 +163,47 @@ def read_file(
     except WorkspaceError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found") from None
     return FileContentOut(path=file_path, sha256=known[file_path].file_hash, content=content)
+
+
+def _iteration(db: Session, task: Task, number: int) -> Iteration:
+    it = db.scalars(
+        select(Iteration).where(Iteration.task_id == task.id, Iteration.iteration_number == number)
+    ).first()
+    if it is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Iteration not found")
+    return it
+
+
+@router.get("/{task_id}/iterations/{number}/test-results", response_model=list[TestResultOut])
+def test_results(
+    task_id: uuid.UUID,
+    number: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[TestResult]:
+    it = _iteration(db, _task(db, user, task_id), number)
+    return sorted(it.test_results, key=lambda r: r.created_at)
+
+
+@router.get("/{task_id}/iterations/{number}/logs", response_model=list[LogOut])
+def logs(
+    task_id: uuid.UUID,
+    number: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[LogOut]:
+    """Execution logs stored as artifacts (spec 3.6), with content, owner-scoped."""
+    task = _task(db, user, task_id)
+    it = _iteration(db, task, number)
+    base = workspace.log_dir(task.id, number)
+    rows = db.scalars(
+        select(Artifact).where(Artifact.iteration_id == it.id, Artifact.artifact_type == "log")
+    )
+    out: list[LogOut] = []
+    for a in sorted(rows, key=lambda a: a.file_name):
+        try:
+            content = workspace.read_file(base, a.file_name)
+        except WorkspaceError:
+            continue
+        out.append(LogOut(name=a.file_name, sha256=a.file_hash, content=content))
+    return out

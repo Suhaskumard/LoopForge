@@ -82,16 +82,17 @@ for f in files:
 ok("every planned file was written", {f["path"] for f in files} == {f["path"] for f in plan["files"]})
 ok(
     "all files live under <workspace>/<task>/iter_1/ and nowhere else",
-    all(p.startswith(f"{tid}/iter_1/") for p in on_disk) and len(on_disk) == len(files),
+    all(p.startswith(f"{tid}/") for p in on_disk)  # Phase 3 adds logs/ and out/ beside iter_1/
+    and len([p for p in on_disk if p.startswith(f"{tid}/iter_1/")]) == len(files),
 )
 
 print("\n=== 3. Agent runs, tokens, lifecycle ===")
 runs = client.get(f"/api/v1/tasks/{tid}/agent-runs", headers=h).json()
 for a in runs:
     print(f"   {a['agent_name']:<8} {a['status']:<8} tokens={a['tokens_used']:<6} {a['duration_seconds']:.3f}s")
-ok("token usage recorded in agent_runs", all(a["tokens_used"] > 0 for a in runs))
+ok("token usage recorded in agent_runs", all(a["tokens_used"] > 0 for a in runs if a["agent_name"] != "Verifier"))
 status = client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"]
-ok(f"task left in GENERATING for Phase 3 (is {status})", status == "GENERATING")
+ok(f"task advanced to TESTING by the Phase 3 executor (is {status})", status == "TESTING")
 
 print("\n=== 4. Malformed LLM output is rejected and logged, never silently accepted ===")
 bad = FakeLLMClient().queue("this is not JSON", {"project_name": "Bad Name!"})

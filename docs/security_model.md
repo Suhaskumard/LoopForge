@@ -18,11 +18,16 @@
 | Malformed / hostile model output | Strict Pydantic (`extra=forbid`), logged as `agent_output_rejected`, one bounded corrective retry, then FAIL; nothing partially persisted | `test_two_malformed_outputs_fail_and_persist_nothing` |
 | Runaway cost | Backend-enforced token budget after every call â†’ ESCALATED; transport retries capped with capped backoff | `utils/token_tracker.py`, `test_token_budget_*` |
 | Unsafe dependencies in plans | Dependency specifiers must be `name[==version]`; URLs/VCS/shell metacharacters rejected | `ProjectPlan._deps` |
+| Generated code running on the API host | It never does: execution goes through the `Sandbox` interface; `SANDBOX_BACKEND=fake` is refused in production | `execution/sandbox.py`, `config.py` |
+| Sandbox escape / resource abuse (§13.1, Addendum §19.1) | Per container: non-root UID 10001, `--read-only` root + noexec `/tmp` tmpfs, `--network none`, `--cap-drop ALL`, `no-new-privileges`, default seccomp, memory/CPU/PID/nofile limits, source mounted read-only, separate `/out` for reports, no Docker socket or host mounts, wall-clock timeout with `docker kill`, `docker rm -f` in `finally` | `build_run_args`, `test_sandbox_controls.py`, `test_docker_real.py` |
+| Arbitrary commands in the sandbox | Command allowlist (pytest / ruff only); flags, `-p` plugins and paths validated; no shell | `execution/runner.py` |
+| Uncontrolled package installation (Addendum §19.2) | No network and no pip in the image; dependencies baked from `sandbox/approved_packages.txt`; `requirements.txt` must be approved and pinned to that version or the run is blocked and recorded | `execution/dependencies.py`, `test_verifier.py` |
+| Fabricated test evidence | Verifier has no LLM; results come only from parsed pytest output; a missing report or timeout is recorded as a failure | `agents/verifier.py`, `evaluation/test_runner.py` |
 | Container compromise blast radius | Multi-stage image, non-root UID 10001, HEALTHCHECK | `backend/Dockerfile` |
 
 ## Known limits (honest list)
 - Rate-limit key uses the direct client IP; behind a proxy configure trusted `X-Forwarded-For` handling (Phase 7/10).
 - HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).
 - No email verification or password reset yet.
-- Generated code is **written but never executed** in Phase 2. Sandboxed execution (Docker hardening, dependency controls) is Phase 3 and is not covered here.
+- Phase 3 executes generated code only inside the sandbox. Ordinary Docker containers are **not** an absolute security boundary against hostile code; evaluate gVisor/Firecracker and rootless Docker for stronger isolation (spec §13.1). No custom seccomp/AppArmor profile ships yet (Docker defaults apply). Dependency vulnerability scanning and hash-verified retrieval (Addendum §19.2 items 4-6) are not implemented; the approved-package list is the only control.
 - Prompt-injection defences reduce, but do not eliminate, the chance a real model is misled; the hard guarantees are the schema/workspace refusals and the absence of any shell or network capability in agents.

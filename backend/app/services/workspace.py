@@ -113,3 +113,38 @@ def read_file(base: Path, rel: str, max_bytes: int = 500_000) -> str:
     if target.stat().st_size > max_bytes:
         raise WorkspaceError("file too large to display")
     return target.read_text(encoding="utf-8")
+
+
+def log_dir(task_id: uuid.UUID, iteration_number: int) -> Path:
+    return workspace_root() / str(task_id) / "logs" / f"iter_{iteration_number}"
+
+
+def out_dir(task_id: uuid.UUID, iteration_number: int) -> Path:
+    """Writable scratch directory mounted into the sandbox (reports); never holds source."""
+    return workspace_root() / str(task_id) / "out" / f"iter_{iteration_number}"
+
+
+def write_log(
+    db: Session,
+    *,
+    task_id: uuid.UUID,
+    iteration_id: uuid.UUID,
+    iteration_number: int,
+    name: str,
+    content: str,
+) -> Artifact:
+    """Store execution output as a `log` artifact (spec 3.6)."""
+    base = log_dir(task_id, iteration_number)
+    base.mkdir(parents=True, exist_ok=True)
+    target = resolve_safe(base, name)
+    _atomic_write(target, content)
+    artifact = Artifact(
+        iteration_id=iteration_id,
+        artifact_type="log",
+        file_name=name,
+        storage_path=str(target),
+        file_hash=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    )
+    db.add(artifact)
+    db.commit()
+    return artifact

@@ -25,7 +25,7 @@ AGENTS = [
     AgentInfo(
         name="Verifier",
         role="Testing",
-        implemented=False,
+        implemented=True,
         phase=3,
         may_not="Infer success without execution",
     ),

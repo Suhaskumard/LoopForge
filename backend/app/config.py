@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     llm_backoff_max_seconds: float = 20.0
     llm_timeout_seconds: float = 60.0
     workspace_root: str = "./workspaces"
+    sandbox_backend: Literal["docker", "fake"] = "docker"
+    sandbox_image: str = "loopforge-sandbox"
+    sandbox_memory_mb: int = 256
+    sandbox_cpus: float = 1.0
+    sandbox_pids_limit: int = 64
+    sandbox_max_output_bytes: int = 200_000
     environment: str = "development"
     login_max_attempts: int = 5
     login_window_seconds: int = 300
@@ -36,6 +42,8 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET must be set to a random value (>=32 chars) in production")
         if self.environment == "production" and self.llm_provider == "fake":
             raise ValueError("LLM_PROVIDER=fake is not allowed in production")
+        if self.environment == "production" and self.sandbox_backend == "fake":
+            raise ValueError("SANDBOX_BACKEND=fake is not allowed in production")
         return self
 
 

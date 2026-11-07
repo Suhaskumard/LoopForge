@@ -55,3 +55,23 @@ class AgentInfo(BaseModel):
     implemented: bool
     phase: int
     may_not: str
+
+
+class TestResultOut(BaseModel):
+    __test__ = False
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    iteration_id: uuid.UUID
+    total_tests: int
+    passed: int
+    failed: int
+    skipped: int
+    coverage: float | None
+    details: dict[str, Any]
+    created_at: datetime
+
+
+class LogOut(BaseModel):
+    name: str
+    sha256: str
+    content: str

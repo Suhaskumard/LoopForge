@@ -4,11 +4,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from app.api.dependencies import get_llm
+from app.api.dependencies import get_llm, get_sandbox
 from app.config import settings
 from app.database import session as session_module
 from app.database.models import Base
 from app.database.session import get_db, get_session_factory, make_engine
+from app.execution.fake_sandbox import FakeSandbox
 from app.main import app
 from app.services.llm_client import FakeLLMClient
 
@@ -22,7 +23,12 @@ def _isolated_workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "workspace_root", str(tmp_path / "workspaces"))
 
 
-def build_client(db_path, reset: bool = True, llm: FakeLLMClient | None = None):
+def build_client(
+    db_path,
+    reset: bool = True,
+    llm: FakeLLMClient | None = None,
+    sandbox: FakeSandbox | None = None,
+):
     url = TEST_DATABASE_URL or f"sqlite:///{db_path}"
     engine = make_engine(url)
     if TEST_DATABASE_URL and reset:
@@ -30,6 +36,7 @@ def build_client(db_path, reset: bool = True, llm: FakeLLMClient | None = None):
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     fake = llm or FakeLLMClient()
+    fake_sandbox = sandbox or FakeSandbox()
 
     def override():
         db = factory()
@@ -41,9 +48,11 @@ def build_client(db_path, reset: bool = True, llm: FakeLLMClient | None = None):
     app.dependency_overrides[get_db] = override
     app.dependency_overrides[get_session_factory] = lambda: factory
     app.dependency_overrides[get_llm] = lambda: fake
+    app.dependency_overrides[get_sandbox] = lambda: fake_sandbox
     session_module.engine = engine  # used by /health/ready
     client = TestClient(app)
     client.llm = fake
+    client.sandbox = fake_sandbox
     client.factory = factory
     return client, engine
 

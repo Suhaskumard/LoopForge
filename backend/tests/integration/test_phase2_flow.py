@@ -87,7 +87,10 @@ def test_builder_writes_complete_structure_into_workspace_only(client):
 
     root = workspace.workspace_root()
     on_disk = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
-    assert on_disk == sorted(f"{t['id']}/iter_1/{p}" for p in expected)  # nothing else anywhere
+    sources = [p for p in on_disk if "/iter_1/" in p and "/logs/" not in p and "/out/" not in p]
+    assert sources == sorted(f"{t['id']}/iter_1/{p}" for p in expected)
+    # Phase 3 adds only execution logs/reports, always inside the task's own directory.
+    assert all(p.startswith(f"{t['id']}/") for p in on_disk)
 
 
 def test_malformed_output_is_rejected_logged_and_not_silently_accepted(client):
@@ -115,14 +118,23 @@ def test_status_lifecycle_audit_trail_and_agent_runs(client):
     client.llm.queue(*demo_responses())
     _start(client, h, t["id"])
     task = _task(client, h, t["id"])
-    assert task["status"] == "GENERATING" and task["current_iteration"] == 1
+    assert task["status"] == "TESTING" and task["current_iteration"] == 1
     ev = _events(client, h, t["id"])
-    assert _transitions(ev) == [("PENDING", "PLANNING"), ("PLANNING", "GENERATING")]
-    assert ev[-1]["event_type"] == "files_generated" and ev[-1]["event_data"]["count"] == 10
+    assert _transitions(ev) == [
+        ("PENDING", "PLANNING"),
+        ("PLANNING", "GENERATING"),
+        ("GENERATING", "EXECUTING"),
+        ("EXECUTING", "TESTING"),
+    ]
+    generated = [e for e in ev if e["event_type"] == "files_generated"]
+    assert generated and generated[0]["event_data"]["count"] == 10
+    assert ev[-1]["event_type"] == "tests_executed"
 
     runs = client.get(f"/api/v1/tasks/{t['id']}/agent-runs", headers=h).json()
-    assert [r["agent_name"] for r in runs] == ["Planner", "Builder"]  # chronological
-    assert all(r["status"] == "success" and r["tokens_used"] > 0 for r in runs)
+    assert [r["agent_name"] for r in runs] == ["Planner", "Builder", "Verifier"]  # chronological
+    assert all(r["status"] == "success" for r in runs)
+    llm_runs = [r for r in runs if r["agent_name"] != "Verifier"]  # Verifier uses no LLM
+    assert all(r["tokens_used"] > 0 for r in llm_runs)
     assert all(r["error_message"] is None for r in runs)
 
 
@@ -131,7 +143,7 @@ def test_start_is_only_allowed_from_pending(client):
     client.llm.queue(*demo_responses())
     assert _start(client, h, t["id"]).status_code == 202
     again = _start(client, h, t["id"])
-    assert again.status_code == 409 and "GENERATING" in again.json()["error"]["message"]
+    assert again.status_code == 409 and "TESTING" in again.json()["error"]["message"]
     assert len(client.llm.calls) == 2  # the second start never reached the LLM
 
 
@@ -237,7 +249,7 @@ def test_fake_provider_serves_the_demo_end_to_end(client, monkeypatch):
     monkeypatch.setattr(settings, "llm_provider", "fake")
     h, t = _setup(client)
     assert _start(client, h, t["id"]).status_code == 202
-    assert _task(client, h, t["id"])["status"] == "GENERATING"
+    assert _task(client, h, t["id"])["status"] == "TESTING"
 
 
 # ---- files endpoint hardening -------------------------------------------------------------
@@ -276,7 +288,7 @@ def test_agents_endpoint(client):
     agents = {a["name"]: a for a in client.get("/api/v1/agents", headers=h).json()}
     assert set(agents) == {"Planner", "Builder", "Verifier", "Repair", "Reviewer", "Documentation"}
     assert agents["Planner"]["implemented"] and agents["Builder"]["implemented"]
-    assert not agents["Verifier"]["implemented"]
+    assert agents["Verifier"]["implemented"]
     assert agents["Planner"]["may_not"] == "Write code"
 
 

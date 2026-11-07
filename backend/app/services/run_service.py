@@ -1,4 +1,4 @@
-"""Drives a task through the Phase 2 workflow and owns its status lifecycle.
+"""Drives a task through the plan -> build -> sandboxed-test workflow and owns its status lifecycle.
 
 Failure handling is deterministic: an agent failure moves the task to FAILED (or ESCALATED when a
 hard budget stopped it) and records an audit event. A task is never left half-way in PLANNING.
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agents.base import AgentContext
 from app.config import settings
 from app.database.models import AuditEvent, Iteration, Task
+from app.execution.sandbox import Sandbox
 from app.orchestrator.graph import build_graph
 from app.orchestrator.state import LoopForgeState
 from app.services import task_service
@@ -73,7 +74,9 @@ def _abort(db: Session, task: Task, *, escalate: bool, reason: str) -> None:
     _audit(db, task, "run_failed", {"reason": reason[:1000], "escalated": escalate})
 
 
-def execute_run(session_factory: sessionmaker[Session], task_id: object, llm: LLMClient) -> None:
+def execute_run(
+    session_factory: sessionmaker[Session], task_id: object, llm: LLMClient, sandbox: Sandbox
+) -> None:
     """Background body of /start. Opens its own session; never raises."""
     with session_factory() as db:
         task = db.get(Task, task_id)
@@ -89,7 +92,7 @@ def execute_run(session_factory: sessionmaker[Session], task_id: object, llm: LL
         tracker = TokenTracker(settings.max_token_budget)
         ctx = AgentContext(db=db, task=task, iteration=iteration, llm=llm, tracker=tracker)
         try:
-            final = build_graph(ctx).invoke(
+            final = build_graph(ctx, sandbox).invoke(
                 _initial_state(task, iteration),
                 config={"configurable": {"thread_id": str(task.id)}},
             )
@@ -113,6 +116,13 @@ def execute_run(session_factory: sessionmaker[Session], task_id: object, llm: LL
             db.commit()
             _abort(db, task, escalate=final["escalate"], reason=final["error"])
             return
-        iteration.status = "generated"
+        iteration.status = "tested"
         db.commit()
         _audit(db, task, "files_generated", {"count": len(final["generated_files"])})
+        tr = final["test_results"]
+        _audit(
+            db,
+            task,
+            "tests_executed",
+            {k: tr[k] for k in ("total", "passed", "failed", "skipped", "timed_out")},
+        )

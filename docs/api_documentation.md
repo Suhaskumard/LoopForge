@@ -22,6 +22,8 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /tasks/{id}/agent-runs | Bearer | chronological runs: agent, status (`success|failed|timeout`), tokens, duration, error |
 | GET | /tasks/{id}/files | Bearer | generated files (path, sha256) of the latest iteration |
 | GET | /tasks/{id}/files/{path} | Bearer | file content; only files recorded as artifacts; confined to the workspace |
+| GET | /tasks/{id}/iterations/{n}/test-results | Bearer | `test_results` rows: totals, `details.failures[]` (nodeid, message, traceback), `timed_out` |
+| GET | /tasks/{id}/iterations/{n}/logs | Bearer | execution stdout/stderr stored as `log` artifacts, with sha256 |
 | GET | /agents | Bearer | the six agents, which are implemented, and what each may not do |
 | GET | /health · /health/ready | – | liveness · DB readiness (503 if down) |
 

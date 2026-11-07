@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import User
 from app.database.session import get_db
+from app.execution.sandbox import Sandbox, get_sandbox_backend
 from app.services.llm_client import LLMClient, LLMError, get_llm_client
 from app.utils.security import decode_access_token
 
@@ -36,3 +37,7 @@ def get_llm() -> LLMClient:
         return get_llm_client()
     except LLMError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from None
+
+
+def get_sandbox() -> Sandbox:
+    return get_sandbox_backend()
