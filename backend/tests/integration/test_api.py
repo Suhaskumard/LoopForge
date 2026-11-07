@@ -101,7 +101,7 @@ def test_data_persists_across_restart(db_path):
     p, t = make_project_and_task(c1, h)
     e1.dispose()
     # Simulate a service restart: brand-new engine/app wiring on the same DB file.
-    c2, e2 = build_client(db_path)
+    c2, e2 = build_client(db_path, reset=False)
     h2 = {"Authorization": h["Authorization"]}  # token is stateless, still valid
     assert c2.get(f"/api/v1/projects/{p['id']}", headers=h2).status_code == 200
     assert c2.get(f"/api/v1/tasks/{t['id']}", headers=h2).json()["requirement"] == (

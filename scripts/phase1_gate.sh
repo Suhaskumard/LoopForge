@@ -9,13 +9,21 @@ if [ -x ../.venv/Scripts/python ]; then PY=../.venv/Scripts/python; else PY=${PY
 
 echo "== ruff ==";        $PY -m ruff check . && $PY -m ruff format --check .
 echo "== mypy --strict =="; $PY -m mypy app
-echo "== tests (SQLite, coverage >= 95%) =="; $PY -m pytest -q --cov=app --cov-fail-under=95
+echo "== tests (SQLite, coverage >= 95%) =="; env -u TEST_DATABASE_URL $PY -m pytest -q --cov=app --cov-fail-under=95
 
 if [ "${WITH_PG:-0}" = "1" ]; then
   PG=${TEST_DATABASE_URL:-postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test}
   echo "== tests (Postgres) =="; TEST_DATABASE_URL=$PG $PY -m pytest -q
-  echo "== alembic up/down on Postgres =="
+  echo "== alembic on a clean Postgres schema: upgrade, drift check, downgrade =="
+  DATABASE_URL=$PG $PY -c "
+from sqlalchemy import create_engine, text
+import os
+e = create_engine(os.environ['DATABASE_URL'])
+with e.begin() as c:
+    c.execute(text('DROP SCHEMA public CASCADE')); c.execute(text('CREATE SCHEMA public'))
+"
   DATABASE_URL=$PG $PY -m alembic upgrade head
+  DATABASE_URL=$PG $PY -m alembic check
   DATABASE_URL=$PG $PY -m alembic downgrade base
 fi
 

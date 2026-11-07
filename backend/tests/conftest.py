@@ -13,10 +13,10 @@ from app.main import app
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
 
-def build_client(db_path) -> tuple[TestClient, object]:
+def build_client(db_path, reset: bool = True) -> tuple[TestClient, object]:
     url = TEST_DATABASE_URL or f"sqlite:///{db_path}"
     engine = make_engine(url)
-    if TEST_DATABASE_URL:
+    if TEST_DATABASE_URL and reset:
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
