@@ -1,4 +1,6 @@
-# Database schema (migrations `0001`-`0006`)
+# Database schema (migrations `0001`-`0007`)
+
+Phase 11 (`0007`): `org_integrations` (encrypted git token), `publish_requests` (status CHECK), `api_tokens` (SHA-256 hash, scope CHECK), `webhook_endpoints`, `webhook_deliveries`.
 
 Phase 10 (`0006`): `organizations`, `memberships` (role CHECK), `audit_log` (append-only by trigger), `projects.org_id` (NOT NULL; `user_id` = creator), `users.password_hash` nullable + `oidc_issuer`/`oidc_sub` (unique pair), `approval_requests.decided_by`. Data step: a personal organization per existing user.
 

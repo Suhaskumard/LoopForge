@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 bench-validate bench-harness acceptance demo-final
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -77,6 +77,9 @@ gate9:     ## everything above + failure classes, test guard, targeted context, 
 
 gate10:    ## everything above + organizations, roles, audit log, quotas, OIDC (+ frontend checks)
 	bash scripts/phase10_gate.sh
+
+gate11:    ## everything above + GitHub PR delivery, API tokens, webhooks, CLI
+	bash scripts/phase11_gate.sh
 
 bench-validate:  ## prove all 30 benchmark tasks are sound
 	$(PY) benchmarks/validate_tasks.py

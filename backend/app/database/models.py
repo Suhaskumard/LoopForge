@@ -364,6 +364,100 @@ class Job(Base):
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
+class OrgIntegration(Base):
+    """Per-organization credential for a git provider (Phase 11). The token is stored encrypted."""
+
+    __tablename__ = "org_integrations"
+    __table_args__ = (UniqueConstraint("org_id", "provider", name="uq_org_integration"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    provider: Mapped[str] = mapped_column(String, default="github")
+    token_enc: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class PublishRequest(Base):
+    """A request to open a pull request with a task's result. Nothing is pushed until `approved`."""
+
+    __tablename__ = "publish_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('requested','approved','rejected','pushed','failed')",
+            name="ck_publish_status",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    provider: Mapped[str] = mapped_column(String, default="github")
+    repo: Mapped[str] = mapped_column(String)  # owner/name
+    base_branch: Mapped[str] = mapped_column(String, default="main")
+    branch: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="requested")
+    requested_by: Mapped[uuid.UUID] = mapped_column(Uuid)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pr_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    head_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    ci_state: Mapped[str | None] = mapped_column(String, nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class ApiToken(Base):
+    """Scoped automation credential. Only the SHA-256 of the secret is stored."""
+
+    __tablename__ = "api_tokens"
+    __table_args__ = (
+        CheckConstraint("scope IN ('viewer','developer','approver')", name="ck_api_token_scope"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    prefix: Mapped[str] = mapped_column(String)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    scope: Mapped[str] = mapped_column(String, default="developer")
+    expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class WebhookEndpoint(Base):
+    __tablename__ = "webhook_endpoints"
+    __table_args__ = (CheckConstraint("format IN ('json','slack')", name="ck_webhook_format"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    url: Mapped[str] = mapped_column(String)
+    secret: Mapped[str] = mapped_column(String)  # signing key (shown once at creation)
+    events: Mapped[list[Any]] = mapped_column(JsonType, default=list)  # [] = all events
+    format: Mapped[str] = mapped_column(String, default="json")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class WebhookDelivery(Base):
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','delivered','failed')", name="ck_webhook_delivery_status"
+        ),
+        Index("ix_webhook_deliveries_due", "status", "next_attempt_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    endpoint_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("webhook_endpoints.id"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    event: Mapped[str] = mapped_column(String)
+    payload: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(default=_now)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
 # ---- audit_log is append-only: the database refuses UPDATE and DELETE (Phase 10, ADR-0017) ------
 # Installed whenever the table is created (create_all in tests/dev and migration 0006 both end up
 # with the same triggers), so the guarantee does not depend on how the schema was built.

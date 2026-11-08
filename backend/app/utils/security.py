@@ -1,9 +1,11 @@
+import base64
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.config import settings
 
@@ -45,3 +47,21 @@ def new_refresh_token() -> str:
 
 def hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _fernet() -> Fernet:
+    key = base64.urlsafe_b64encode(
+        hashlib.sha256((settings.secrets_key or settings.jwt_secret).encode()).digest()
+    )
+    return Fernet(key)
+
+
+def encrypt_secret(plain: str) -> str:
+    return _fernet().encrypt(plain.encode()).decode()
+
+
+def decrypt_secret(blob: str) -> str | None:
+    try:
+        return _fernet().decrypt(blob.encode()).decode()
+    except InvalidToken:
+        return None

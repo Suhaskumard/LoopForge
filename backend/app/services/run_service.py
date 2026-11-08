@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agents import documenter
 from app.agents.base import AgentContext
 from app.config import settings
-from app.database.models import AuditEvent, Iteration, Task
+from app.database.models import AuditEvent, Iteration, Project, Task
 from app.execution.languages import get_profile
 from app.execution.sandbox import Sandbox
 from app.orchestrator.checkpoint import get_checkpointer
@@ -34,6 +34,7 @@ from app.services import (
     report_service,
     source_service,
     task_service,
+    webhook_service,
     workspace,
 )
 from app.services.llm_client import LLMClient
@@ -253,8 +254,29 @@ def _drive(
     )
 
 
+def _notify_terminal(session_factory: sessionmaker[Session], task_id: Any) -> None:
+    """Phase 11: queue task.* webhooks once the verdict is final (never affects the verdict)."""
+    event = {"COMPLETED": "task.completed", "FAILED": "task.failed", "ESCALATED": "task.escalated"}
+    try:
+        with session_factory() as db:
+            task = db.get(Task, task_id)
+            if task is None or task.status not in event:
+                return
+            project = db.get(Project, task.project_id)
+            if project is not None:
+                webhook_service.emit_safely(
+                    db, project.org_id, event[task.status],
+                    {"task_id": str(task.id), "status": task.status},
+                )  # fmt: skip
+                if settings.run_mode == "inline":  # no worker process to deliver them
+                    webhook_service.deliver_due(db)
+    except Exception:
+        log.exception("could not notify webhooks for task %s", task_id)
+
+
 def _document(session_factory: sessionmaker[Session], task_id: Any, llm: LLMClient) -> None:
     """Documentation Agent: only once the task is terminal; a failure here changes nothing."""
+    _notify_terminal(session_factory, task_id)
     if not settings.documentation_agent_enabled:
         return
     try:

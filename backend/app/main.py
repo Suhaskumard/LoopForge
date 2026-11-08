@@ -17,10 +17,13 @@ from app.api.v1 import (
     auth,
     orgs,
     projects,
+    publish,
     reports,
     runs,
     sso,
     tasks,
+    tokens,
+    webhooks,
 )
 from app.config import settings
 from app.database import session
@@ -41,6 +44,9 @@ api_v1.include_router(agents.router)
 api_v1.include_router(analytics.router)
 api_v1.include_router(approvals.router)
 api_v1.include_router(reports.router)
+api_v1.include_router(publish.router)
+api_v1.include_router(tokens.router)
+api_v1.include_router(webhooks.router)
 
 log = logging.getLogger("loopforge.startup")
 

@@ -21,6 +21,7 @@ _PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"),  # Slack tokens
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}"),  # JWTs
     re.compile(r"(?i)\b(Bearer)\s+[A-Za-z0-9._~+/=-]{16,}"),
+    re.compile(r"\blfk_[A-Za-z0-9_-]{20,}"),  # LoopForge API tokens (Phase 11)
 ]
 # key = value style assignments; keeps the key so logs stay readable.
 _ASSIGNMENT = re.compile(
@@ -67,6 +68,7 @@ _PATTERN_NAMES = [
     "Slack token",
     "JWT",
     "bearer token",
+    "LoopForge API token",
 ]
 _SECRET_FILENAMES = re.compile(
     r"(^|/)(\.env(\..*)?|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|p12|pfx)|\.npmrc|\.pypirc)$"

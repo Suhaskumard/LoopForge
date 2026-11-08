@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     oidc_scopes: str = "openid email profile"
     oidc_allowed_domains: str = ""  # comma list; empty = any verified email domain
     sso_frontend_url: str = "http://localhost:5173/login"  # where the browser lands after SSO
+    # Phase 11: integrations. SECRETS_KEY encrypts stored git tokens (falls back to JWT_SECRET).
+    secrets_key: str = ""
+    github_api_base: str = "https://api.github.com"
+    github_timeout_seconds: float = 20.0
+    webhook_timeout_seconds: float = 10.0
+    webhook_max_attempts: int = 5
+    webhook_backoff_base_seconds: float = 30.0
+    webhook_signature_tolerance_seconds: int = 300
+    webhook_allow_private_hosts: bool = False  # tests/dev only; rejected in production
     llm_provider: Literal["openai", "fake"] = "openai"
     llm_max_retries: int = 3
     llm_backoff_base_seconds: float = 1.0
@@ -84,6 +93,10 @@ class Settings(BaseSettings):
             raise ValueError("LLM_PROVIDER=fake is not allowed in production")
         if self.environment == "production" and self.sandbox_backend == "fake":
             raise ValueError("SANDBOX_BACKEND=fake is not allowed in production")
+        if self.environment == "production" and self.webhook_allow_private_hosts:
+            raise ValueError("WEBHOOK_ALLOW_PRIVATE_HOSTS is not allowed in production")
+        if self.environment == "production" and not self.github_api_base.startswith("https://"):
+            raise ValueError("GITHUB_API_BASE must use https in production")
         if self.oidc_issuer:
             if not self.oidc_client_id or not self.oidc_client_secret:
                 raise ValueError(

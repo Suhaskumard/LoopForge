@@ -2,26 +2,35 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database.models import User
 from app.database.session import get_db
 from app.execution.sandbox import Sandbox, get_sandbox_backend
-from app.services import org_service
+from app.services import api_token_service, org_service
 from app.services.llm_client import LLMClient, LLMError, get_llm_client
 from app.utils.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(
+    request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> User:
     unauthorized = HTTPException(
         status.HTTP_401_UNAUTHORIZED,
         "Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if api_token_service.is_api_token(token):  # Phase 11: scoped automation token
+        row = api_token_service.authenticate(db, token)
+        owner = db.get(User, row.user_id) if row is not None else None
+        if row is None or owner is None:
+            raise unauthorized
+        request.state.api_token = row
+        return owner
     claims = decode_access_token(token)
     if claims is None:
         raise unauthorized
@@ -34,6 +43,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def _capped(role: str, request: Request) -> str:
+    """An API token can never exceed its scope, whatever the owner's membership role is."""
+    tok = getattr(request.state, "api_token", None)
+    if tok is None:
+        return role
+    capped: str = min(role, tok.scope, key=lambda r: org_service.ROLE_RANK[r])
+    return capped
+
+
 @dataclass(frozen=True)
 class Principal:
     """Who is calling and in which organization (Phase 10). `org_id` scopes every query."""
@@ -44,6 +62,7 @@ class Principal:
 
 
 def get_principal(
+    request: Request,
     user: User = Depends(get_current_user),
     x_org_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
@@ -56,10 +75,17 @@ def get_principal(
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN, "Not a member of that organization"
             ) from None
+    tok = getattr(request.state, "api_token", None)
+    if tok is not None:  # a token is bound to one organization
+        if requested is not None and requested != tok.org_id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "Token is not valid for that organization"
+            )
+        requested = tok.org_id
     ctx = org_service.resolve(db, user.id, requested)
     if ctx is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of that organization")
-    return Principal(user, ctx.org_id, ctx.role)
+    return Principal(user, ctx.org_id, _capped(ctx.role, request))
 
 
 def require_role(minimum: str) -> Callable[[Principal], Principal]:
@@ -80,16 +106,23 @@ def require_org_role(minimum: str) -> Callable[..., Principal]:
     """
 
     def dependency(
+        request: Request,
         org_id: uuid.UUID,
         user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> Principal:
-        ctx = org_service.resolve(db, user.id, org_id)
+        tok = getattr(request.state, "api_token", None)
+        ctx = (
+            None
+            if tok is not None and tok.org_id != org_id
+            else org_service.resolve(db, user.id, org_id)
+        )
         if ctx is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
-        if org_service.ROLE_RANK[ctx.role] < org_service.ROLE_RANK[minimum]:
+        role = _capped(ctx.role, request)
+        if org_service.ROLE_RANK[role] < org_service.ROLE_RANK[minimum]:
             raise HTTPException(status.HTTP_403_FORBIDDEN, f"Requires the {minimum} role")
-        return Principal(user, ctx.org_id, ctx.role)
+        return Principal(user, ctx.org_id, role)
 
     return dependency
 

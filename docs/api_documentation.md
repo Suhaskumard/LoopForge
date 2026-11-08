@@ -79,3 +79,21 @@ Work endpoints take the organization from the `X-Org-Id` header (default: your f
 | WS | /ws/tasks/{id}?token=&org= | viewer | `org` optional (default: first membership) |
 
 429 is returned when an organization quota is reached (`quota.blocked` is audit-logged). Approvals now record who decided (`approval_requests.decided_by`).
+
+## Phase 11 - integrations and delivery (all under `/api/v1`)
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| POST | `/tasks/{id}/publish` | developer | body `{repo: "owner/name", base_branch}`; COMPLETED tasks only; 422 if secrets are found |
+| GET | `/tasks/{id}/publish` | viewer | requests for the task; refreshes CI state |
+| POST | `/publish/{id}/approve` | approver | records the decision, then pushes; requester cannot self-approve |
+| POST | `/publish/{id}/reject` | approver | nothing is ever pushed |
+| PUT | `/orgs/{org_id}/integrations/github` | admin | `{token}` stored encrypted |
+| GET/POST | `/orgs/{org_id}/tokens` | admin | create returns the `lfk_` secret once |
+| DELETE | `/orgs/{org_id}/tokens/{id}` | admin | revoke |
+| GET/POST | `/orgs/{org_id}/webhooks` | admin | create returns the signing secret once |
+| DELETE | `/orgs/{org_id}/webhooks/{id}` | admin | disables |
+| POST | `/orgs/{org_id}/webhooks/{id}/test` | admin | sends a signed `ping` |
+| GET | `/orgs/{org_id}/webhooks/{id}/deliveries` | admin | last 50 deliveries |
+
+Authenticate with `Authorization: Bearer lfk_...`; a token is bound to its organization and capped at its scope. Webhook signature: `X-LoopForge-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<body>")>`.

@@ -42,6 +42,9 @@ def record(
     commit: bool = True,
 ) -> AuditLog:
     org = db.get(Organization, org_id) if org_id is not None else None
+    tok = getattr(getattr(request, "state", None), "api_token", None)
+    if tok is not None:  # Phase 11: calls made with an API token say so
+        detail = {**(detail or {}), "api_token": str(tok.id)}
     row = AuditLog(
         org_id=org_id,
         actor_id=actor_id,

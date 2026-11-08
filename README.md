@@ -20,6 +20,12 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 11 - integrations and delivery
+- **GitHub pull requests behind an approval**: a developer requests a publish for a COMPLETED task (`POST /tasks/{id}/publish`), an approver (not the requester) approves, and only then is a branch + PR opened with the final report as the description. Change set is scanned for secrets; every step is in `audit_log`. CI check results are shown as an informational signal.
+- **API tokens** (`lfk_...`, per organization, scope viewer/developer/approver, revocable, expiring) and **signed webhooks** (`X-LoopForge-Signature`, HMAC-SHA256 with timestamp, retries, SSRF guard, Slack format).
+- **CLI**: `LOOPFORGE_TOKEN=lfk_... python -m app.cli run --repo https://github.com/o/r --requirement "..." --wait`.
+- Tested against a mock Git server only; no live GitHub run. Migration `0007`. ADR-0018. `make gate11`.
+
 ## Phase 10 - organizations, roles, SSO, audit, quotas
 - **Multi-tenant**: every project/task belongs to an organization; users can be in several and pick one (`X-Org-Id`, org switcher in the UI). Roles `viewer < developer < approver < admin`, read from the database per request. Non-members get 404 (path) / 403 (header). Registering creates a personal organization; migration `0006` moves existing data into one.
 - **Audit log** (`audit_log`): who did what, redacted, **append-only via DB triggers**; admins read it at `GET /orgs/{id}/audit` and in the Admin page.

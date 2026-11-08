@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import settings
 from app.database import session
 from app.execution.sandbox import Sandbox
-from app.services import job_service, lease_service, run_service
+from app.services import job_service, lease_service, run_service, webhook_service
 from app.services.llm_client import LLMClient
 
 log = logging.getLogger("loopforge.worker")
@@ -61,6 +61,11 @@ def serve(
                     job_service.recover(db)
             except Exception:
                 log.exception("recovery scan failed")
+        try:
+            with factory() as db:
+                webhook_service.deliver_due(db)
+        except Exception:
+            log.exception("webhook delivery failed")
         try:
             busy = run_once(factory, llm, sandbox)
         except Exception:
