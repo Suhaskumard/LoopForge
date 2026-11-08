@@ -12,3 +12,4 @@ workspaces/
 .hypothesis/
 .coverage
 *.checkpoints.sqlite
+.coverage.*
