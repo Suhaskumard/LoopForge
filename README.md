@@ -20,6 +20,13 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 14 - measurement tooling (the real run is still to be done)
+- The benchmark runner can run the 20 Phase 8 tasks (`--suite phase8|all`: repo-input and JavaScript, real provider only); cost is priced per agent run; the manifest also hashes the settings and the Phase 8 task set.
+- `analyze.py` adds paired-by-task "distinguishable from noise" verdicts per switch against E3, and a failure analysis.
+- `check_report.py` fails if `docs/evaluation_report.md` disagrees with the published `trials.jsonl` (or claims figures with none); `check_defaults.py` fails if code defaults disagree with the report's recorded decisions.
+- Regression benchmark: `make bench-regression` (oracle, in CI) and a budgeted, opt-in nightly real-model workflow. `make gate14` runs it all after gate 13. ADR-0021.
+- **Real-model results: To be measured.** Run `MAX_TOTAL_COST=<usd> make eval`, publish into `docs/evaluation/`, then `python benchmarks/check_report.py --write`.
+
 ## Phase 13 - proved on real infrastructure
 - Ran for real: **PostgreSQL 16** (real Alembic up/down, PG-only behaviour, the whole suite, the backup/restore scripts), the **real Docker sandbox** (full loop in containers, no network inside; acceptance item 4 = PASS), **Keycloak** (OIDC), and an opt-in **containerised worker** behind a docker-socket-proxy. `make gate13` (needs Docker; a missing daemon is a failure, not a skip).
 - Found and fixed real defects: short production JWT secrets were accepted (my Phase 12 mistake, caught by the gate); `TRUNCATE` could wipe the append-only audit log on PostgreSQL; `react-router` advisories (now v7, `npm audit` = 0).

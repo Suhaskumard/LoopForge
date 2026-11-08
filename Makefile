@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 gate13 test-postgres test-keycloak docker-worker-smoke preflight eval bench-validate bench-harness acceptance demo-final
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 gate13 gate14 bench-regression bench-check test-postgres test-keycloak docker-worker-smoke preflight eval bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -89,6 +89,16 @@ gate12:    ## everything above + metrics, ids, chaos/backup/load drills, securit
 
 gate13:    ## everything above + PostgreSQL, real Docker sandbox, Keycloak, containerised worker (needs Docker)
 	bash scripts/phase13_gate.sh
+
+gate14:    ## everything above + measurement tooling: Phase 8 suite, regression benchmark, report and defaults checks
+	bash scripts/phase14_gate.sh
+
+bench-regression:  ## fixed regression subset against the synthetic oracle (KIND=real for the budgeted real run)
+	bash scripts/bench_regression.sh
+
+bench-check:     ## the published report matches trials.jsonl, and code defaults match its decisions
+	$(PY) benchmarks/check_report.py
+	$(PY) benchmarks/check_defaults.py
 
 test-postgres:   ## the backend suite on a real PostgreSQL 16 (needs Docker; PG_SUITE=quick for the short run)
 	bash scripts/test_postgres.sh

@@ -41,16 +41,22 @@ the **task set**, a hash of every **loop configuration** (all switches), a hash 
 Python/OS. A result from a dirty tree, or from a task set or configuration that has since changed, must not be reported as
 if it were from the current code.
 
-### Results (fill in ONLY from `trials.jsonl`; leave "To be measured" until then)
-| Metric | E1 single-shot | E2 one correction | E3 full loop |
-|---|---|---|---|
-| Task success rate (hidden tests) | To be measured | To be measured | To be measured |
-| Average iterations | To be measured | To be measured | To be measured |
-| Tokens per trial | To be measured | To be measured | To be measured |
-| Cost per successful task | To be measured | To be measured | To be measured |
-| False-accept rate | To be measured | To be measured | To be measured |
-Failure analysis (what kinds of tasks fail, and why): **To be measured.** A feature whose ablation is not
-distinguishable from noise is reported as *not shown to help*.
+### Results (generated from `docs/evaluation/trials.jsonl`; never edited by hand)
+Copy a real run's `manifest.json` and `trials.jsonl` into `docs/evaluation/`, then `python benchmarks/check_report.py --write`
+regenerates the block below. `check_report.py` (part of gate 14) recomputes it from the trials and fails on any difference.
+Synthetic (oracle) runs are refused. With no published run the block must say "To be measured" and contain no figures.
+
+<!-- results:begin -->
+**To be measured.** No real-model run has been published. Failure analysis, per-component verdicts and cost per solved
+task appear here only after `make eval`.
+<!-- results:end -->
+
+### Decisions taken from the results (checked against the code by `benchmarks/check_defaults.py`)
+No decision has been taken: no result exists. After the real run, record here which switches are kept off, the routing,
+and the iteration/token defaults, as keys of the comment below (`max_iterations`, `max_token_budget`,
+`max_attempts_per_failure`, `cost_per_1k_tokens`, `routing`, `switches_off`, `switches_on`).
+
+<!-- decisions: {} -->
 
 ### Manual steps (what `make eval` automates)
 ```bash

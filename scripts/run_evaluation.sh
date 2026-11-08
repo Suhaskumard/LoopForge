@@ -12,6 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ -x .venv/Scripts/python ]; then PY=.venv/Scripts/python; else PY=${PYTHON:-.venv/bin/python}; fi
 TRIALS="${TRIALS:-3}"
+SUITE="${SUITE:-core}"   # core = 30 tasks; phase8 = 20 repo/JavaScript tasks; all = 50
 OUT="${OUT:-benchmarks/results}"
 : "${MAX_TOTAL_COST:?set MAX_TOTAL_COST (USD) so the run cannot spend more than you intend}"
 
@@ -20,11 +21,11 @@ $PY benchmarks/preflight.py --config E1,E2,E3 --trials "$TRIALS" --max-total-cos
 
 echo
 echo "== 2. dry run: the plan and the worst-case cost =="
-$PY benchmarks/run_benchmarks.py --config E1,E2,E3 --trials "$TRIALS" --provider openai --dry-run --out "$OUT/e1-e3"
+$PY benchmarks/run_benchmarks.py --config E1,E2,E3 --trials "$TRIALS" --provider openai --suite "$SUITE" --dry-run --out "$OUT/e1-e3"
 
 echo
 echo "== 3. E1 / E2 / E3 (real model, Docker sandbox) =="
-$PY benchmarks/run_benchmarks.py --config E1,E2,E3 --trials "$TRIALS" --provider openai \
+$PY benchmarks/run_benchmarks.py --config E1,E2,E3 --trials "$TRIALS" --provider openai --suite "$SUITE" \
     --out "$OUT/e1-e3" --max-total-cost "$MAX_TOTAL_COST"
 $PY benchmarks/analyze.py "$OUT/e1-e3" --out docs/results_e1_e3.md
 echo "wrote docs/results_e1_e3.md"
@@ -32,7 +33,7 @@ echo "wrote docs/results_e1_e3.md"
 if [ "${WITH_ABLATIONS:-0}" = "1" ]; then
   echo
   echo "== 4. ablations A1-A4 and the Phase 9 switches P0-P4 =="
-  $PY benchmarks/run_benchmarks.py --config E3,A1,A2,A3,A4,P0,P1,P2,P3,P4 --trials "$TRIALS" --provider openai \
+  $PY benchmarks/run_benchmarks.py --config E3,A1,A2,A3,A4,P0,P1,P2,P3,P4 --trials "$TRIALS" --provider openai --suite "$SUITE" \
       --out "$OUT/ablations" --max-total-cost "$MAX_TOTAL_COST"
   $PY benchmarks/analyze.py "$OUT/ablations" --out docs/results_ablations.md
   echo "wrote docs/results_ablations.md"

@@ -43,6 +43,14 @@ jobs:
       - name: Benchmark tasks are sound (30, hidden tests)
         working-directory: .
         run: python benchmarks/validate_tasks.py
+      - name: Benchmark regression subset (synthetic oracle) and report/defaults checks
+        working-directory: .
+        env:
+          PYTHON: python
+        run: |
+          bash scripts/bench_regression.sh
+          python benchmarks/check_report.py
+          python benchmarks/check_defaults.py
       - name: Acceptance checklist (spec 15.1)
         working-directory: .
         run: python scripts/acceptance_check.py

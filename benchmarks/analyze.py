@@ -132,6 +132,65 @@ def _group(rows: list[dict], key: str) -> dict[str, list[dict]]:
     return dict(sorted(out.items()))
 
 
+def paired_difference(base_rows: list[dict], other_rows: list[dict]) -> tuple[float, tuple[float, float] | None, int]:
+    """Per-task success-rate difference (base - other, percentage points): mean and 95% t-interval over tasks.
+
+    Pairing by task removes task difficulty from the comparison. Only tasks present in both are used. The
+    interval is None below 2 shared tasks. This is the "distinguishable from noise" test: if the interval
+    contains 0 the two configurations are not told apart by this data.
+    """
+
+    def per_task(rows: list[dict]) -> dict[str, float]:
+        g = _group(rows, "task")
+        return {t: sum(1 for r in rs if r["success"]) / len(rs) * 100 for t, rs in g.items()}
+
+    a, b = per_task(base_rows), per_task(other_rows)
+    diffs = [a[t] - b[t] for t in sorted(a.keys() & b.keys())]
+    if not diffs:
+        return 0.0, None, 0
+    m, _sd, ci = mean_sd_ci(diffs)
+    return m, ci, len(diffs)
+
+
+def switch_verdict(base_rows: list[dict], other_rows: list[dict]) -> str:
+    """One-line verdict for a switch removed from E3 (base = E3 rows, other = switch-removed rows)."""
+    m, ci, n = paired_difference(base_rows, other_rows)
+    if ci is None:
+        return f"needs >= 2 shared tasks (have {n})"
+    lo, hi = ci
+    text = f"E3 minus switch-off = {m:+.1f} pp (95% CI {lo:+.1f} to {hi:+.1f}, {n} tasks)"
+    if lo > 0:
+        return text + ": feature helps"
+    if hi < 0:
+        return text + ": feature HURTS"
+    return text + ": not distinguishable from noise (NOT shown to help)"
+
+
+def failure_analysis(rows: list[dict]) -> list[str]:
+    """Which task types fail and how, for the full loop (E3) - or the first configuration present."""
+    by_config = _group(rows, "config")
+    if not by_config:
+        return []
+    name = "E3" if "E3" in by_config else next(iter(by_config))
+    sub = by_config[name]
+    out = [f"## Failure analysis ({name})", ""]
+    out += ["| Category | Trials | Failed | Failure rate | Most common failure class |", "|---|---|---|---|---|"]
+    for cat, rs in _group(sub, "category").items():
+        failed = [r for r in rs if not r["success"]]
+        top = Counter(r["failure_category"] or "unclassified" for r in failed).most_common(1)
+        out.append(f"| {cat} | {len(rs)} | {len(failed)} | {len(failed) / len(rs) * 100:.1f}% | {top[0][0] if top else 'none'} |")
+    hard = []
+    for t, rs in _group(sub, "task").items():
+        rate = sum(1 for r in rs if r["success"]) / len(rs)
+        if rate < 0.5:
+            hard.append((rate, t))
+    out += ["", "Tasks solved in fewer than half of their trials: " + (", ".join(f"{t} ({r * 100:.0f}%)" for r, t in sorted(hard)) or "none"), ""]
+    fa = [r for r in sub if r["false_accept"]]
+    out.append(f"False accepts (loop said COMPLETED, hidden tests disagree): {len(fa)} of {len(sub)} trials.")
+    out += ["", "Why each class fails is written by a human from the transcripts of these trials; this table only says where.", ""]
+    return out
+
+
 def fmt(v: float | None, digits: int = 1, suffix: str = "") -> str:
     return NOT_RUN if v is None else f"{v:.{digits}f}{suffix}"
 
@@ -183,7 +242,7 @@ def report(manifest: dict, rows: list[dict]) -> str:
         row("False-accept rate", lambda s: fmt(s["false_accept"], 1, "%")),
         row("Tokens per trial (mean +/- SD)", lambda s: f"{s['tokens_mean']:.0f}" + (f" +/- {s['tokens_sd']:.0f}" if s["tokens_sd"] is not None else "")),
         row("Time per trial (s, mean +/- SD)", lambda s: f"{s['seconds_mean']:.1f}" + (f" +/- {s['seconds_sd']:.1f}" if s["seconds_sd"] is not None else "")),
-        row("Cost per success (CPS, estimate)", lambda s: fmt(s["cps"], 4, " USD") if s["cps"] is not None else "no successes"),
+        row("Cost per solved task (CPS, estimate)", lambda s: fmt(s["cps"], 4, " USD") if s["cps"] is not None else "no successes"),
         row("Total estimated cost", lambda s: f"{s['total_cost']:.4f} USD"),
         "",
         "## Ablations (A1-A4) and E4-E6",
@@ -233,6 +292,15 @@ def report(manifest: dict, rows: list[dict]) -> str:
             "A feature that is not distinguishable from noise is reported as NOT shown to help; "
             "with few trials the intervals are wide and that is the expected result.",
         ]
+    switch_rows = [c for c in ("A1", "A2", "A3", "A4", *PHASE9_REMOVED) if c in by_config]
+    if switch_rows and "E3" in by_config:
+        out += ["", "## Is each component distinguishable from noise? (paired by task, against E3)", ""]
+        out += [f"- {c}: {switch_verdict(by_config['E3'], by_config[c])}" for c in switch_rows]
+        out += [
+            "",
+            "Switches that are not distinguishable from noise are removed or kept off by default (Phase 14 rule); "
+            "the decision is recorded in the report's `decisions` block and checked against the code defaults.",
+        ]
     out += [
         "",
         "E4-E6 (Addendum 21.2: requirement traceability, adaptive repair, complete enhanced workflow) are not "
@@ -252,7 +320,8 @@ def report(manifest: dict, rows: list[dict]) -> str:
             ok, n = sums[c]["by_category"].get(cat, (0, 0)) if c in sums else (0, 0)
             cells.append(f"{ok}/{n}" if n else NOT_RUN)
         out.append(f"| {cat} | " + " | ".join(cells) + " |")
-    out += ["", "## Failure categories (unsuccessful trials)", ""]
+    out += [""] + failure_analysis(rows)
+    out += ["## Failure categories (unsuccessful trials)", ""]
     for c in configs:
         cats_c = sums[c]["failure_categories"]
         out.append(f"- {c}: " + (", ".join(f"{k or 'unclassified'} x{v}" for k, v in sorted(cats_c.items())) or "none"))

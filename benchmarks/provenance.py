@@ -56,10 +56,23 @@ def configs_sha256(presets: dict) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
-def collect(tasks_dir: Path, presets: dict) -> dict[str, object]:
+def settings_sha256(settings) -> str:
+    """Hash of the settings that change results: models/routing, price map, iteration and token defaults."""
+    keys = (
+        "openai_model", "model_planner", "model_builder", "model_repair", "model_reviewer", "model_documentation",
+        "model_prices_json", "cost_per_1k_tokens", "max_iterations", "max_token_budget",
+        "max_attempts_per_failure", "max_execution_seconds",
+    )  # fmt: skip
+    payload = {k: getattr(settings, k, None) for k in keys}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def collect(tasks_dir: Path, presets: dict, phase8_dir: Path | None = None, settings=None) -> dict[str, object]:
     return {
         "git": git_info(),
         "tasks_sha256": tree_sha256(tasks_dir),
+        "tasks_phase8_sha256": tree_sha256(phase8_dir) if phase8_dir is not None and phase8_dir.is_dir() else None,
+        "settings_sha256": settings_sha256(settings) if settings is not None else None,
         "loop_configs_sha256": configs_sha256(presets),
         "requirements_runtime_sha256": file_sha256(ROOT / "backend" / "requirements-runtime.txt"),
         "python": sys.version.split()[0],

@@ -1,0 +1,18 @@
+{
+  "comment": "Fixed regression subset: one task per core category plus a second CRUD task. Never tune on it; change it only with a note in ADR-0021.",
+  "tasks": ["auth-01-jwt-basic", "bug-01-pagination", "crud-01-employees", "dv-01-isbn13", "int-01-inventory-orders", "dv-02-luhn"],
+  "configs": ["E1", "E3"],
+  "trials": 2,
+  "oracle": {
+    "comment": "Synthetic harness: with these 6 tasks x 2 trials the oracle's modes give E3 8/12 and E1 4/12. A drop means the pipeline broke, not the model.",
+    "min_tsr_E3": 60.0,
+    "min_gap_E3_over_E1": 20.0,
+    "max_false_accept": 0.0
+  },
+  "real": {
+    "comment": "Fill in ONLY from a measured run (docs/evaluation/). null = no baseline yet: the nightly job records results and cannot alert.",
+    "baseline_tsr_E3": null,
+    "tolerance_pp": 15.0,
+    "max_false_accept": null
+  }
+}

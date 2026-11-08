@@ -24,6 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 TASKS_DIR = ROOT / "tasks"
+PHASE8_DIR = ROOT / "tasks_phase8"
+SUITES = {"core": [TASKS_DIR], "phase8": [PHASE8_DIR], "all": [TASKS_DIR, PHASE8_DIR]}
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent / "backend"))
 
@@ -32,6 +34,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="E3", help="comma list of E1,E2,E3,A1..A4,P0..P4")
     ap.add_argument("--trials", type=int, default=1, help="repeated trials per task (>=3 for statistics)")
+    ap.add_argument("--suite", choices=sorted(SUITES), default="core",
+                    help="core = the 30 tasks; phase8 = 10 repo-input + 10 JavaScript (real provider only); all = both")
     ap.add_argument("--tasks", default="", help="comma list of task ids (default: all)")
     ap.add_argument("--category", default="", help="only tasks of this category")
     ap.add_argument("--provider", choices=["openai", "oracle"], default="openai")
@@ -46,14 +50,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def load_tasks(args: argparse.Namespace) -> list[dict]:
     wanted = {t for t in args.tasks.split(",") if t}
     tasks = []
-    for d in sorted(TASKS_DIR.iterdir()):
-        meta = json.loads((d / "task.json").read_text(encoding="utf-8"))
-        if wanted and meta["id"] not in wanted:
-            continue
-        if args.category and meta["category"] != args.category:
-            continue
-        meta["dir"] = d
-        tasks.append(meta)
+    for root in SUITES[getattr(args, "suite", "core")]:
+        for d in sorted(root.iterdir()):
+            if not (d / "task.json").is_file():
+                continue
+            meta = json.loads((d / "task.json").read_text(encoding="utf-8"))
+            if wanted and meta["id"] not in wanted:
+                continue
+            if args.category and meta["category"] != args.category:
+                continue
+            meta["dir"] = d
+            meta.setdefault("language", "python")
+            tasks.append(meta)
     return tasks
 
 
@@ -71,6 +79,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     configs = [c.strip() for c in args.config.split(",") if c.strip()]
     tasks = load_tasks(args)
+    if args.provider == "oracle" and any(t["dir"].parent == PHASE8_DIR for t in tasks):
+        print("the synthetic oracle only supports the core suite; Phase 8 tasks need a real provider", file=sys.stderr)
+        return 2
     out = Path(args.out).resolve()
 
     # settings must be in place before the backend is imported
@@ -161,8 +172,9 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
                 "cost_per_1k_tokens": settings.cost_per_1k_tokens,
                 "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "tasks": [t["id"] for t in tasks],
+                "suite": args.suite,
                 # what produced these numbers: commit, task set, loop configs, requirements, interpreter
-                "provenance": provenance.collect(TASKS_DIR, PRESETS),
+                "provenance": provenance.collect(TASKS_DIR, PRESETS, PHASE8_DIR, settings),
             },
             indent=2,
         ),
@@ -197,11 +209,16 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
 
                 started = time.perf_counter()
                 with SessionLocal() as db:
-                    project = project_service.create_project(db, org_id, user_id, ProjectCreate(name=f"b_{meta['id']}"[:60]))
+                    project = project_service.create_project(
+                        db, org_id, user_id, ProjectCreate(name=f"b_{meta['id']}"[:60], language=meta["language"])
+                    )
+                    repo_task = meta.get("source") == "repo"
                     task = task_service.create_task(
                         db, project, meta["requirement"], 5, list(meta["acceptance_criteria"]),
-                        token_budget=args.token_budget,
+                        token_budget=args.token_budget, source_type="zip" if repo_task else "none",
                     )  # fmt: skip
+                    if repo_task:
+                        seed_from_dir(db, task, meta["dir"] / "repo")
                     task_id = task.id
                     run_service.prepare_start(db, task)
                 run_service.execute_run(SessionLocal, task_id, llm, sandbox, config)
@@ -211,6 +228,8 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
                     task = db.get(Task, task_id)
                     its = sorted(db.scalars(select(Iteration).where(Iteration.task_id == task_id)), key=lambda i: i.iteration_number)
                     tokens = sum(analytics_service._tokens_by_iteration(db, [i.id for i in its]).values())
+                    # priced per agent run at its own model's rate (MODEL_PRICES_JSON / routing), not one blended rate
+                    cost = analytics_service.cost_of_runs(analytics_service._runs_of(db, [i.id for i in its]))
                     results_by_it = analytics_service.latest_results(db, [i.id for i in its])
                     repairs = list(db.scalars(select(RepairHistory).where(RepairHistory.task_id == task_id).order_by(RepairHistory.created_at)))
                     status = task.status
@@ -224,9 +243,9 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
                     category = repairs[-1].failure_category if repairs else "none"
 
                 hidden = hidden_eval(meta["dir"], workspace.iteration_dir(task_id, last_number) if last_number else None,
-                                     sandbox, out / "hidden_work", run_command, PYTEST_ARGV, parse_report)  # fmt: skip
+                                     sandbox, out / "hidden_work", run_command, PYTEST_ARGV, parse_report,
+                                     language=meta["language"])  # fmt: skip
                 success = hidden["total"] > 0 and hidden["passed"] == hidden["total"]
-                cost = analytics_service.cost_of(tokens)
                 spent_tokens += tokens
                 spent_cost += cost
                 record = {
@@ -250,7 +269,22 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
     return 0
 
 
-def hidden_eval(task_dir: Path, final_src: Path | None, sandbox, work: Path, run_command, pytest_argv, parse_report) -> dict:
+def seed_from_dir(db, task, repo_dir: Path) -> None:
+    """Seed iteration 0 of a repo-input task from its `repo/` folder, via the same zip import users get."""
+    import io
+    import zipfile
+
+    from app.services import repo_import, source_service
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(p for p in repo_dir.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
+            zf.write(f, f.relative_to(repo_dir).as_posix())
+    source_service.seed_task(db, task, repo_import.import_zip(buf.getvalue()), "benchmark-repo")
+
+
+def hidden_eval(task_dir: Path, final_src: Path | None, sandbox, work: Path, run_command, pytest_argv, parse_report,
+                language: str = "python") -> dict:  # fmt: skip
     """Run the hidden tests against the final code in the SAME sandbox, independently of the loop."""
     if final_src is None or not final_src.is_dir():
         return {"total": 0, "passed": 0}
@@ -261,10 +295,18 @@ def hidden_eval(task_dir: Path, final_src: Path | None, sandbox, work: Path, run
     out = project.parent / (project.name + "_out")
     out.mkdir(parents=True)
     try:
-        result = run_command(sandbox, project, out, [*pytest_argv, "/workspace/hidden_tests"], 120)
+        if language == "javascript":
+            from app.evaluation.test_runner import parse_jest_report
+            from app.execution.languages import JAVASCRIPT
+
+            argv = [a for a in JAVASCRIPT.test_argv if not a.startswith("--coverage")]
+            parser = parse_jest_report
+        else:
+            argv, parser = list(pytest_argv), parse_report
+        result = run_command(sandbox, project, out, [*argv, "/workspace/hidden_tests"], 120)
         report = out / "report.json"
         raw = report.read_text(encoding="utf-8", errors="replace") if report.is_file() else ""
-        summary = parse_report(raw, result, 120)
+        summary = parser(raw, result, 120)
         return {"total": summary.total, "passed": summary.passed}
     finally:
         shutil.rmtree(project, ignore_errors=True)

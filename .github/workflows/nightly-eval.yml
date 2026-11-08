@@ -1,0 +1,44 @@
+name: nightly-regression
+# Real-model regression run on the fixed subset (benchmarks/regression/subset.json). Budgeted and OPT-IN: it does
+# nothing unless the repository secret OPENAI_API_KEY is set, and it cannot alert until a measured baseline is
+# recorded in subset.json (baseline_tsr_E3). The cap comes from the NIGHTLY_MAX_COST variable (USD).
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  real-regression:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      COST_PER_1K_TOKENS: ${{ vars.COST_PER_1K_TOKENS }}
+      MAX_TOTAL_COST: ${{ vars.NIGHTLY_MAX_COST }}
+    steps:
+      - name: Skip when no key is configured
+        id: gate
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$MAX_TOTAL_COST" ] || [ -z "$OPENAI_MODEL" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "No key/model/cap configured: nightly regression skipped."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+      - name: Install and build the sandbox image
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          pip install -r backend/requirements.txt
+          docker build -t loopforge-sandbox backend/sandbox
+      - name: Real regression run (fails the job on a drop beyond the tolerance)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          KIND: real
+          PYTHON: python
+        run: bash scripts/bench_regression.sh
