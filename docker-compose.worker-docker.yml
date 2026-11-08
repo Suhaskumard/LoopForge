@@ -1,0 +1,76 @@
+# OPT-IN: a containerised worker that runs the REAL sandbox on the host's Docker daemon (Phase 13, ADR-0020).
+#
+#   export LF_HOST_WORKSPACES=/srv/loopforge/workspaces      # a HOST directory (absolute path)
+#   docker compose -f docker-compose.yml -f docker-compose.worker-docker.yml --profile workers-docker up -d --build
+#
+# How it works: the worker container has the Docker CLI but NOT the Docker socket. It talks to a
+# docker-socket-proxy that allows only container create/start/attach/wait/kill/remove (no images, volumes, networks,
+# exec, build, swarm). The sandbox container is started on the host daemon, so its bind-mount sources are HOST paths:
+# LF_HOST_WORKSPACES is mounted at /data/workspaces in the API and worker, and SANDBOX_HOST_WORKSPACE_ROOT tells the
+# worker to translate /data/workspaces/... to <LF_HOST_WORKSPACES>/... (execution/sandbox.py:to_host_path).
+# The `loopforge-sandbox` image must already exist on the host daemon (make sandbox-image).
+#
+# SECURITY, stated plainly: the proxy filters by API ENDPOINT, not by request content. Anything that can reach it can
+# still create a container with arbitrary binds or --privileged. It narrows the surface (no images/exec/volumes...), it
+# does not make the worker trustworthy. The single trusted source of sandbox arguments is `build_run_args`; the worker
+# must not run untrusted code outside the sandbox, and it should live on a dedicated node. Do not publish port 2375.
+
+services:
+  docker-proxy:
+    profiles: ["workers-docker"]
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"   # create / start / attach / wait / kill / delete containers
+      POST: "1"         # non-GET methods (the proxy treats every write the same)
+      INFO: "1"         # `docker info` (readiness check)
+      # everything else stays at its default of 0: IMAGES, EXEC, VOLUMES, NETWORKS, BUILD, SWARM, SERVICES, ...
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"          # reachable only from this compose network; never `ports:`
+
+  # In this mode the API enqueues jobs and the workspaces must be a host bind (a named volume has no host path).
+  backend:
+    environment:
+      RUN_MODE: queue
+    volumes: !override
+      - ${LF_HOST_WORKSPACES:?set LF_HOST_WORKSPACES to a host directory}:/data/workspaces
+
+  worker-docker:
+    profiles: ["workers-docker"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker-docker
+      additional_contexts:
+        backendimage: service:backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://loopforge:loopforge@db:5432/loopforge
+      WORKSPACE_ROOT: /data/workspaces
+      SANDBOX_HOST_WORKSPACE_ROOT: ${LF_HOST_WORKSPACES:?set LF_HOST_WORKSPACES to a host directory}
+      SANDBOX_BACKEND: docker
+      RUN_MODE: queue
+      DOCKER_HOST: tcp://docker-proxy:2375
+      WORKER_METRICS_PORT: "9100"
+      WORKER_METRICS_HOST: "0.0.0.0"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      docker-proxy:
+        condition: service_started
+    volumes:
+      - ${LF_HOST_WORKSPACES:?set LF_HOST_WORKSPACES to a host directory}:/data/workspaces
+    command: python -m app.worker
+    stop_grace_period: 120s
+    healthcheck:
+      test: ["CMD", "docker", "info"]   # the worker is only useful if it can reach the daemon through the proxy
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

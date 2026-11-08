@@ -493,6 +493,16 @@ def _install_audit_triggers() -> None:
             "FOR EACH ROW EXECUTE FUNCTION audit_log_immutable()"
         ).execute_if(dialect="postgresql"),
     )
+    # Row triggers do not fire for TRUNCATE (found on a real PostgreSQL in Phase 13): guard it
+    # separately.
+    event.listen(
+        table,
+        "after_create",
+        _ddl(
+            "CREATE TRIGGER audit_log_no_truncate BEFORE TRUNCATE ON audit_log "
+            "FOR EACH STATEMENT EXECUTE FUNCTION audit_log_immutable()"
+        ).execute_if(dialect="postgresql"),
+    )
 
 
 _install_audit_triggers()

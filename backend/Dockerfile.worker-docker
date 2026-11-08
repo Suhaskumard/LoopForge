@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1
+# Worker image that can start sandbox containers on the HOST's Docker daemon (Phase 13, ADR-0020).
+# It is the normal backend image plus the Docker CLI. It is used only by the opt-in `workers-docker` compose profile,
+# which points DOCKER_HOST at a docker-socket-proxy, never at the raw socket (see docs/operations.md).
+#
+# The base is the backend service's own build (compose `additional_contexts: backendimage: service:backend`),
+# so this file cannot drift from backend/Dockerfile.
+FROM docker:27-cli AS dockercli
+
+FROM backendimage
+USER root
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+USER loopforge

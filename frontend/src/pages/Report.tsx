@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { api } from "../api/client";
 import type { FinalReport } from "../api/types";
 import { TaskTabs } from "../components/Layout";

@@ -53,9 +53,29 @@ def truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + _TRUNCATED
 
 
+def to_host_path(path: Path) -> str:
+    """The path the Docker daemon must use for a bind mount of `path`.
+
+    Normally identical. When the worker runs in a container (`SANDBOX_HOST_WORKSPACE_ROOT` set), the
+    daemon runs on the host, so a path under WORKSPACE_ROOT is rewritten to the same place under the
+    host directory. A path outside WORKSPACE_ROOT is refused rather than guessed at.
+    """
+    host_root = settings.sandbox_host_workspace_root.strip()
+    if not host_root:
+        return str(path)
+    base = Path(settings.workspace_root).resolve()
+    try:
+        rel = path.resolve().relative_to(base)
+    except ValueError:
+        raise SandboxError(f"sandbox path is outside the workspace root: {path}") from None
+    host = host_root.rstrip("/\\")
+    return host if rel.as_posix() == "." else f"{host}/{rel.as_posix()}"
+
+
 def build_run_args(name: str, workspace: Path, out_dir: Path, argv: list[str]) -> list[str]:
     """The exact `docker run` command line. Pure so the §13.1 controls can be unit-tested."""
-    for p in (workspace, out_dir):
+    src_workspace, src_out = to_host_path(workspace), to_host_path(out_dir)
+    for p in (workspace, out_dir, src_workspace, src_out):
         if "," in str(p):  # would inject extra --mount options
             raise SandboxError(f"unsupported character in sandbox path: {p}")
     mem = f"{settings.sandbox_memory_mb}m"
@@ -76,8 +96,8 @@ def build_run_args(name: str, workspace: Path, out_dir: Path, argv: list[str]) -
         "--env", "HOME=/tmp",
         "--env", "PYTHONDONTWRITEBYTECODE=1",
         "--env", "COVERAGE_FILE=/tmp/.coverage",
-        "--mount", f"type=bind,source={workspace},target={CONTAINER_WORKSPACE},readonly",
-        "--mount", f"type=bind,source={out_dir},target={CONTAINER_OUT}",
+        "--mount", f"type=bind,source={src_workspace},target={CONTAINER_WORKSPACE},readonly",
+        "--mount", f"type=bind,source={src_out},target={CONTAINER_OUT}",
         "--workdir", CONTAINER_WORKSPACE,
         image_for_argv(argv),
         *argv,

@@ -54,6 +54,18 @@ Method: ran the scanners that exist locally, fixed what they found, wrote down w
 | 12.7 | **Backups hold sensitive data** (password hashes, encrypted integration tokens, audit trail, generated code) | `restore` verifies checksums first and refuses archives with absolute or `..` paths; **encrypt and access-control the backup location yourself** (the scripts do not encrypt). Retention does not reach into backups | `backup_drill.py`, `test_restore_refuses_archives_that_escape_the_target_directory` |
 | 12.8 | **CI privileges**: workflow token could write to the repository | `permissions: contents: read`; third-party actions pinned to versions | `test_ci_actions_are_pinned_to_a_version` |
 
+## Phase 13 additions (real infrastructure)
+| # | Finding / control | Result | Evidence |
+|---|---|---|---|
+| 13.1 | **Short JWT secrets were accepted in production** (a `# nosec` comment in the middle of a condition swallowed the length check; introduced in Phase 12) | **Fixed**, found by the Phase 12 gate | `test_production_requires_strong_secret` |
+| 13.2 | **`TRUNCATE audit_log` wiped the append-only log on PostgreSQL** (row triggers do not fire for TRUNCATE) | **Fixed**: statement-level trigger, migration 0009 | `test_the_database_itself_refuses_to_change_or_delete_audit_rows` (real PostgreSQL) |
+| 13.3 | `react-router` advisories (2 MODERATE left after 12.1) | **Fixed**: v7.18.5; `npm audit` = 0 | `npm audit --omit=dev` |
+| 13.4 | The sandbox's isolation was only reasoned about | **Exercised for real**: the demo loop runs in containers (the injected defect fails, the repair passes) and a probe shows **no network** inside; acceptance item 4 = PASS | `test_phase13_docker_loop.py`, `acceptance_check.py` |
+| 13.5 | SSO verification was tested only against a scripted provider | **Real Keycloak**: login, reuse, wrong password, unverified email, disallowed domain, wrong client secret, replayed code, real JWKS/RS256 | `test_phase13_oidc_keycloak.py` |
+| 13.6 | Login failures, rate-limit blocks and refresh-token reuse were invisible in the audit log | Audited for existing accounts only (unknown addresses would let anyone flood the log); the address is stored as a hash | `test_phase13_hardening.py` |
+| 13.7 | A containerised worker needed the Docker daemon | Opt-in profile behind a **docker-socket-proxy** (containers only). **Residual:** the proxy filters by endpoint, not by content; it does not make the worker trustworthy | ADR-0020, `test_phase13_gate_files.py` |
+| 13.8 | Backups were plaintext | Optional encryption (Fernet in the drill, `openssl` in the PostgreSQL scripts). **Residual:** confidentiality only, the manifest is unsigned | `test_phase13_backup_scripts.py`, `backup_drill.py --encrypt` |
+
 ### Sandbox flag review (analysis, not a proof)
 `build_run_args` (`execution/sandbox.py`) starts each run with: `--network none`, a non-root UID, `--read-only`
 root filesystem, a `noexec,nosuid` tmpfs for `/tmp`, `--cap-drop ALL`, `no-new-privileges`, memory (= swap), CPU and
@@ -73,7 +85,7 @@ PID limits, `nofile` ulimit, the workspace bind-mounted **read-only**, and one w
 - **Prompts go to a third party.** Whatever is not redacted is sent to the LLM provider.
 - **WebSocket token in the URL** can land in proxy logs; 15-minute lifetime limits the damage.
 - **Refresh token in sessionStorage** is readable by any XSS (ADR-0011); mitigated by CSP and no HTML injection, not removed.
-- **Dependency scanning is CI-only** (Phase 12): `pip-audit`, `npm audit`, SBOMs and an image scan are configured but have never run on a real CI runner; images are not signed. Two MODERATE `react-router` advisories remain (see 12.1).
+- **Dependency scanning:** `npm audit` is at 0 (Phase 13); `pip-audit` is run by the Phase 13 gate. SBOMs, the Trivy image scan and signed images are configured/absent and have never run on a real CI runner.
 - **Approver model (Phase 10)**: approvals now need the *approver* role and record who decided; there is still no rule preventing the person who started a task from approving it (no separation of duties).
 - **CI has never run on GitHub**, and nothing has been penetration-tested by a third party. Phase 12 added tooling, not an external test.
 - **The real Docker sandbox was not exercised in this environment** unless the acceptance check reports item 4 as PASS.

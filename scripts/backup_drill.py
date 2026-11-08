@@ -66,7 +66,39 @@ def fingerprint(db_file: Path, workspaces: Path) -> dict:
     }
 
 
-def backup(db_file: Path, workspaces: Path, out: Path) -> dict:
+def _fernet(key: bytes):
+    from cryptography.fernet import Fernet  # already a runtime dependency (PyJWT needs it)
+
+    return Fernet(key)
+
+
+def new_key() -> bytes:
+    from cryptography.fernet import Fernet
+
+    return Fernet.generate_key()
+
+
+def _encrypt_in_place(path: Path, key: bytes) -> Path:
+    """Replace `path` with `path.enc` (Fernet: AES-128-CBC + HMAC). Whole file in memory: fine for a drill."""
+    enc = path.with_name(path.name + ".enc")
+    enc.write_bytes(_fernet(key).encrypt(path.read_bytes()))
+    path.unlink()  # no plaintext copy is left in the backup directory
+    return enc
+
+
+def _decrypted(path: Path, key: bytes, scratch: Path) -> Path:
+    from cryptography.fernet import InvalidToken
+
+    try:
+        data = _fernet(key).decrypt(path.read_bytes())
+    except InvalidToken:
+        raise BackupError(f"{path.name} cannot be decrypted: wrong key or tampered backup") from None
+    out = scratch / path.name.removesuffix(".enc")
+    out.write_bytes(data)
+    return out
+
+
+def backup(db_file: Path, workspaces: Path, out: Path, key: bytes | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     db_copy = out / "database.sqlite"
     src, dst = sqlite3.connect(db_file), sqlite3.connect(db_copy)
@@ -78,10 +110,14 @@ def backup(db_file: Path, workspaces: Path, out: Path) -> dict:
     archive = out / "workspaces.tar.gz"
     with tarfile.open(archive, "w:gz") as tar:
         tar.add(workspaces, arcname="workspaces")
+    fp = fingerprint(db_copy, workspaces)  # computed from the plaintext copy, before encryption
+    if key is not None:
+        db_copy, archive = _encrypt_in_place(db_copy, key), _encrypt_in_place(archive, key)
     manifest = {
+        "encrypted": key is not None,
         "database_sha256": sha256_file(db_copy),
         "workspaces_sha256": sha256_file(archive),
-        "fingerprint": fingerprint(db_copy, workspaces),
+        "fingerprint": fp,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
     return manifest
@@ -89,9 +125,10 @@ def backup(db_file: Path, workspaces: Path, out: Path) -> dict:
 
 def verify_backup(backup_dir: Path) -> dict:
     manifest = json.loads((backup_dir / "manifest.json").read_text())
+    suffix = ".enc" if manifest.get("encrypted") else ""
     for name, key in (
-        ("database.sqlite", "database_sha256"),
-        ("workspaces.tar.gz", "workspaces_sha256"),
+        (f"database.sqlite{suffix}", "database_sha256"),
+        (f"workspaces.tar.gz{suffix}", "workspaces_sha256"),
     ):
         if sha256_file(backup_dir / name) != manifest[key]:
             raise BackupError(f"{name} does not match the manifest checksum: backup is corrupt")
@@ -107,12 +144,28 @@ def _safe_extract(archive: Path, dest: Path) -> None:
         tar.extractall(dest, filter="data")  # noqa: S202 - members were validated above
 
 
-def restore(backup_dir: Path, db_file: Path, workspaces: Path) -> None:
-    verify_backup(backup_dir)  # never restore something that fails its own checksums
-    db_file.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(backup_dir / "database.sqlite", db_file)
-    workspaces.parent.mkdir(parents=True, exist_ok=True)
-    _safe_extract(backup_dir / "workspaces.tar.gz", workspaces.parent)
+def restore(backup_dir: Path, db_file: Path, workspaces: Path, key: bytes | None = None) -> None:
+    manifest = verify_backup(backup_dir)  # never restore something that fails its own checksums
+    db_src, archive = backup_dir / "database.sqlite", backup_dir / "workspaces.tar.gz"
+    scratch = None
+    if manifest.get("encrypted"):
+        if key is None:
+            raise BackupError("this backup is encrypted: a key is required to restore it")
+        scratch = Path(tempfile.mkdtemp(prefix="loopforge_restore_"))
+        try:
+            db_src = _decrypted(backup_dir / "database.sqlite.enc", key, scratch)
+            archive = _decrypted(backup_dir / "workspaces.tar.gz.enc", key, scratch)
+        except BackupError:
+            shutil.rmtree(scratch, ignore_errors=True)
+            raise
+    try:
+        db_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(db_src, db_file)
+        workspaces.parent.mkdir(parents=True, exist_ok=True)
+        _safe_extract(archive, workspaces.parent)
+    finally:
+        if scratch is not None:
+            shutil.rmtree(scratch, ignore_errors=True)
 
 
 def seed(env: dict[str, str], workspaces: Path) -> None:
@@ -141,7 +194,12 @@ with SessionLocal() as db:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--keep", action="store_true")
+    parser.add_argument(
+        "--encrypt", action="store_true", help="encrypt the backup (Fernet) and prove the key matters"
+    )
     args = parser.parse_args()
+    key = new_key() if args.encrypt else None
+    suffix = ".enc" if args.encrypt else ""
     work = Path(tempfile.mkdtemp(prefix="loopforge_backup_"))
     db_file, workspaces, bdir = (
         work / "live" / "app.db",
@@ -162,7 +220,7 @@ def main() -> int:
         before = fingerprint(db_file, workspaces)
         print(f"live data: {before['counts']}")
 
-        manifest = backup(db_file, workspaces, bdir)
+        manifest = backup(db_file, workspaces, bdir, key)
         verify_backup(bdir)
         print(
             f"backup written to {bdir.name}/ and verified ({manifest['database_sha256'][:12]}...)"
@@ -171,18 +229,31 @@ def main() -> int:
         # a corrupted backup must be refused, not restored
         corrupt = work / "corrupt"
         shutil.copytree(bdir, corrupt)
-        with (corrupt / "database.sqlite").open("r+b") as f:
+        with (corrupt / f"database.sqlite{suffix}").open("r+b") as f:
             f.seek(100)
             f.write(b"\x00\xff\x00\xff")
         try:
-            restore(corrupt, work / "x" / "app.db", work / "x" / "workspaces")
+            restore(corrupt, work / "x" / "app.db", work / "x" / "workspaces", key)
             problems.append("a corrupted backup was restored instead of refused")
         except BackupError as exc:
             print(f"corrupted backup refused: {exc}")
 
+        if args.encrypt:
+            blob = b"".join(p.read_bytes() for p in bdir.iterdir() if p.name != "manifest.json")
+            if b"SQLite format 3" in blob or b"backup@example.com" in blob or b"x = 0" in blob:
+                problems.append("plaintext is visible inside the encrypted backup")
+            if any(p.name in ("database.sqlite", "workspaces.tar.gz") for p in bdir.iterdir()):
+                problems.append("a plaintext copy was left next to the encrypted backup")
+            for label, wrong in (("no key", None), ("a wrong key", new_key())):
+                try:
+                    restore(bdir, work / "y" / "app.db", work / "y" / "workspaces", wrong)
+                    problems.append(f"an encrypted backup was restored with {label}")
+                except BackupError as exc:
+                    print(f"restore with {label} refused: {exc}")
+
         shutil.rmtree(work / "live")  # the disaster: database, checkpoints and workspaces are gone
         print("live data wiped")
-        restore(bdir, db_file, workspaces)
+        restore(bdir, db_file, workspaces, key)
         after = fingerprint(db_file, workspaces)
         print(f"restored data: {after['counts']}")
         for key in ("counts", "audit_sha256", "workspace_sha256"):
@@ -212,8 +283,10 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
+    mode = "encrypted, wrong/missing key refused, " if args.encrypt else ""
     print(
-        "\nBACKUP DRILL: PASS (restored data and audit trail are identical; corruption is refused)"
+        f"\nBACKUP DRILL: PASS ({mode}restored data and audit trail are identical; "
+        "corruption is refused)"
     )
     return 0
 

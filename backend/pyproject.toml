@@ -5,6 +5,8 @@ addopts = "-m 'not slow'"
 markers = [
   "live: hits the real OpenAI API (needs OPENAI_API_KEY and OPENAI_MODEL)",
   "docker: needs a running Docker daemon and the loopforge-sandbox image",
+  "postgres: needs a real PostgreSQL (TEST_DATABASE_URL=postgresql+psycopg://...; scripts/test_postgres.sh)",
+  "keycloak: needs a real Keycloak (KEYCLOAK_URL; scripts/test_keycloak.sh)",
   "slow: minutes-long checks that the gate runs explicitly (e.g. validating all 30 benchmark tasks)",
 ]
 

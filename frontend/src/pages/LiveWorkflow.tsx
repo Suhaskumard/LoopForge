@@ -1,7 +1,7 @@
 import "@xyflow/react/dist/style.css";
 import { Background, ReactFlow, type Edge, type Node } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type { Task } from "../api/types";

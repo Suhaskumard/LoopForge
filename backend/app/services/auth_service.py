@@ -17,6 +17,14 @@ class InvalidRefreshToken(Exception):
     pass
 
 
+class RefreshTokenReuse(InvalidRefreshToken):
+    """A spent refresh token was presented again: a theft signal (the whole family was revoked)."""
+
+    def __init__(self, user_id: uuid.UUID) -> None:
+        super().__init__("refresh token reuse")
+        self.user_id = user_id
+
+
 # ---- login rate limiting (DB-backed so it is shared across workers) ----------------------
 
 
@@ -80,7 +88,7 @@ def rotate(db: Session, raw_token: str) -> tuple[User, str]:
         raise InvalidRefreshToken
     if row.revoked_at is not None:
         _revoke_family(db, row.family_id)  # theft signal: kill every token in the chain
-        raise InvalidRefreshToken
+        raise RefreshTokenReuse(row.user_id)
     if row.expires_at <= _now():
         raise InvalidRefreshToken
     user = db.get(User, row.user_id)

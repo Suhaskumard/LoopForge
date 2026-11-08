@@ -1,0 +1,42 @@
+# Throwaway infrastructure for the REAL-infrastructure tests (Phase 13, ADR-0020). Never used by the app itself.
+#   docker compose -f docker-compose.test.yml up -d --wait test-db           # PostgreSQL on localhost:5433
+#   docker compose -f docker-compose.test.yml --profile oidc up -d --wait    # + Keycloak on localhost:8180
+#   docker compose -f docker-compose.test.yml --profile oidc down -v
+# `scripts/test_postgres.sh` and `scripts/test_keycloak.sh` do this for you and clean up afterwards.
+name: loopforge-test
+
+services:
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: loopforge
+      POSTGRES_PASSWORD: loopforge
+      POSTGRES_DB: loopforge_test
+    ports:
+      - "127.0.0.1:5433:5432"   # loopback only; 5433 so it cannot clash with a developer's own 5432
+    tmpfs:
+      - /var/lib/postgresql/data   # nothing survives `down`
+    command: ["postgres", "-c", "fsync=off", "-c", "max_connections=200"]   # speed over durability: test data only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loopforge -d loopforge_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  keycloak:
+    profiles: ["oidc"]
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm", "--http-port=8080", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-test-only
+    ports:
+      - "127.0.0.1:8180:8080"
+    volumes:
+      - ./backend/tests/fixtures/keycloak/loopforge-realm.json:/opt/keycloak/data/import/loopforge-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: x\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s

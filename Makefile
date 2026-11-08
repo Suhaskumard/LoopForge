@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 preflight eval bench-validate bench-harness acceptance demo-final
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 gate13 test-postgres test-keycloak docker-worker-smoke preflight eval bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -86,6 +86,18 @@ bench-validate:  ## prove all 30 benchmark tasks are sound
 
 gate12:    ## everything above + metrics, ids, chaos/backup/load drills, security scan, evaluation kit
 	bash scripts/phase12_gate.sh
+
+gate13:    ## everything above + PostgreSQL, real Docker sandbox, Keycloak, containerised worker (needs Docker)
+	bash scripts/phase13_gate.sh
+
+test-postgres:   ## the backend suite on a real PostgreSQL 16 (needs Docker; PG_SUITE=quick for the short run)
+	bash scripts/test_postgres.sh
+
+test-keycloak:   ## OIDC tests against a real Keycloak (needs Docker)
+	bash scripts/test_keycloak.sh
+
+docker-worker-smoke:  ## containerised worker -> socket proxy -> host daemon -> sandbox container (needs Docker)
+	bash scripts/docker_worker_smoke.sh
 
 preflight:       ## real-evaluation preflight: lists every blocker, spends nothing (needs MAX_TOTAL_COST)
 	$(PY) benchmarks/preflight.py --max-total-cost $${MAX_TOTAL_COST:-0}

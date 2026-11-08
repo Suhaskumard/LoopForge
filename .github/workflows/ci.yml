@@ -60,6 +60,53 @@ jobs:
         working-directory: .
         run: docker build -t loopforge-backend backend
 
+  # Phase 13: the same checks the Phase 13 gate runs locally, on a clean runner, from a clean checkout.
+  # Real PostgreSQL 16: real Alembic up/down, PostgreSQL-only behaviour, the whole suite, the backup/restore scripts.
+  postgres:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r backend/requirements.txt
+      - name: PostgreSQL suite (scripts/test_postgres.sh)
+        run: PYTHON=python bash scripts/test_postgres.sh
+
+  # The real Docker sandbox, and the containerised worker (socket proxy -> host daemon -> sandbox container).
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r backend/requirements.txt
+      - name: Build the sandbox image
+        run: docker build -t loopforge-sandbox backend/sandbox
+      - name: Real sandbox tests (full loop in containers) and acceptance item 4
+        working-directory: backend
+        run: pytest -m docker -q
+      - name: Acceptance checklist (item 4 must PASS here)
+        run: python scripts/acceptance_check.py | tee /tmp/acc.txt && grep -q "\[PASS\] 4\." /tmp/acc.txt
+      - name: Containerised worker smoke test
+        run: PYTHON=python bash scripts/docker_worker_smoke.sh
+
+  # OIDC against a real Keycloak (pinned image; dev mode; realm imported from backend/tests/fixtures/keycloak).
+  oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r backend/requirements.txt
+      - name: Keycloak OIDC tests (scripts/test_keycloak.sh)
+        run: PYTHON=python bash scripts/test_keycloak.sh
+
   # Supply chain: dependency vulnerabilities, SBOMs and an image scan. These need the network and are
   # reported by CI only; they were never run in the development environment.
   supply-chain:

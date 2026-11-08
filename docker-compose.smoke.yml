@@ -1,0 +1,14 @@
+# Overrides used ONLY by scripts/docker_worker_smoke.sh (Phase 13): no .env file, a spare port, and a fake model so the
+# smoke test needs no API key. Everything else (the worker container, the socket proxy, the real sandbox) is the real thing.
+services:
+  migrate:
+    env_file: !override
+      - .smoke/smoke.env
+  backend:
+    env_file: !override
+      - .smoke/smoke.env
+    ports: !override
+      - "${BACKEND_PORT:-8011}:8000"
+  worker-docker:
+    env_file: !override
+      - .smoke/smoke.env

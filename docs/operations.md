@@ -1,8 +1,9 @@
-# LoopForge operations guide (Phase 12)
+# LoopForge operations guide (Phases 12-13)
 
-Audience: whoever deploys and runs LoopForge. Design decisions and limits: ADR-0019. Everything below marked
-**(untested here)** was written but could not be run in the development environment (no PostgreSQL, no Docker daemon,
-no cluster, no live provider).
+Audience: whoever deploys and runs LoopForge. Design decisions and limits: ADR-0019 (operations) and ADR-0020
+(proving it on real infrastructure). Phase 13 ran PostgreSQL 16, the real Docker sandbox, Keycloak and the backup/restore
+scripts for real; what is still **(untested here)** is marked: a Kubernetes cluster, PostgreSQL failover/replication,
+the other identity providers (Okta, Entra ID, Google) and a live GitHub.
 
 ## Processes and what to watch
 | Process | Command | Scrape |
@@ -35,7 +36,8 @@ docker compose run --rm migrate # one-shot: alembic upgrade head (advisory-locke
 docker compose --profile workers up -d --build
 ```
 Migrations run **once**, in the `migrate` service, never in every replica's start command (they used to race). The
-backend waits for it to complete. **(untested here: needs Docker/PostgreSQL)**
+backend waits for it to complete. Three simultaneous `alembic upgrade head` processes on an empty PostgreSQL were tested
+and all succeed (the advisory lock serialises them).
 
 ## Zero-downtime migration policy
 Deploy in two steps so old and new code can run side by side during a rolling update:
@@ -44,6 +46,21 @@ Deploy in two steps so old and new code can run side by side during a rolling up
 Never combine an expand and a contract in one release, and never run `alembic downgrade` on production data without
 a backup (see below). Every migration must keep `test_migrations.py` green (models and migrations must match, and
 the downgrade must be clean).
+
+## Workers that run the real sandbox in containers (opt-in)
+The default `worker` service does not have a Docker daemon, so it cannot run the real sandbox. For that, use the opt-in file:
+```bash
+export LF_HOST_WORKSPACES=/srv/loopforge/workspaces      # a HOST directory, absolute path
+docker build -t loopforge-sandbox backend/sandbox         # the image must exist on the host daemon
+docker compose -f docker-compose.yml -f docker-compose.worker-docker.yml --profile workers-docker up -d --build
+```
+The worker image has the Docker CLI but **not** the socket: it talks to a `docker-socket-proxy` that allows containers only
+(no images, volumes, networks, exec, build, swarm). The API and the worker share `LF_HOST_WORKSPACES` as a host bind, and
+`SANDBOX_HOST_WORKSPACE_ROOT` translates the worker's `/data/workspaces/...` into that host path, because the host daemon
+resolves bind-mount sources on the host. **The proxy filters by endpoint, not by content**: anything that reaches it can still
+create a container with arbitrary binds. Keep the worker on a dedicated node, never publish port 2375, and treat the worker as
+trusted code. `scripts/docker_worker_smoke.sh` runs the whole chain once (worker container -> proxy -> host daemon -> sandbox
+container) and is part of the Phase 13 gate.
 
 ## Scaling workers
 The unit of work is one task run (minutes). Queue depth is `loopforge_jobs_queued`, and the age of the oldest waiting
@@ -63,10 +80,17 @@ connected to the same database.
 
 ## Backup and restore
 What to back up: the database and the workspaces directory (generated code, logs). The audit log is in the database.
-- PostgreSQL: `scripts/backup.sh` (pg_dump custom format + workspaces tarball) and `scripts/restore.sh`
-  **(untested here: needs PostgreSQL)**. Test a restore on a scratch database regularly: an untested backup is a hope.
+- PostgreSQL: `scripts/backup.sh` (pg_dump custom format + workspaces tarball) and `scripts/restore.sh`, run for real in
+  Phase 13 against PostgreSQL 16 (round trip, corruption refused, encryption, wrong/missing key). Test a restore on a scratch
+  database regularly: an untested backup is a hope.
 - SQLite (development only): `python scripts/backup_drill.py` backs up, wipes, restores and verifies row counts and the
-  audit log; it is part of `make gate12`.
+  audit log; add `--encrypt` to prove the key matters. Both are part of the gates.
+- **Encryption (optional):** `BACKUP_PASSPHRASE_FILE=/path/to/passphrase` makes `backup.sh` encrypt both artifacts with `openssl`
+  (AES-256-CBC, PBKDF2) and leave no plaintext copy; `restore.sh` needs the same variable and refuses a missing or wrong one.
+  This is confidentiality, not integrity: the checksum manifest catches accidental damage but is not signed (use `age` on the
+  output if tampering matters). Keep the passphrase somewhere other than next to the backup.
+- **Running the PostgreSQL scripts against a container:** set `PG_CONTAINER=<name>` and `pg_dump`/`pg_restore` run inside it
+  (no client tools needed on the host). `bash scripts/test_postgres.sh` exercises both scripts against a throwaway server.
 Retention (`retention_days`) deletes data from the database and workspaces but **not** from your backups: remember that
 when promising deletion.
 
@@ -88,6 +112,12 @@ organizations. Token counts are estimates from agent runs, not billing data: rec
 5. **Sandbox infrastructure errors**: the loop deliberately does not "repair" code when the sandbox itself cannot run;
    fix Docker/the image, then use *retry* on the affected tasks.
 6. After the incident: note the request ids, the timeline and what alert would have caught it sooner.
+
+## Running the tests on real infrastructure
+`bash scripts/test_postgres.sh` starts a throwaway PostgreSQL 16 (`docker-compose.test.yml`, tmpfs, localhost:5433), runs real
+Alembic up/down/up, the PostgreSQL-only tests and the whole backend suite on it, then removes it (`PG_SUITE=quick` skips the
+long part; `KEEP_DB=1` keeps the container). `bash scripts/test_keycloak.sh` does the same for a real Keycloak (OIDC).
+`pytest -m docker` runs the real-sandbox tests. These scripts **fail** without a Docker daemon instead of skipping.
 
 ## Real evaluation
 See `docs/evaluation_report.md`. `make eval` runs the preflight (key, model, Docker, images, cost ceiling) and then the

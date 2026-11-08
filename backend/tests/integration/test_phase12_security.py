@@ -75,15 +75,19 @@ def test_the_local_scan_script_never_counts_a_skip_as_a_pass():
     assert "bandit -r app -ll" in text or "bandit -r app -ll -q" in text
 
 
-def test_frontend_does_not_pin_the_react_router_versions_with_high_advisories():
-    pkg = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
-    version = pkg["dependencies"]["react-router-dom"]
-    major, minor, patch = (int(x) for x in version.split("."))
+def test_frontend_uses_a_react_router_without_the_known_advisories():
+    deps = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))[
+        "dependencies"
+    ]
+    assert (
+        "react-router-dom" not in deps
+    )  # 6.x had open-redirect advisories; v7 uses `react-router`
+    major, minor, patch = (int(x) for x in deps["react-router"].split("."))
     assert (major, minor, patch) >= (
-        6,
-        30,
-        6,
-    ), f"react-router-dom {version} has known open-redirect advisories"
+        7,
+        18,
+        5,
+    ), f"react-router {deps['react-router']} has known advisories"
 
 
 def test_security_documents_were_updated_for_phase_12():

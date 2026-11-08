@@ -1,0 +1,64 @@
+{
+  "realm": "loopforge",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "loopforge",
+      "name": "LoopForge (test)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "keycloak-test-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://testserver/api/v1/auth/sso/callback",
+        "http://localhost:8000/api/v1/auth/sso/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "email", "roles"],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@corp.example",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Verified",
+      "credentials": [{"type": "password", "value": "alice-pass-123", "temporary": false}]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@corp.example",
+      "emailVerified": false,
+      "firstName": "Bob",
+      "lastName": "Unverified",
+      "credentials": [{"type": "password", "value": "bob-pass-123", "temporary": false}]
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "email": "carol@other.example",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "OtherDomain",
+      "credentials": [{"type": "password", "value": "carol-pass-123", "temporary": false}]
+    }
+  ]
+}

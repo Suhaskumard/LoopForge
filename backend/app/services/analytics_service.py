@@ -15,6 +15,7 @@ Definitions that matter:
 
 import uuid
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
@@ -55,8 +56,14 @@ def _round(value: float | None, digits: int = 4) -> float | None:
     return None if value is None else round(value, digits)
 
 
-def cost_of(tokens: int) -> float:
-    return tokens / 1000 * settings.cost_per_1k_tokens
+def cost_of(tokens: int, model: str | None = None) -> float:
+    """Estimated USD for `tokens`; `model` picks its price from MODEL_PRICES_JSON if set."""
+    return tokens / 1000 * settings.price_per_1k(model)
+
+
+def cost_of_runs(runs: Iterable[AgentRun]) -> float:
+    """Sum of each run priced at ITS model's rate (no recorded model: the default rate)."""
+    return sum(cost_of(r.tokens_used, r.model) for r in runs)
 
 
 def latest_results(db: Session, iteration_ids: list[uuid.UUID]) -> dict[uuid.UUID, TestResult]:
@@ -94,6 +101,12 @@ def _tokens_by_iteration(db: Session, iteration_ids: list[uuid.UUID]) -> dict[uu
     return totals
 
 
+def _runs_of(db: Session, iteration_ids: list[uuid.UUID]) -> list[AgentRun]:
+    if not iteration_ids:
+        return []
+    return list(db.scalars(select(AgentRun).where(AgentRun.iteration_id.in_(iteration_ids))))
+
+
 def _task_seconds(its: list[Iteration], ended: datetime | None) -> float | None:
     if not its or ended is None:
         return None
@@ -121,6 +134,7 @@ def overview(db: Session, org_id: uuid.UUID) -> OverviewOut:
         by_task[it.task_id].append(it)
     results = latest_results(db, [i.id for i in its])
     tokens = _tokens_by_iteration(db, [i.id for i in its])
+    total_cost = cost_of_runs(_runs_of(db, [i.id for i in its]))
     ended = _terminal_times(db, task_ids)
 
     by_status = Counter(t.status for t in tasks)
@@ -165,9 +179,9 @@ def overview(db: Session, org_id: uuid.UUID) -> OverviewOut:
         tests_passed=passed,
         average_quality_score=_round(_ratio(sum(qualities), len(qualities)), 2),
         average_execution_seconds=_round(_ratio(sum(measured), len(measured)), 3),
-        average_cost=_round(_ratio(cost_of(total_tokens), started), 6),
+        average_cost=_round(_ratio(total_cost, started), 6),
         total_tokens=total_tokens,
-        total_cost=round(cost_of(total_tokens), 6),
+        total_cost=round(total_cost, 6),
         iteration_efficiency=_round(
             _ratio(len(completed), sum(len(v) for v in by_task.values())), 4
         ),
@@ -223,7 +237,7 @@ def task_analytics(db: Session, task: Task) -> TaskAnalyticsOut:
         status=task.status,
         iterations=stats,
         total_tokens=total,
-        estimated_cost=round(cost_of(total), 6),
+        estimated_cost=round(cost_of_runs(r for rs in runs.values() for r in rs), 6),
         execution_seconds=_round(
             _task_seconds(its, _terminal_times(db, [task.id]).get(task.id)), 3
         ),

@@ -2,7 +2,7 @@
 
 Autonomous, feedback-driven AI software-engineering platform: natural-language requirement → plan → generated Python → sandboxed tests → independent review → deterministic retry/accept/escalate, until measurable acceptance criteria are met.
 
-**Status:** Phases 1–12 built (foundation, agents, sandbox, feedback loop, dashboard + analytics, hardening + evaluation harness, scale-out worker, existing repositories + JavaScript, smarter repair loop, organizations/roles/SSO/audit, integrations, operations). **No benchmark result has been measured yet** (needs an API key): see `docs/evaluation_report.md`. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise); 11–12 (integrations, production ops + real evaluation) are drafted in `docs/roadmap_phases_8_12.md`.
+**Status:** Phases 1–13 built (foundation, agents, sandbox, feedback loop, dashboard + analytics, hardening + evaluation harness, scale-out worker, existing repositories + JavaScript, smarter repair loop, organizations/roles/SSO/audit, integrations, operations). **No benchmark result has been measured yet** (needs an API key): see `docs/evaluation_report.md`. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise); 11–12 (integrations, production ops + real evaluation) are drafted in `docs/roadmap_phases_8_12.md`.
 
 ## Quick start
 ```bash
@@ -19,6 +19,11 @@ make acceptance                            # the 15.1 checklist with evidence (P
 make demo-final                            # clean-environment rehearsal in a fresh virtualenv
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
+
+## Phase 13 - proved on real infrastructure
+- Ran for real: **PostgreSQL 16** (real Alembic up/down, PG-only behaviour, the whole suite, the backup/restore scripts), the **real Docker sandbox** (full loop in containers, no network inside; acceptance item 4 = PASS), **Keycloak** (OIDC), and an opt-in **containerised worker** behind a docker-socket-proxy. `make gate13` (needs Docker; a missing daemon is a failure, not a skip).
+- Found and fixed real defects: short production JWT secrets were accepted (my Phase 12 mistake, caught by the gate); `TRUNCATE` could wipe the append-only audit log on PostgreSQL; `react-router` advisories (now v7, `npm audit` = 0).
+- Closed small gaps: audited login failures / refresh-token reuse, per-model price map (`MODEL_PRICES_JSON`), worker metrics token, optional backup encryption. ADR-0020. **Still unmeasured: the real-model evaluation (Phase 14).**
 
 ## Phase 12 - production operations and the real-evaluation kit
 - **Observability:** JSON logs carry `request_id` (and `job_id`/`task_id` while work is processed); the API request id follows the job to the worker. `GET /metrics` (`METRICS_ENABLED`, optional `METRICS_TOKEN`) and a worker metrics port expose Prometheus series; alert rules, a Grafana dashboard and a KEDA example are in `deploy/observability/`. Operator guide: `docs/operations.md`.

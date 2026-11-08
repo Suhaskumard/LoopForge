@@ -113,14 +113,26 @@ MATRIX: dict[tuple[str, str], str] = {
 PATH_ORG = "/orgs/{org_id}"  # routes whose organization is in the path
 
 
-def _app_routes() -> set[tuple[str, str]]:
-    found = set()
-    for route in app.routes:
+def _walk(routes, prefix: str = ""):
+    """Every HTTP route, however the framework nests it.
+
+    Older FastAPI flattens included routers into `app.routes`; newer versions keep each include as a
+    lazy `_IncludedRouter` that holds `original_router` and an include prefix. Both are handled, so the
+    completeness check keeps working across framework upgrades.
+    """
+    for route in routes:
         if isinstance(route, WebSocketRoute):
             continue
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield from _walk(inner.routes, prefix + route.include_context.prefix)
+            continue
         for method in getattr(route, "methods", None) or ():
-            found.add((method, route.path))
-    return found
+            yield (method, prefix + route.path)
+
+
+def _app_routes() -> set[tuple[str, str]]:
+    return set(_walk(app.routes))
 
 
 def test_every_route_is_in_the_matrix():

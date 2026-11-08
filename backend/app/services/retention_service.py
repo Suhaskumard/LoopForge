@@ -28,6 +28,7 @@ from app.database.models import (
     Membership,
     Organization,
     Project,
+    PublishRequest,
     RepairHistory,
     RunLease,
     Task,
@@ -47,10 +48,18 @@ def _remove_workspace(task_id: uuid.UUID) -> None:
         shutil.rmtree(target, ignore_errors=True)
 
 
+# Tables with a foreign key to tasks.id that the ORM does NOT cascade (iterations, audit events and
+# requirements are cascaded by the `Task` relationships). SQLite does not enforce foreign keys by
+# default, PostgreSQL does: a table missing here makes deleting a task fail with a
+# ForeignKeyViolation on PostgreSQL only. A test fails if a new table referencing tasks is added
+# without being listed.
+TASK_DEPENDENTS = (RepairHistory, ApprovalRequest, RunLease, Job, PublishRequest)
+
+
 def purge_task(db: Session, task: Task) -> None:
     """Delete one task with everything that hangs off it, then its files."""
     task_id = task.id
-    for model in (RepairHistory, ApprovalRequest, RunLease, Job):
+    for model in TASK_DEPENDENTS:
         db.execute(delete(model).where(model.task_id == task_id))
     db.delete(task)  # iterations, agent runs, test results, artifacts, events, requirements cascade
     db.commit()

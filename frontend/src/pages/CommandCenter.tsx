@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type { Overview, Task } from "../api/types";

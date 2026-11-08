@@ -89,7 +89,11 @@ def main() -> None:
 
     configure_logging()
     if settings.worker_metrics_port > 0:
-        metrics_server.start(settings.worker_metrics_port, settings.worker_metrics_host)
+        metrics_server.start(
+            settings.worker_metrics_port,
+            settings.worker_metrics_host,
+            settings.worker_metrics_token or None,
+        )
     stop = threading.Event()
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     signal.signal(signal.SIGTERM, lambda *_: stop.set())

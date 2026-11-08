@@ -43,5 +43,18 @@ def update_project(db: Session, project: Project, data: ProjectUpdate) -> Projec
 
 
 def delete_project(db: Session, project: Project) -> None:
+    """Delete a project and everything under it (rows and workspace files).
+
+    Each task goes through `retention_service.purge_task`, which also removes the rows no ORM
+    cascade reaches (approvals, repair history, leases, jobs, publish requests): without that,
+    PostgreSQL refuses the delete.
+    """
+    from app.services import (
+        retention_service,  # local import: retention_service imports report_service
+    )
+
+    for task in list(project.tasks):
+        retention_service.purge_task(db, task)
+    db.refresh(project)
     db.delete(project)
     db.commit()

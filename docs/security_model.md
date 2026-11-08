@@ -52,6 +52,10 @@ advisory lock; the production image contains runtime dependencies only. Backups 
 restore and refuse path-escaping archives, but are **not encrypted** by the scripts. Details, the dependency and
 static-analysis results, and the sandbox flag review: `docs/security_review.md` (Phase 12 additions), ADR-0019.
 
+Phase 13 ran these controls on real infrastructure (PostgreSQL 16, the real Docker sandbox, Keycloak) and found and fixed two
+real defects: short production JWT secrets were accepted, and `TRUNCATE` could wipe the audit log on PostgreSQL. See the
+"Phase 13 additions" table in `docs/security_review.md` and ADR-0020.
+
 ## Known limits (honest list)
 - Rate-limit key uses the direct peer address unless `TRUSTED_PROXY_COUNT=N` is set; then the Nth `X-Forwarded-For` entry from the right is used and anything further left (client-forged) is ignored (Phase 7, `utils/client_ip.py`).
 - LoopForge's own tokens are HS256 with a shared secret (key rotation not built). SSO ID tokens are verified with the provider's asymmetric keys.

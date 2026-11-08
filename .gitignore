@@ -13,3 +13,4 @@ workspaces/
 .coverage
 *.checkpoints.sqlite
 .coverage.*
+.smoke/

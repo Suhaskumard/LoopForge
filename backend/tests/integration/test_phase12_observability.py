@@ -118,6 +118,9 @@ def test_metrics_are_404_unless_enabled(client):
 
 def test_metrics_endpoint_serves_series_and_hides_ids(client, monkeypatch):
     monkeypatch.setattr(settings, "metrics_enabled", True)
+    before_4xx = metrics.HTTP_REQUESTS.value(
+        method="GET", route="/api/v1/tasks", status_class="4xx"
+    )
     h = register_and_login(client, "m@x.com")
     task = _task(client, h)
     for _ in range(3):
@@ -132,10 +135,10 @@ def test_metrics_endpoint_serves_series_and_hides_ids(client, monkeypatch):
     # the route TEMPLATE is the label: one series for every task id, never the raw path
     assert 'route="/api/v1/tasks/{task_id}"' in body
     assert task["id"] not in body
-    assert re.search(
-        r'loopforge_http_requests_total\{method="GET",route="/api/v1/tasks",status_class="4xx"\} 1',
-        body,
-    )
+    assert (
+        metrics.HTTP_REQUESTS.value(method="GET", route="/api/v1/tasks", status_class="4xx")
+        == before_4xx + 1
+    )  # exactly the one 401 made above (a delta: the registry lives per process)
     assert "loopforge_http_request_duration_seconds_bucket" in body
     assert 'loopforge_tasks{status="PENDING"} 1' in body
     assert 'loopforge_build_info{version="12"} 1' in body

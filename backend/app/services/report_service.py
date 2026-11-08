@@ -99,7 +99,8 @@ def build_report(db: Session, task: Task) -> FinalReport:
         for rid in f.get("implements", []):
             impl.setdefault(rid, []).append(f["path"])
 
-    tokens = sum(analytics_service._tokens_by_iteration(db, [i.id for i in its]).values())
+    run_rows = analytics_service._runs_of(db, [i.id for i in its])
+    tokens = sum(r.tokens_used for r in run_rows)
     approvals = [
         {"kind": a.kind, "status": a.status, "summary": a.summary, "iteration": a.iteration_number}
         for a in db.scalars(
@@ -144,7 +145,7 @@ def build_report(db: Session, task: Task) -> FinalReport:
         },
         files=_source_files(db, last) if last else [],
         total_tokens=tokens,
-        estimated_cost=round(analytics_service.cost_of(tokens), 6),
+        estimated_cost=round(analytics_service.cost_of_runs(run_rows), 6),
         approvals=approvals,
         readme_generated=bool(readme_path and readme_path.exists()),
         generated_at=datetime.now(UTC).isoformat(timespec="seconds"),

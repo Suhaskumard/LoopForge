@@ -1,14 +1,18 @@
+import json
 from typing import Literal, Self
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The development default. Production refuses it (and any secret shorter than 32 characters).
+DEFAULT_JWT_SECRET = "change-me"  # nosec B105
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge"
-    jwt_secret: str = "change-me"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 15
     refresh_expire_days: int = 14
@@ -33,6 +37,7 @@ class Settings(BaseSettings):
     metrics_enabled: bool = False  # GET /metrics is 404 unless enabled
     metrics_token: str = ""  # when set, /metrics needs `Authorization: Bearer <token>`
     worker_metrics_port: int = 0  # >0: a worker serves its own process metrics on this port
+    worker_metrics_token: str = ""  # when set, the worker metrics port needs this bearer token
     worker_metrics_host: str = "127.0.0.1"  # containers set 0.0.0.0 so a scraper can reach it
     db_pool_size: int = 5
     db_max_overflow: int = 10
@@ -66,6 +71,10 @@ class Settings(BaseSettings):
     workspace_root: str = "./workspaces"
     sandbox_backend: Literal["docker", "fake"] = "docker"
     sandbox_image: str = "loopforge-sandbox"
+    # A worker that itself runs in a container talks to the HOST's Docker daemon, which resolves
+    # bind-mount sources on the host. Set this to the host path that is mounted at WORKSPACE_ROOT
+    # inside the worker (e.g. /srv/loopforge/workspaces). Empty = same paths on both sides.
+    sandbox_host_workspace_root: str = ""
     sandbox_image_js: str = "loopforge-sandbox-node"
     sandbox_memory_mb: int = 256
     sandbox_cpus: float = 1.0
@@ -80,6 +89,10 @@ class Settings(BaseSettings):
     ws_max_connections_per_user: int = 10
     # Estimated blended price per 1k tokens (USD). There is no billing data: cost is tokens x rate.
     cost_per_1k_tokens: float = 0.002
+    # Optional per-model prices, e.g. {"strong-model": 0.01, "cheap-model": 0.0005}
+    # (USD per 1k tokens).
+    # A model that is not listed (or a run with no recorded model) uses COST_PER_1K_TOKENS.
+    model_prices_json: str = ""
     # Phase 8: repository import (untrusted input limits, ADR-0015)
     repo_max_archive_bytes: int = 20_000_000
     repo_max_files: int = 2000
@@ -98,9 +111,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:
-        if self.environment == "production" and (
-            self.jwt_secret == "change-me"  # nosec B105 - the default we refuse in production or len(self.jwt_secret) < 32
-        ):
+        weak_secret = len(self.jwt_secret) < 32 or self.jwt_secret == DEFAULT_JWT_SECRET
+        if self.environment == "production" and weak_secret:
             raise ValueError("JWT_SECRET must be set to a random value (>=32 chars) in production")
         if self.environment == "production" and self.llm_provider == "fake":
             raise ValueError("LLM_PROVIDER=fake is not allowed in production")
@@ -110,6 +122,19 @@ class Settings(BaseSettings):
             raise ValueError("WEBHOOK_ALLOW_PRIVATE_HOSTS is not allowed in production")
         if self.environment == "production" and not self.github_api_base.startswith("https://"):
             raise ValueError("GITHUB_API_BASE must use https in production")
+        if self.model_prices_json.strip():
+            try:
+                prices = json.loads(self.model_prices_json)
+                if not isinstance(prices, dict) or any(
+                    isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0
+                    for v in prices.values()
+                ):
+                    raise ValueError
+            except ValueError:
+                raise ValueError(
+                    "MODEL_PRICES_JSON must be a JSON object of non-negative numbers, "
+                    'e.g. {"m": 0.01}'
+                ) from None
         if self.oidc_issuer:
             if not self.oidc_client_id or not self.oidc_client_secret:
                 raise ValueError(
@@ -118,6 +143,16 @@ class Settings(BaseSettings):
             if self.environment == "production" and not self.oidc_issuer.startswith("https://"):
                 raise ValueError("OIDC_ISSUER must use https in production")
         return self
+
+    def price_per_1k(self, model: str | None) -> float:
+        """Estimated USD per 1k tokens for `model` (falls back to the blended default)."""
+        prices = self.model_prices()
+        return prices.get(model or "", self.cost_per_1k_tokens)
+
+    def model_prices(self) -> dict[str, float]:
+        if not self.model_prices_json.strip():
+            return {}
+        return {str(k): float(v) for k, v in json.loads(self.model_prices_json).items()}
 
     def model_for(self, agent: str) -> str | None:
         """Model override for an agent name (Planner, Builder, Repair, Reviewer, Documentation)."""

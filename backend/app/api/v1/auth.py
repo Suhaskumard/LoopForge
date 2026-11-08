@@ -1,3 +1,5 @@
+import hashlib
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
@@ -21,6 +23,24 @@ def _token_pair(user: User, refresh_token: str) -> Token:
         refresh_token=refresh_token,
         expires_in=settings.jwt_expire_minutes * 60,
     )
+
+
+def _audit_auth(db: Session, request: Request, email: str, action: str, *, reason: str) -> None:
+    """Record a failed or blocked login for an EXISTING account.
+
+    Unknown emails are deliberately not written: anyone could otherwise fill the audit log with
+    random addresses. The email is stored as a short hash, not in clear text.
+    """
+    user = db.scalars(select(User).where(User.email == email)).first()
+    if user is None:
+        return
+    ctx = org_service.resolve(db, user.id, None)
+    audit_service.record(
+        db, org_id=ctx.org_id if ctx else None, actor_id=user.id, action=action,
+        target_type="user", target_id=user.id,
+        detail={"reason": reason, "email_sha256": hashlib.sha256(email.encode()).hexdigest()[:16]},
+        request=request,
+    )  # fmt: skip
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -48,6 +68,7 @@ def login(
     email = form.username.lower()
     key = f"{client_ip(request)}|{email}"
     if auth_service.is_login_blocked(db, key):
+        _audit_auth(db, request, email, "auth.login_blocked", reason="too_many_failures")
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "Too many failed attempts; try again later",
@@ -59,9 +80,15 @@ def login(
         or not user.password_hash
         or not verify_password(form.password, user.password_hash)
     ):
-        auth_service.record_login_failure(
-            db, key
-        )  # SSO-only users (no password) cannot log in here
+        auth_service.record_login_failure(db, key)  # SSO-only users have no password to match
+        reason = (
+            "unknown_user"
+            if user is None
+            else "sso_only"
+            if not user.password_hash
+            else "bad_password"
+        )
+        _audit_auth(db, request, email, "auth.login_failed", reason=reason)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
     auth_service.clear_login_failures(db, key)
     ctx = org_service.resolve(db, user.id, None)
@@ -73,9 +100,20 @@ def login(
 
 
 @router.post("/refresh", response_model=Token)
-def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> Token:
+def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db)) -> Token:
     try:
         user, new_token = auth_service.rotate(db, body.refresh_token)
+    except auth_service.RefreshTokenReuse as reuse:
+        owner = db.get(User, reuse.user_id)
+        if owner is not None:
+            ctx = org_service.resolve(db, owner.id, None)
+            audit_service.record(
+                db, org_id=ctx.org_id if ctx else None, actor_id=owner.id,
+                action="auth.refresh_reuse", target_type="user", target_id=owner.id,
+                detail={"note": "spent refresh token replayed; session family revoked"},
+                request=request,
+            )  # fmt: skip
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token") from None
     except auth_service.InvalidRefreshToken:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token") from None
     return _token_pair(user, new_token)

@@ -1,4 +1,4 @@
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router";
 import { Protected } from "./components/Layout";
 import { Admin } from "./pages/Admin";
 import { Analytics } from "./pages/Analytics";
