@@ -42,7 +42,7 @@ jobs:
       - uses: sigstore/cosign-installer@v3.7.0
       - name: Sign the image by digest (keyless)
         run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
