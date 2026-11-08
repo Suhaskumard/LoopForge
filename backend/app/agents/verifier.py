@@ -10,7 +10,7 @@ from app.agents.base import AgentContext
 from app.config import settings
 from app.database.models import AgentRun, TestResult
 from app.evaluation.test_runner import TestFailure, TestSummary, run_tests
-from app.execution.dependencies import check_requirements
+from app.execution.languages import get_profile
 from app.execution.sandbox import Sandbox
 from app.services import workspace
 
@@ -42,8 +42,13 @@ def run(ctx: AgentContext, sandbox: Sandbox) -> TestSummary:
     db.commit()
     src = workspace.iteration_dir(task.id, it.iteration_number)
     try:
-        req = src / "requirements.txt"
-        violations = check_requirements(req.read_text(encoding="utf-8")) if req.is_file() else []
+        profile = get_profile(task.project.language)
+        manifest = src / profile.manifest
+        violations = (
+            profile.check_dependencies(manifest.read_text(encoding="utf-8"))
+            if manifest.is_file()
+            else []
+        )
         if violations:
             summary = TestSummary(
                 failed=1,
@@ -55,10 +60,11 @@ def run(ctx: AgentContext, sandbox: Sandbox) -> TestSummary:
             return summary
 
         out = workspace.out_dir(task.id, it.iteration_number)
-        summary, result = run_tests(sandbox, src, out, settings.max_execution_seconds)
+        summary, result = run_tests(sandbox, src, out, settings.max_execution_seconds, profile)
+        label = profile.test_command_label
         for name, text in (
-            ("pytest-stdout.txt", result.stdout),
-            ("pytest-stderr.txt", result.stderr),
+            (f"{label}-stdout.txt", result.stdout),
+            (f"{label}-stderr.txt", result.stderr),
         ):
             workspace.write_log(
                 db,

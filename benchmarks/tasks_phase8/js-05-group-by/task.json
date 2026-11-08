@@ -1,0 +1,16 @@
+{
+  "id": "js-05-group-by",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "medium",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/groupBy.js` and your own tests in `tests/groupBy.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `groupBy(array, keyFn)` returning an object mapping each key (keyFn(item), converted to string) to the array of items in input order. keyFn must be a function, else TypeError.",
+  "acceptance_criteria": [
+    "Export `groupBy(array, keyFn)` returning an object mapping each key (keyFn(item), converted to string) to the array of items in input order. keyFn must be a function, else TypeError."
+  ],
+  "source": "none",
+  "module": "src/groupBy.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

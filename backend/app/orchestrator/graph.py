@@ -35,6 +35,7 @@ from app.evaluation.classifier import (
 )
 from app.evaluation.quality import run_quality
 from app.evaluation.test_runner import TestFailure, TestSummary
+from app.execution.languages import get_profile
 from app.execution.runner import CommandNotAllowed
 from app.execution.sandbox import Sandbox, SandboxError
 from app.orchestrator.checkpoint import get_checkpointer
@@ -244,6 +245,7 @@ def build_graph(
                     src,
                     workspace.out_dir(task.id, it.iteration_number),
                     settings.max_execution_seconds,
+                    get_profile(task.project.language),
                 )
                 if config.reviewer_enabled:
                     review = reviewer.run(ctx, plan, summary, qrep)

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,7 @@ from app.config import settings
 from app.database.models import AuditEvent, Task, User
 from app.database.session import get_db
 from app.schemas.task import AuditEventOut, TaskCreate, TaskOut
-from app.services import project_service, task_service
+from app.services import project_service, repo_import, source_service, task_service
 from app.services.task_service import InvalidTransition, TaskStatus
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -32,6 +32,11 @@ def create(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"token_budget may not exceed the server limit ({settings.max_token_budget})",
         )
+    if data.source_type == "git":
+        try:
+            repo_import.validate_git_url_syntax(data.git_url or "")
+        except repo_import.RepoImportError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
     return task_service.create_task(
         db,
         project,
@@ -41,6 +46,8 @@ def create(
         token_budget=data.token_budget,
         max_cost=data.max_cost,
         require_plan_approval=data.require_plan_approval,
+        source_type=data.source_type,
+        source_ref=data.git_url,
     )
 
 
@@ -88,6 +95,30 @@ def change_status(
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
     set_etag(response, updated.version)
     return updated
+
+
+@router.post("/{task_id}/source", response_model=TaskOut)
+def upload_source(
+    task_id: uuid.UUID,
+    file: UploadFile,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Task:
+    """Upload the starting repository as a zip (only for source_type=zip tasks, before start)."""
+    task = task_service.get_owned_task(db, user.id, task_id)
+    if task is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    if task.source_type != "zip":
+        raise HTTPException(status.HTTP_409_CONFLICT, "task was not created with source_type 'zip'")
+    if task.status != TaskStatus.PENDING.value:
+        raise HTTPException(status.HTTP_409_CONFLICT, "the source can only change before start")
+    blob = file.file.read(settings.repo_max_archive_bytes + 1)  # never read past the limit
+    try:
+        result = repo_import.import_zip(blob)
+        source_service.seed_task(db, task, result, file.filename or "upload.zip")
+    except repo_import.RepoImportError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+    return task
 
 
 @router.get("/{task_id}/events", response_model=list[AuditEventOut])

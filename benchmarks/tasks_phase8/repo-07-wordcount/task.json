@@ -1,0 +1,15 @@
+{
+  "id": "repo-07-wordcount",
+  "category": "repo_input",
+  "language": "python",
+  "difficulty": "medium",
+  "requirement": "The Python repository you were given has a bug. Fix it in place so the behaviour described in SPEC holds. Keep every public function and its signature, keep the existing tests passing, and add a regression test that would have caught the bug.\n\nSYMPTOM: `word_count('Hi, hi! HI?')` returns {'hi,': 1, 'hi!': 1, 'hi?': 1} instead of {'hi': 3}.\n\nSPEC: Count words case-insensitively; a word is a maximal run of letters, digits or apostrophes; punctuation separates words.\n\nThe code is in `lib/words.py`; read it from the repository (it is not repeated here).",
+  "acceptance_criteria": [
+    "Count words case-insensitively; a word is a maximal run of letters, digits or apostrophes; punctuation separates words."
+  ],
+  "source": "repo",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

@@ -43,3 +43,44 @@ def redact(text: str) -> str:
 
 def contains_secret(text: str) -> bool:
     return redact(text) != text
+
+
+# ---- repository scanning (Phase 8): names the finding, never rewrites the file -----------------
+
+_PATTERN_NAMES = [
+    "private key block",
+    "OpenAI-style API key",
+    "AWS access key id",
+    "GitHub token",
+    "Slack token",
+    "JWT",
+    "bearer token",
+]
+_SECRET_FILENAMES = re.compile(
+    r"(^|/)(\.env(\..*)?|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|p12|pfx)|\.npmrc|\.pypirc)$"
+)
+_ENV_TEMPLATE = re.compile(r"\.(example|sample|template|dist)$")
+# Only quoted literals count as a leaked secret in source; `password = get_password()` is code.
+_LITERAL_ASSIGNMENT = re.compile(
+    r"(?i)\b[A-Za-z0-9_.-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|token|"
+    r"private[_-]?key|credential)[A-Za-z0-9_.-]*\s*[:=]\s*[\"']([^\"'\n]{12,})[\"']"
+)
+_PLACEHOLDER = re.compile(
+    r"(?i)(change.?me|example|placeholder|your[_-]|dummy|fake|test|xxxx|\*{4}|<[^>]+>|\$\{|\{\{|"
+    r"^[a-z_]+$)"
+)
+
+
+def scan_secrets(path: str, text: str) -> list[str]:
+    """Names of credential kinds found in a file (empty = clean). Filename rules apply too."""
+    found: list[str] = []
+    if _SECRET_FILENAMES.search(path) and not _ENV_TEMPLATE.search(path):
+        found.append("secret-bearing filename")
+    for name, pattern in zip(_PATTERN_NAMES, _PATTERNS, strict=True):
+        if pattern.search(text):
+            found.append(name)
+    for m in _LITERAL_ASSIGNMENT.finditer(text):
+        if not _PLACEHOLDER.search(m.group(1)):
+            found.append("hard-coded credential literal")
+            break
+    return found

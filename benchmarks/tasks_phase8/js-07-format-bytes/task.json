@@ -1,0 +1,16 @@
+{
+  "id": "js-07-format-bytes",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "medium",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/formatBytes.js` and your own tests in `tests/formatBytes.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `formatBytes(n)` returning a human string with 1024-based units B, KB, MB, GB, TB: integer bytes below 1024 as '<n> B', otherwise one decimal ('1.5 KB'). Negative or non-finite input throws RangeError.",
+  "acceptance_criteria": [
+    "Export `formatBytes(n)` returning a human string with 1024-based units B, KB, MB, GB, TB: integer bytes below 1024 as '<n> B', otherwise one decimal ('1.5 KB'). Negative or non-finite input throws RangeError."
+  ],
+  "source": "none",
+  "module": "src/formatBytes.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

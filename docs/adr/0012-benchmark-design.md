@@ -31,6 +31,6 @@ the compared configurations differ in exactly one thing.
 - 30 tasks is a small sample: confidence intervals will be wide; the report says so.
 - E4-E6 (Addendum 21.2) are not separately switchable here (traceability, failure classification and repair history
   are already part of E3), so they are reported as not implemented rather than faked.
-- Bug-fixing tasks embed the broken code in the requirement text; there is no repository-input mode yet (Phase 8).
+- Bug-fixing tasks embed the broken code in the requirement text; repository-input mode arrived in Phase 8 (ADR-0015, `benchmarks/tasks_phase8/`); the original 30 tasks are unchanged.
 - `regressions` is an upper-bound proxy (new failing test ids in later iterations): the system stores failures,
   not the full set of passing tests.

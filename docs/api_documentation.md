@@ -14,6 +14,7 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET/PUT/DELETE | /projects/{id} | Bearer | `GET`/`PUT` return `ETag`; `PUT` honours `If-Match` (412) |
 | POST/GET | /tasks | Bearer | `POST {project_id, requirement, max_iterations?, acceptance_criteria?, token_budget? (>=1000, <= server cap), max_cost? (estimated USD), require_plan_approval?}` |
 | GET | /tasks/{id} | Bearer | returns `ETag` |
+| POST | /tasks/{id}/source | Bearer | Phase 8: multipart `file` (zip) for a task created with `source_type: "zip"`; only while PENDING; 422 on an unsafe/oversized/empty/mismatched-language repo, 409 otherwise. `POST /tasks` also takes `source_type` (`none`/`zip`/`git`) and `git_url` (plain https, no credentials); `/start` is 409 for a zip task until the upload succeeded |
 | POST | /tasks/{id}/status | Bearer | Phase-1 stand-in; invalid transition → 409; `If-Match` supported |
 | GET | /tasks/{id}/events | Bearer | audit trail |
 | POST | /tasks/{id}/start | Bearer | **202**; PENDING → PLANNING, then the loop (plan → build → test → review → decide → repair …) runs in the background until COMPLETED / ESCALATED / CANCELLED / FAILED. 409 unless PENDING; 412 on stale `If-Match`; 503 if the LLM provider is not configured |

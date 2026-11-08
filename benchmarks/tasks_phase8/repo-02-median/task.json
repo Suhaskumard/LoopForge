@@ -1,0 +1,15 @@
+{
+  "id": "repo-02-median",
+  "category": "repo_input",
+  "language": "python",
+  "difficulty": "easy",
+  "requirement": "The Python repository you were given has a bug. Fix it in place so the behaviour described in SPEC holds. Keep every public function and its signature, keep the existing tests passing, and add a regression test that would have caught the bug.\n\nSYMPTOM: `median([1, 2, 3, 4])` returns 3 instead of 2.5.\n\nSPEC: Median of a non-empty list; for an even count it is the mean of the two middle values. Empty list raises ValueError.\n\nThe code is in `lib/stats.py`; read it from the repository (it is not repeated here).",
+  "acceptance_criteria": [
+    "Median of a non-empty list; for an even count it is the mean of the two middle values. Empty list raises ValueError."
+  ],
+  "source": "repo",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

@@ -71,6 +71,7 @@ class Task(Base):
             name="ck_tasks_status",
         ),
         CheckConstraint("max_iterations >= 1", name="ck_tasks_max_iterations"),
+        CheckConstraint("source_type IN ('none','zip','git')", name="ck_tasks_source_type"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -83,6 +84,11 @@ class Task(Base):
     token_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     require_plan_approval: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Phase 8: optional starting repository (none | zip | git). source_hash is set once the seed
+    # has been imported and written to iteration 0.
+    source_type: Mapped[str] = mapped_column(String, default="none", server_default="none")
+    source_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {"version_id_col": version}
     created_at: Mapped[datetime] = mapped_column(default=_now)

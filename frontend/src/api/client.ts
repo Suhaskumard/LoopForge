@@ -152,6 +152,24 @@ export class ApiClient {
     return this.request<T>("POST", path, { json });
   }
 
+  /** Authenticated multipart upload (repository zip). The browser sets the multipart boundary. */
+  async upload<T>(path: string, file: File): Promise<T> {
+    const send = (): Promise<Response> => {
+      const form = new FormData();
+      form.append("file", file);
+      return this.fetchImpl(this.base + path, {
+        method: "POST",
+        headers: this.access ? { Authorization: `Bearer ${this.access}` } : {},
+        body: form,
+      });
+    };
+    if (this.access === null) await this.refresh();
+    let res = await send();
+    if (res.status === 401 && (await this.refresh())) res = await send();
+    if (!res.ok) throw await toError(res);
+    return (await res.json()) as T;
+  }
+
   /** Authenticated binary download (artifact zip). */
   async blob(path: string): Promise<Blob> {
     if (this.access === null) await this.refresh();

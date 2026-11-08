@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TaskCreate(BaseModel):
@@ -14,6 +14,17 @@ class TaskCreate(BaseModel):
     token_budget: int | None = Field(default=None, ge=1000)
     max_cost: float | None = Field(default=None, gt=0)
     require_plan_approval: bool = False
+    # Phase 8: start from an existing repository; a zip is uploaded via /tasks/{id}/source.
+    source_type: Literal["none", "zip", "git"] = "none"
+    git_url: str | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def _source_consistency(self) -> "TaskCreate":
+        if self.source_type == "git" and not self.git_url:
+            raise ValueError("git_url is required when source_type is 'git'")
+        if self.source_type != "git" and self.git_url:
+            raise ValueError("git_url is only valid when source_type is 'git'")
+        return self
 
 
 class TaskOut(BaseModel):
@@ -28,6 +39,9 @@ class TaskOut(BaseModel):
     token_budget: int | None = None
     max_cost: float | None = None
     require_plan_approval: bool = False
+    source_type: str = "none"
+    source_ref: str | None = None
+    source_hash: str | None = None
     version: int
     created_at: datetime
 

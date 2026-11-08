@@ -162,6 +162,27 @@ def list_source_files(base: Path) -> list[str]:
     return out
 
 
+def write_seed(task_id: uuid.UUID, files: dict[str, str]) -> Path:
+    """Write an imported repository as iteration 0 (the seed). Idempotent: replaces iter_0."""
+    import shutil
+
+    base = iteration_dir(task_id, 0)
+    if base.exists():
+        shutil.rmtree(base)
+    base.mkdir(parents=True)
+    targets = [(resolve_safe(base, rel), text) for rel, text in files.items()]  # validate first
+    for target, text in targets:
+        _atomic_write(target, text)
+    return base
+
+
+def read_seed(task_id: uuid.UUID) -> dict[str, str]:
+    base = iteration_dir(task_id, 0)
+    if not base.is_dir():
+        return {}
+    return {rel: (base / rel).read_text(encoding="utf-8") for rel in list_source_files(base)}
+
+
 def fork_iteration(
     db: Session,
     *,

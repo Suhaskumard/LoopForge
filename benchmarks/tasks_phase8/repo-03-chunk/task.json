@@ -1,0 +1,15 @@
+{
+  "id": "repo-03-chunk",
+  "category": "repo_input",
+  "language": "python",
+  "difficulty": "easy",
+  "requirement": "The Python repository you were given has a bug. Fix it in place so the behaviour described in SPEC holds. Keep every public function and its signature, keep the existing tests passing, and add a regression test that would have caught the bug.\n\nSYMPTOM: `chunk([1,2,3,4,5], 2)` returns [[1,2],[3,4]] and drops the 5.\n\nSPEC: Split into consecutive chunks of at most n items, keeping the shorter last chunk. n < 1 raises ValueError.\n\nThe code is in `lib/listutil.py`; read it from the repository (it is not repeated here).",
+  "acceptance_criteria": [
+    "Split into consecutive chunks of at most n items, keeping the shorter last chunk. n < 1 raises ValueError."
+  ],
+  "source": "repo",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

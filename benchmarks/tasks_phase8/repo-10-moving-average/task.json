@@ -1,0 +1,15 @@
+{
+  "id": "repo-10-moving-average",
+  "category": "repo_input",
+  "language": "python",
+  "difficulty": "medium",
+  "requirement": "The Python repository you were given has a bug. Fix it in place so the behaviour described in SPEC holds. Keep every public function and its signature, keep the existing tests passing, and add a regression test that would have caught the bug.\n\nSYMPTOM: `moving_average([1, 2, 3, 4], 2)` returns [1.5, 2.5] instead of [1.5, 2.5, 3.5].\n\nSPEC: Simple moving average with the given window: one value per full window (len(values) - window + 1 values). window < 1 or larger than the data raises ValueError.\n\nThe code is in `lib/series.py`; read it from the repository (it is not repeated here).",
+  "acceptance_criteria": [
+    "Simple moving average with the given window: one value per full window (len(values) - window + 1 values). window < 1 or larger than the data raises ValueError."
+  ],
+  "source": "repo",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

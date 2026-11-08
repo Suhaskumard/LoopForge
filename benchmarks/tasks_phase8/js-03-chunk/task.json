@@ -1,0 +1,16 @@
+{
+  "id": "js-03-chunk",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "easy",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/chunk.js` and your own tests in `tests/chunk.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `chunk(array, size)` splitting an array into consecutive chunks of at most `size` (last may be shorter). size < 1 or non-integer throws RangeError. Does not mutate the input.",
+  "acceptance_criteria": [
+    "Export `chunk(array, size)` splitting an array into consecutive chunks of at most `size` (last may be shorter). size < 1 or non-integer throws RangeError. Does not mutate the input."
+  ],
+  "source": "none",
+  "module": "src/chunk.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

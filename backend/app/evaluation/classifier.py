@@ -14,7 +14,7 @@ _ERROR_LINE = re.compile(
     r"^E\s+([A-Za-z_][\w.]*(?:Error|Exception|Exit|Interrupt|Warning))\b", re.M
 )
 _BARE_ERROR = re.compile(r"\b([A-Z][A-Za-z]*(?:Error|Exception))\b")
-_ASSERT = re.compile(r"^E?\s*>?\s*assert\b|\bAssertionError\b", re.M)
+_ASSERT = re.compile(r"^E?\s*>?\s*assert\b|\bAssertionError\b|expect\(received\)", re.M)
 
 
 def extract_error_type(message: str, traceback: str) -> str:

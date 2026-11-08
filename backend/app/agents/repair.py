@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.agents.base import AgentContext, OutputRejected, call_agent, wrap_untrusted
 from app.database.models import Iteration, RepairHistory
-from app.execution.dependencies import check_requirements
+from app.execution.languages import PYTHON, LanguageProfile, get_profile
 from app.schemas.loop import RepairOutput
 from app.services import workspace
 from app.services.workspace import WorkspaceError
@@ -23,6 +23,7 @@ MAX_CONTEXT_CHARS = 80_000
 MAX_REPORT_CHARS = 12_000
 
 SYSTEM = """You are the Repair agent of an autonomous software engineering platform.
+(The project may be Python or JavaScript/TypeScript; keep to its language and test framework.)
 You receive a failure report (execution, quality and requirement channels) and the project files.
 Rules:
 - Identify the ROOT CAUSE, then change as little as possible to fix it.
@@ -48,7 +49,7 @@ def _relevant_files(base_files: dict[str, str], failure_text: str) -> str:
     return "\n".join(parts)
 
 
-def _validator(base: Any, existing: set[str]) -> Any:
+def _validator(base: Any, existing: set[str], profile: LanguageProfile = PYTHON) -> Any:
     def validate(out: RepairOutput) -> None:
         for change in out.changes:
             try:
@@ -59,11 +60,11 @@ def _validator(base: Any, existing: set[str]) -> Any:
                 raise OutputRejected(f"cannot modify {change.path!r}: file does not exist")
             if not change.content.strip():
                 raise OutputRejected(f"{change.path!r} would be empty")
-            if change.path == "requirements.txt":
-                problems = check_requirements(change.content)
+            if change.path == profile.manifest:
+                problems = profile.check_dependencies(change.content)
                 if problems:
                     raise OutputRejected(
-                        "requirements.txt violates dependency policy: " + "; ".join(problems)
+                        f"{profile.manifest} violates dependency policy: " + "; ".join(problems)
                     )
 
     return validate
@@ -117,7 +118,7 @@ def run(
         ),
         response_model=RepairOutput,
         input_summary=f"repair iteration {current.iteration_number}: {report_text[:200]}",
-        validate=_validator(base, set(files)),
+        validate=_validator(base, set(files), get_profile(task.project.language)),
     )
 
     new_iter = existing_iter or Iteration(

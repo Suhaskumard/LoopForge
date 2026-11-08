@@ -1,0 +1,15 @@
+{
+  "id": "repo-08-roman",
+  "category": "repo_input",
+  "language": "python",
+  "difficulty": "medium",
+  "requirement": "The Python repository you were given has a bug. Fix it in place so the behaviour described in SPEC holds. Keep every public function and its signature, keep the existing tests passing, and add a regression test that would have caught the bug.\n\nSYMPTOM: `roman_to_int('IV')` returns 6 and `roman_to_int('MCMXCIV')` returns 2186.\n\nSPEC: Convert a valid roman numeral to int, honouring subtractive pairs (IV, IX, XL, XC, CD, CM). Unknown characters raise ValueError.\n\nThe code is in `lib/roman.py`; read it from the repository (it is not repeated here).",
+  "acceptance_criteria": [
+    "Convert a valid roman numeral to int, honouring subtractive pairs (IV, IX, XL, XC, CD, CM). Unknown characters raise ValueError."
+  ],
+  "source": "repo",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

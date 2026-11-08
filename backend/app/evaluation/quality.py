@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.execution.languages import JAVASCRIPT, PYTHON, LanguageProfile
 from app.execution.runner import run_command
 from app.execution.sandbox import Sandbox
 
@@ -68,7 +69,49 @@ def parse_bandit(stdout: str) -> tuple[list[dict[str, Any]], int]:
     return high[:MAX_ITEMS], len(results) - len(high)
 
 
-def run_quality(sandbox: Sandbox, workspace: Path, out_dir: Path, timeout: int) -> QualityReport:
+def parse_eslint(stdout: str) -> list[dict[str, Any]]:
+    data = json.loads(stdout or "[]")
+    if not isinstance(data, list):
+        raise ValueError("unexpected eslint output")
+    items: list[dict[str, Any]] = []
+    for f in data:
+        for m in f.get("messages", []):
+            items.append(
+                {
+                    "code": str(m.get("ruleId") or "parse-error"),
+                    "message": str(m.get("message", ""))[:300],
+                    "file": _rel(str(f.get("filePath", ""))),
+                    "line": m.get("line", 0),
+                }
+            )
+    return items[:MAX_ITEMS]
+
+
+def _run_js_quality(
+    sandbox: Sandbox, workspace: Path, out_dir: Path, timeout: int
+) -> QualityReport:
+    """ESLint only. There is no JS security scanner in the image: that gap is documented
+    (ADR-0015), not hidden - `bandit_high` stays empty and no 'clean scan' is claimed."""
+    report = QualityReport()
+    res = run_command(sandbox, workspace, out_dir, list(JAVASCRIPT.lint_argv), timeout)
+    try:
+        if res.timed_out or res.exit_code not in (0, 1):
+            raise ValueError("eslint did not complete")
+        report.ruff = parse_eslint(res.stdout)
+    except (ValueError, TypeError, AttributeError):
+        report.tool_errors.append(f"eslint: unreadable output (exit {res.exit_code})")
+    return report
+
+
+def run_quality(
+    sandbox: Sandbox,
+    workspace: Path,
+    out_dir: Path,
+    timeout: int,
+    profile: LanguageProfile = PYTHON,
+) -> QualityReport:
+    if profile is JAVASCRIPT:
+        return _run_js_quality(sandbox, workspace, out_dir, timeout)
     report = QualityReport()
     ruff_res = run_command(sandbox, workspace, out_dir, RUFF_ARGV, timeout)
     try:

@@ -1,4 +1,6 @@
-# Database schema (migration `0001`)
+# Database schema (migrations `0001`-`0004`)
+
+Phase 8 (`0004`): `tasks.source_type` (`none|zip|git`), `source_ref` (file name or git URL), `source_hash` (sha256 of the imported file set; set once the seed exists). Phase 7 (`0003`): `run_leases`, `jobs`.
 
 PostgreSQL primary store; SQLAlchemy 2.x; Alembic. Queryable fields are relational columns; JSONB only for flexible agent output (SQLite uses plain JSON in tests).
 

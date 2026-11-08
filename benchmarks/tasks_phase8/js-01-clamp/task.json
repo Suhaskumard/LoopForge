@@ -1,0 +1,16 @@
+{
+  "id": "js-01-clamp",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "easy",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/clamp.js` and your own tests in `tests/clamp.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `clamp(value, min, max)` returning value limited to [min, max]. If min > max throw a RangeError.",
+  "acceptance_criteria": [
+    "Export `clamp(value, min, max)` returning value limited to [min, max]. If min > max throw a RangeError."
+  ],
+  "source": "none",
+  "module": "src/clamp.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

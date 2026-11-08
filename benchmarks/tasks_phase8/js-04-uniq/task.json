@@ -1,0 +1,16 @@
+{
+  "id": "js-04-uniq",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "easy",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/uniq.js` and your own tests in `tests/uniq.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `uniq(array)` returning the distinct values keeping first occurrences in order. Uses SameValueZero (so NaN is deduplicated). Does not mutate the input.",
+  "acceptance_criteria": [
+    "Export `uniq(array)` returning the distinct values keeping first occurrences in order. Uses SameValueZero (so NaN is deduplicated). Does not mutate the input."
+  ],
+  "source": "none",
+  "module": "src/uniq.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

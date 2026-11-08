@@ -37,12 +37,45 @@ RUFF_CLEAN = "[]"
 BANDIT_CLEAN = json.dumps({"results": [], "errors": []})
 
 
+def _failed(report: dict[str, Any]) -> bool:
+    """Failure flag for either report shape (pytest-json-report or Jest --json)."""
+    if "summary" in report:
+        return bool(report["summary"].get("failed"))
+    return bool(report.get("numFailedTests"))
+
+
+def jest_passing_report(n: int = 3) -> dict[str, Any]:
+    return {
+        "numTotalTests": n, "numPassedTests": n, "numFailedTests": 0, "numPendingTests": 0,
+        "testResults": [{
+            "name": "/workspace/src/a.test.js", "status": "passed",
+            "assertionResults": [{"fullName": f"t{i}", "status": "passed"} for i in range(n)],
+        }],
+    }  # fmt: skip
+
+
+def jest_failing_report() -> dict[str, Any]:
+    return {
+        "numTotalTests": 2, "numPassedTests": 1, "numFailedTests": 1, "numPendingTests": 0,
+        "testResults": [{
+            "name": "/workspace/src/a.test.js", "status": "failed",
+            "assertionResults": [
+                {"fullName": "adds", "status": "passed"},
+                {"fullName": "subtracts", "status": "failed",
+                 "failureMessages": ["Error: expect(received).toBe(expected) Expected: 1"]},
+            ],
+        }],
+    }  # fmt: skip
+
+
 def _tool_result(argv: list[str]) -> ExecResult | None:
     """Canned clean output for the quality tools (ruff / bandit)."""
     if argv[0] == "ruff":
         return ExecResult(RUFF_CLEAN, "", 0, False, 0.01)
     if argv[0] == "bandit":
         return ExecResult(BANDIT_CLEAN, "", 0, False, 0.01)
+    if argv[0] == "eslint":
+        return ExecResult("[]", "", 0, False, 0.01)
     return None
 
 
@@ -74,7 +107,7 @@ class FakeSandbox:
         out_dir.mkdir(parents=True, exist_ok=True)
         if self.report is not None:
             (out_dir / "report.json").write_text(json.dumps(self.report), encoding="utf-8")
-        failed = bool(self.report and self.report["summary"].get("failed"))
+        failed = bool(self.report and _failed(self.report))
         code = self.exit_code if self.exit_code is not None else (1 if failed else 0)
         if self.timed_out:
             code = 124
@@ -121,5 +154,9 @@ class ScriptedSandbox:
         (out_dir / "coverage.json").write_text(
             json.dumps({"totals": {"percent_covered": 91.5}}), encoding="utf-8"
         )
-        failed = bool(item["summary"].get("failed"))
+        (out_dir / "coverage").mkdir(exist_ok=True)
+        (out_dir / "coverage" / "coverage-summary.json").write_text(
+            json.dumps({"total": {"lines": {"pct": 91.5}}}), encoding="utf-8"
+        )
+        failed = _failed(item)
         return ExecResult(self.stdout, "", 1 if failed else 0, False, 0.01)

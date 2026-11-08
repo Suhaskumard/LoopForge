@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     workspace_root: str = "./workspaces"
     sandbox_backend: Literal["docker", "fake"] = "docker"
     sandbox_image: str = "loopforge-sandbox"
+    sandbox_image_js: str = "loopforge-sandbox-node"
     sandbox_memory_mb: int = 256
     sandbox_cpus: float = 1.0
     sandbox_pids_limit: int = 64
@@ -43,6 +44,14 @@ class Settings(BaseSettings):
     ws_max_connections_per_user: int = 10
     # Estimated blended price per 1k tokens (USD). There is no billing data: cost is tokens x rate.
     cost_per_1k_tokens: float = 0.002
+    # Phase 8: repository import (untrusted input limits, ADR-0015)
+    repo_max_archive_bytes: int = 20_000_000
+    repo_max_files: int = 2000
+    repo_max_file_bytes: int = 500_000
+    repo_max_total_bytes: int = 20_000_000
+    repo_max_depth: int = 12
+    repo_git_timeout_seconds: int = 60
+    repo_git_allowed_hosts: str = ""  # comma list; empty = any public https host
     # Phase 7: scale-out. inline = FastAPI background task (default); queue = jobs table + worker.
     run_mode: Literal["inline", "queue"] = "inline"
     lease_ttl_seconds: float = 30.0

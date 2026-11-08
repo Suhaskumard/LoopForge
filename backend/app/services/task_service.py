@@ -65,6 +65,8 @@ def create_task(
     token_budget: int | None = None,
     max_cost: float | None = None,
     require_plan_approval: bool = False,
+    source_type: str = "none",
+    source_ref: str | None = None,
 ) -> Task:
     task = Task(
         project_id=project.id,
@@ -74,6 +76,8 @@ def create_task(
         token_budget=token_budget,
         max_cost=max_cost,
         require_plan_approval=require_plan_approval,
+        source_type=source_type,
+        source_ref=source_ref,
         status=TaskStatus.PENDING.value,
     )
     db.add(task)

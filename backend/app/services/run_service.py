@@ -21,13 +21,15 @@ from app.agents import documenter
 from app.agents.base import AgentContext
 from app.config import settings
 from app.database.models import AuditEvent, Iteration, Task
+from app.execution.languages import get_profile
 from app.execution.sandbox import Sandbox
 from app.orchestrator.checkpoint import get_checkpointer
 from app.orchestrator.graph import build_graph
 from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
-from app.services import lease_service, report_service, task_service
+from app.services import lease_service, report_service, source_service, task_service, workspace
 from app.services.llm_client import LLMClient
+from app.services.repo_import import RepoImportError
 from app.services.task_service import TaskStatus
 from app.utils.redact import redact
 from app.utils.token_tracker import TokenTracker
@@ -55,6 +57,8 @@ def prepare_start(db: Session, task: Task) -> Task:
     """Synchronous part of /start: guard the state and move PENDING -> PLANNING."""
     if task.status != TaskStatus.PENDING.value:
         raise NotStartable(f"task is {task.status}; only PENDING tasks can be started")
+    if task.source_type == "zip" and not task.source_hash:
+        raise NotStartable("upload the repository zip (POST /tasks/{id}/source) before starting")
     return task_service.transition(db, task, TaskStatus.PLANNING)
 
 
@@ -84,6 +88,14 @@ def dispatch(
     background.add_task(fn, factory, task_id, llm, sandbox)
 
 
+def _seed_test_baseline(task: Task) -> int:
+    """Existing-repo guard: the suite may not drop below the tests the repository already had."""
+    if not task.source_hash:
+        return 0
+    profile = get_profile(task.project.language)
+    return profile.count_tests(workspace.read_seed(task.id))
+
+
 def _initial_state(task: Task, iteration: Iteration, config: LoopConfig = E3) -> LoopForgeState:
     return LoopForgeState(
         task_id=str(task.id),
@@ -105,7 +117,7 @@ def _initial_state(task: Task, iteration: Iteration, config: LoopConfig = E3) ->
         error=None,
         escalate=False,
         iteration_in_run=1,
-        best_test_count=0,
+        best_test_count=_seed_test_baseline(task),
         decision=None,
         quality={},
         failure_report={},
@@ -273,6 +285,13 @@ def execute_run(
             if task is None:
                 log.error("execute_run: task %s vanished", task_id)
                 return
+            if task.source_type == "git" and not task.source_hash:
+                try:  # clone + ingest in the worker, never in the API request
+                    source_service.import_from_git(db, task)
+                except RepoImportError as exc:
+                    db.rollback()
+                    _abort(db, task, escalate=False, reason=f"repository import failed: {exc}")
+                    return
             iteration = Iteration(
                 task_id=task.id, iteration_number=task.current_iteration + 1, status="running"
             )

@@ -5,23 +5,20 @@ syntax error) that fact is itself reported as a failure; nothing is ever invente
 """
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from app.evaluation.classifier import extract_error_type
+from app.execution.languages import JAVASCRIPT, PYTHON, LanguageProfile, jest_counts
 from app.execution.runner import run_command
 from app.execution.sandbox import ExecResult, Sandbox
 
 REPORT_NAME = "report.json"
 COVERAGE_NAME = "coverage.json"
-PYTEST_ARGV = [
-    "python", "-m", "pytest", "-q", "--tb=short",
-    "-p", "no:cacheprovider",
-    "--json-report", "--json-report-file=/out/report.json",
-    "--rootdir=/workspace",
-    "--cov=/workspace", "--cov-report=json:/out/coverage.json",
-]  # fmt: skip
+PYTEST_ARGV = list(PYTHON.test_argv)
+_ANSI = re.compile("" + r"\[[0-9;]*m")
 MAX_TRACE_CHARS = 6000
 
 
@@ -120,16 +117,89 @@ def parse_report(raw: str, result: ExecResult, timeout: int) -> TestSummary:
     return summary
 
 
+def parse_jest_report(raw: str, result: ExecResult, timeout: int) -> TestSummary:
+    """Normalise Jest's `--json` output into the same TestSummary the pytest path produces."""
+    summary = TestSummary(
+        exit_code=result.exit_code,
+        timed_out=result.timed_out,
+        duration_seconds=result.duration_seconds,
+    )
+    if result.timed_out:
+        summary.failed = 1
+        summary.failures.append(
+            TestFailure(
+                "<execution>", f"execution exceeded {timeout}s and was killed", _clip(result.stderr)
+            )
+        )
+        return summary
+    try:
+        data = json.loads(raw)
+        counts = jest_counts(data)
+        suites = data["testResults"]
+    except (ValueError, KeyError, TypeError):
+        summary.failed = 1
+        tail = _ANSI.sub("", (result.stderr or result.stdout)[-MAX_TRACE_CHARS:])
+        summary.failures.append(
+            TestFailure("<execution>", f"no test report produced (exit {result.exit_code})", tail)
+        )
+        return summary
+
+    summary.report_found = True
+    summary.passed, summary.skipped, summary.total = (
+        counts["passed"],
+        counts["skipped"],
+        counts["total"],
+    )
+    for suite in suites:
+        name = str(suite.get("name", "")).replace("\\", "/").removeprefix("/workspace/")
+        asserts = suite.get("assertionResults") or []
+        for a in asserts:
+            if a.get("status") == "failed":
+                msgs = [_ANSI.sub("", str(m)) for m in a.get("failureMessages") or []]
+                first = msgs[0].strip().splitlines()[0] if msgs and msgs[0].strip() else ""
+                summary.failures.append(
+                    TestFailure(
+                        f"{name}::{a.get('fullName') or a.get('title', '')}",
+                        first,
+                        _clip(chr(10).join(msgs)),
+                    )
+                )
+        if suite.get("status") == "failed" and not asserts:  # syntax/import error in the suite
+            msg = _ANSI.sub("", str(suite.get("message", "")))
+            summary.failures.append(TestFailure(name, "test suite failed to run", _clip(msg)))
+    summary.failed = max(counts["failed"], len(summary.failures))
+    if summary.failed and not summary.total:
+        summary.total = summary.failed
+    return summary
+
+
+def parse_js_coverage(path: Path) -> float | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return round(float(data["total"]["lines"]["pct"]), 2)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def run_tests(
-    sandbox: Sandbox, workspace: Path, out_dir: Path, timeout: int
+    sandbox: Sandbox,
+    workspace: Path,
+    out_dir: Path,
+    timeout: int,
+    profile: LanguageProfile = PYTHON,
 ) -> tuple[TestSummary, ExecResult]:
-    report = out_dir / REPORT_NAME
+    report = out_dir / profile.report_name
+    coverage = out_dir / profile.coverage_name
     report.unlink(missing_ok=True)
-    (out_dir / COVERAGE_NAME).unlink(missing_ok=True)
-    result = run_command(sandbox, workspace, out_dir, PYTEST_ARGV, timeout)
+    coverage.unlink(missing_ok=True)
+    result = run_command(sandbox, workspace, out_dir, list(profile.test_argv), timeout)
     raw = report.read_text(encoding="utf-8", errors="replace") if report.is_file() else ""
-    summary = parse_report(raw, result, timeout)
-    summary.coverage = parse_coverage(out_dir / COVERAGE_NAME)
+    if profile is JAVASCRIPT:
+        summary = parse_jest_report(raw, result, timeout)
+        summary.coverage = parse_js_coverage(coverage)
+    else:
+        summary = parse_report(raw, result, timeout)
+        summary.coverage = parse_coverage(coverage)
     return summary, result
 
 

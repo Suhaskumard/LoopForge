@@ -8,7 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 RequirementType = Literal["functional", "non_functional", "security", "performance"]
 Priority = Literal["critical", "high", "medium", "low"]
 
-ALLOWED_EXTENSIONS = {".py", ".txt", ".md", ".toml", ".ini", ".cfg", ".json", ".yml", ".yaml"}
+ALLOWED_EXTENSIONS = {
+    ".py", ".txt", ".md", ".toml", ".ini", ".cfg", ".json", ".yml", ".yaml",
+    ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx",
+}  # fmt: skip
 MAX_PATH_LENGTH = 200
 MAX_FILE_CHARS = 200_000
 MAX_TOTAL_CHARS = 1_000_000
@@ -64,6 +67,8 @@ class PlannedFile(_Strict):
     path: str
     purpose: str = Field(min_length=3, max_length=500)
     implements: list[str] = Field(default_factory=list)
+    # Existing-repository mode: `modify` changes a file of the seed, `create` adds a new one.
+    action: Literal["create", "modify"] = "create"
 
     @field_validator("path")
     @classmethod
@@ -73,7 +78,9 @@ class PlannedFile(_Strict):
 
 class ProjectPlan(_Strict):
     project_name: str
-    framework: Literal["FastAPI"] = "FastAPI"
+    framework: Literal["FastAPI", "Node.js"] = "FastAPI"
+    # "existing": changes to a seeded repository (only the touched files are listed).
+    base: Literal["new", "existing"] = "new"
     requirements: list[RequirementItem] = Field(min_length=1, max_length=50)
     acceptance_criteria: list[str] = Field(min_length=1, max_length=30)
     files: list[PlannedFile] = Field(min_length=1, max_length=MAX_FILES)
@@ -109,8 +116,8 @@ class ProjectPlan(_Strict):
         paths = [f.path for f in self.files]
         if len(set(paths)) != len(paths):
             raise ValueError("duplicate file paths in plan")
-        if "requirements.txt" not in paths:
-            raise ValueError("plan must include requirements.txt")
+        if self.base == "new" and not {"requirements.txt", "package.json"} & set(paths):
+            raise ValueError("plan must include requirements.txt or package.json")
         unknown = {i for f in self.files for i in f.implements} - set(ids)
         if unknown:
             raise ValueError(f"files reference unknown requirement ids: {sorted(unknown)}")
@@ -131,16 +138,31 @@ class FileChange(_Strict):
         return validate_relative_path(v)
 
 
-class BuilderOutput(_Strict):
+class FilesOutput(_Strict):
     files: list[FileChange] = Field(min_length=1, max_length=MAX_FILES)
+
+
+class BuilderOutput(FilesOutput):
+    @model_validator(mode="after")
+    def _consistency(self) -> Self:
+        paths = [f.path for f in self.files]
+        if len(set(paths)) != len(paths):
+            raise ValueError("duplicate file paths in builder output")
+        if not {"requirements.txt", "package.json"} & set(paths):
+            raise ValueError("builder output must include requirements.txt or package.json")
+        if sum(len(f.content) for f in self.files) > MAX_TOTAL_CHARS:
+            raise ValueError("builder output too large")
+        return self
+
+
+class PatchOutput(FilesOutput):
+    """Builder output for an existing repository: only the files that change (whole content)."""
 
     @model_validator(mode="after")
     def _consistency(self) -> Self:
         paths = [f.path for f in self.files]
         if len(set(paths)) != len(paths):
             raise ValueError("duplicate file paths in builder output")
-        if "requirements.txt" not in paths:
-            raise ValueError("builder output must include requirements.txt")
         if sum(len(f.content) for f in self.files) > MAX_TOTAL_CHARS:
             raise ValueError("builder output too large")
         return self

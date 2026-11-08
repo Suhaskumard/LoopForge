@@ -29,6 +29,18 @@ _ALLOWED: dict[tuple[str, ...], set[str]] = {
     },
     ("ruff", "check"): {"--output-format", "--no-cache"},
     ("bandit",): {"-r", "-f", "-q", "-x"},
+    # JavaScript / TypeScript profile (ADR-0015): jest and eslint preinstalled in the Node image.
+    ("jest",): {
+        "--ci",
+        "--json",
+        "--outputFile",
+        "--rootDir",
+        "--no-cache",
+        "--coverage",
+        "--coverageReporters",
+        "--coverageDirectory",
+    },
+    ("eslint",): {"--format", "--no-warn-ignored"},
 }
 _ALLOWED_P_VALUES = {"no:cacheprovider"}
 _ROOTS = (CONTAINER_WORKSPACE, CONTAINER_OUT)

@@ -32,6 +32,13 @@ test for every control claimed. "Residual" lists what is NOT solved. Controls fr
 - `GET /tasks/{id}/plan` returned 404 after any repair (the latest iteration has no plan). Found by the acceptance
   check; fixed; regression test `test_plan_endpoint_survives_repair_iterations`.
 
+## Phase 8 - untrusted repositories
+New trust boundary: a user-supplied repository (zip or git URL) becomes model input and sandbox input. Controls and
+residual risks are in ADR-0015; tests: `tests/unit/test_phase8_languages_and_import.py` (zip-slip, symlink,
+bomb, limits, git option/scheme injection, non-public hosts, secret exclusion) and `tests/integration/test_phase8_repo_flow.py`
+(a leaked key never appears in any recorded prompt). Not covered: DNS rebinding between the address check and the
+clone, and secret formats outside the pattern list.
+
 ## Residual risks (not solved)
 - **Containers are not a hard boundary.** Docker with the controls in security_model is defence in depth; gVisor or
   Firecracker were not evaluated. Do not run hostile workloads on a shared host.

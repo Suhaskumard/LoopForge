@@ -40,6 +40,9 @@ export interface Task {
   token_budget: number | null;
   max_cost: number | null;
   require_plan_approval: boolean;
+  source_type: "none" | "zip" | "git";
+  source_ref: string | null;
+  source_hash: string | null;
   version: number;
   created_at: string;
 }

@@ -15,6 +15,7 @@ from app.agents.base import AgentContext, call_agent, wrap_untrusted
 from app.database.models import Requirement
 from app.evaluation.quality import QualityReport
 from app.evaluation.test_runner import TestSummary
+from app.execution.languages import get_profile
 from app.schemas.loop import ReviewOutput
 from app.schemas.plan import ProjectPlan
 from app.services import workspace
@@ -159,9 +160,8 @@ def _mark_requirements(
     tests_ok: bool,
 ) -> set[str]:
     """Update traceability records. Returns the ids that remain unverified."""
-    test_files = [
-        f.path for f in plan.files if f.path.startswith("tests/") and f.path.endswith(".py")
-    ]
+    profile = get_profile(ctx.task.project.language)
+    test_files = [f.path for f in plan.files if profile.is_test_file(f.path)]
     unverified: set[str] = set()
     for r in requirements:
         r.test_mapping = test_files

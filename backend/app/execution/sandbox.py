@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.config import settings
+from app.execution.languages import image_for_argv
 
 log = logging.getLogger("loopforge.sandbox")
 
@@ -77,7 +78,7 @@ def build_run_args(name: str, workspace: Path, out_dir: Path, argv: list[str]) -
         "--mount", f"type=bind,source={workspace},target={CONTAINER_WORKSPACE},readonly",
         "--mount", f"type=bind,source={out_dir},target={CONTAINER_OUT}",
         "--workdir", CONTAINER_WORKSPACE,
-        settings.sandbox_image,
+        image_for_argv(argv),
         *argv,
     ]  # fmt: skip
 

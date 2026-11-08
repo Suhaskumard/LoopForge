@@ -1,6 +1,6 @@
 # Roadmap: Phases 8-12 (draft)
 
-Status: **proposal, nothing here is built.** Phases 1-7 are in the repo. The README already names the post-MVP
+Status: **proposal; Phase 8 is built (ADR-0015), Phases 9-12 are not.** Phases 1-8 are in the repo. The README already names the post-MVP
 direction ("7 scale, 8 languages/repos, 9 advanced intelligence, 10 enterprise"); this draft follows it and adds
 Phases 11-12. Each phase ends with a gate script like `scripts/phaseN_gate.sh` (= previous gate + new checks).
 

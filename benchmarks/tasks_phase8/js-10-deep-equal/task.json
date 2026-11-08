@@ -1,0 +1,16 @@
+{
+  "id": "js-10-deep-equal",
+  "category": "javascript",
+  "language": "javascript",
+  "difficulty": "hard",
+  "requirement": "Create a small Node.js (CommonJS) module tested with Jest. Put the implementation in `src/deepEqual.js` and your own tests in `tests/deepEqual.test.js`; include a package.json whose only devDependency is \"jest\": \"29.7.0\". No other dependencies.\n\nSPEC: Export `deepEqual(a, b)`: structural equality for primitives (NaN equals NaN), arrays, plain objects (key order irrelevant) and Dates (by time). Different types are never equal; arrays never equal objects; cyclic structures are not required.",
+  "acceptance_criteria": [
+    "Export `deepEqual(a, b)`: structural equality for primitives (NaN equals NaN), arrays, plain objects (key order irrelevant) and Dates (by time). Different types are never equal; arrays never equal objects; cyclic structures are not required."
+  ],
+  "source": "none",
+  "module": "src/deepEqual.js",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}
