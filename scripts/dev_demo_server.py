@@ -63,16 +63,34 @@ class SlowSandbox(ScriptedSandbox):
         return super().run(workspace, out_dir, argv, timeout)
 
 
+# DEMO_MODE=never-pass: every iteration fails with a *different* failing test, so the Decision Engine's
+# repeat detector does not stop the loop early and the iteration limit (set it to 10 in the UI) is what ends it.
+NEVER_PASS = os.environ.get("DEMO_MODE") == "never-pass"
+NEVER_PASS_RUNS = 12
+
+
+def varied_failing_report(n: int) -> dict[str, Any]:
+    rep = failing_update_report()
+    rep["tests"][1]["nodeid"] = f"tests/test_routes.py::test_update_and_delete_case_{n}"
+    return rep
+
+
 def fresh_llm() -> FakeLLMClient:
     readme = ReadmeOutput(
         content="# Employee API\n\nRun `uvicorn app.main:app`; run the tests with `pytest`.\n"
     )
+    if NEVER_PASS:
+        return SlowLLM().queue(
+            demo_plan(), defective_builder_output(), *[repair_output() for _ in range(NEVER_PASS_RUNS)], readme
+        )
     return SlowLLM().queue(
         demo_plan(), defective_builder_output(), repair_output(), review_output(), readme
     )
 
 
 def fresh_sandbox() -> ScriptedSandbox:
+    if NEVER_PASS:
+        return SlowSandbox([varied_failing_report(i) for i in range(1, NEVER_PASS_RUNS + 1)])
     return SlowSandbox([failing_update_report(), passing_report_for_demo()])
 
 
