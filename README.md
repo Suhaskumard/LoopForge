@@ -20,6 +20,10 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 18 - platform and a release candidate (1.0.0-rc1; not published)
+- A versioned public API (`docs/openapi.json`, [`docs/api_policy.md`](docs/api_policy.md)), per-token rate limits, `Idempotency-Key`, uniform pagination, usage reports (JSON/CSV) and plans, **Python and TypeScript SDKs** tested against the real server, a packaged CLI (`pip install ./backend` -> `loopforge`, completions), an upgrade test from the previous schema with data (SQLite and PostgreSQL) and a docs site with a link checker (`python scripts/build_docs.py`; start at [`docs/index.md`](docs/index.md)). ADR-0025; `make gate18` (needs Docker and Node).
+- **Not 1.0.0, and not published:** real-model evaluation results, any CI history, a verified signed release and an external pen-test are still missing (`docs/releasing.md`). Deferred: GitHub App/GitLab/Slack/IDE integrations, pluggable agents, Helm/Terraform.
+
 ## Phase 17 - trust at scale (built and tested here; external review NOT done)
 - **Key ring** (`KEYRING_JSON`, `kid` on tokens, `python -m app.keys_cli rotate`), encrypted and rotatable webhook secrets, **SSO group/domain -> role** mapping, **SCIM 2.0** (per-org tokens, Users + role Groups), **TOTP MFA** (login step-up, recovery codes, org `require_mfa`), configurable **sandbox runtime** (`SANDBOX_RUNTIME=runsc|kata`, fails closed), queue **back-pressure** (429 + `Retry-After`), **SLOs** with burn-rate alerts (`docs/slo.md`), a **measured DR drill** (`scripts/dr_drill.py`: RTO 15 s / RPO 3 s on one container) and a PostgreSQL load profile. ADR-0024; `make gate17` (needs Docker).
 - **Not done:** no external penetration test (`docs/pentest/` is the package for one), gVisor/Kata not installed here so unmeasured, no KMS adapter, no MFA screen in the web UI yet, and the signed-release workflow (`release.yml`) has never run.

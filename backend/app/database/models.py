@@ -80,6 +80,7 @@ class Organization(Base):
     require_mfa: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false()
     )  # Ph. 17
+    plan: Mapped[str] = mapped_column(String, default="default", server_default="default")  # Ph. 18
     created_at: Mapped[datetime] = mapped_column(default=_now)
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="org", cascade="all, delete-orphan"
@@ -387,6 +388,32 @@ class ApprovalComment(Base):
     line: Mapped[int | None] = mapped_column(Integer, nullable=True)
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class RateCounter(Base):
+    """Fixed-window request counter (Phase 18): one row per (key, window), shared by processes."""
+
+    __tablename__ = "rate_counters"
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class IdempotencyKey(Base):
+    """A client-supplied key that makes a POST safe to retry (Phase 18). Unique per scope+route."""
+
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (UniqueConstraint("scope", "key", "route", name="uq_idempotency"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    scope: Mapped[str] = mapped_column(String)  # hash of the caller's credential + org
+    key: Mapped[str] = mapped_column(String)
+    route: Mapped[str] = mapped_column(String)  # METHOD + route template
+    request_hash: Mapped[str] = mapped_column(String)
+    state: Mapped[str] = mapped_column(String, default="in_progress")  # in_progress | done
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_headers: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=_now, index=True)
 
 
 class LoginAttempt(Base):

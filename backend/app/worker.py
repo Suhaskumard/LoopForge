@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import settings
 from app.database import session
 from app.execution.sandbox import Sandbox
-from app.services import job_service, lease_service, run_service, webhook_service
+from app.services import (
+    idempotency_service,
+    job_service,
+    lease_service,
+    rate_limit,
+    run_service,
+    webhook_service,
+)
 from app.services.llm_client import LLMClient
 from app.utils.logging import bind
 
@@ -65,6 +72,9 @@ def serve(
             try:
                 with factory() as db:
                     job_service.recover(db)
+                    # Phase 18: expired idempotency keys and old rate-limit windows are housekeeping
+                    idempotency_service.purge(db)
+                    rate_limit.purge(db)
             except Exception:
                 log.exception("recovery scan failed")
         try:

@@ -41,6 +41,8 @@ MATRIX: dict[tuple[str, str], str] = {
     ("GET", f"{API}/auth/sso/callback"): "public",
     ("POST", f"{API}/auth/logout-all"): "user",
     ("GET", f"{API}/auth/mfa"): "user",
+    ("GET", f"{API}/orgs/{{org_id}}/usage/report"): "admin",
+    ("GET", f"{API}/orgs/{{org_id}}/usage/report.csv"): "admin",
     ("POST", f"{API}/auth/mfa/enroll"): "user",
     ("POST", f"{API}/auth/mfa/activate"): "user",
     ("POST", f"{API}/auth/mfa/disable"): "user",

@@ -2,22 +2,40 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database.models import User
 from app.database.session import get_db
 from app.execution.sandbox import Sandbox, get_sandbox_backend
-from app.services import api_token_service, mfa_service, org_service
+from app.services import api_token_service, mfa_service, org_service, rate_limit
 from app.services.llm_client import LLMClient, LLMError, get_llm_client
 from app.utils.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
+def _limit(db: Session, response: Response, key: str, limit: int, scope: str) -> None:
+    """Count the request; 429 with Retry-After once the window is spent. Headers on every answer."""
+    status_ = rate_limit.hit(db, key, limit)
+    if limit > 0:
+        for name, value in status_.headers().items():
+            response.headers[name] = value
+    if not status_.allowed:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Rate limit exceeded for this {scope}; retry in {status_.reset_seconds}s",
+            headers={"Retry-After": str(status_.reset_seconds), **status_.headers()},
+        )
+
+
 def get_current_user(
-    request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    request: Request,
+    response: Response,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
 ) -> User:
     unauthorized = HTTPException(
         status.HTTP_401_UNAUTHORIZED,
@@ -30,6 +48,7 @@ def get_current_user(
         if row is None or owner is None or not owner.active:
             raise unauthorized
         request.state.api_token = row
+        _limit(db, response, f"tok:{row.id}", settings.api_token_rate_limit_per_minute, "API token")
         return owner
     claims = decode_access_token(token)
     if claims is None:
@@ -40,6 +59,7 @@ def get_current_user(
         raise unauthorized from None
     if user is None or not user.active or claims.get("tv") != user.token_version:
         raise unauthorized
+    _limit(db, response, f"usr:{user.id}", settings.user_rate_limit_per_minute, "user")
     return user
 
 

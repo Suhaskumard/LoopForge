@@ -112,6 +112,27 @@ def key_id_of(blob: str) -> str:
     return LEGACY
 
 
+def _decrypt_unprefixed(blob: str) -> str:
+    """Pre-Phase-17 ciphertext has no key id: encrypted with SECRETS_KEY, or JWT_SECRET when that
+    was unset. Production now needs a distinct SECRETS_KEY, so ``LEGACY_SECRETS_KEY`` (the key used
+    *before* the upgrade) is tried first, then the ring's legacy key, then JWT_SECRET."""
+    candidates = [settings.legacy_secrets_key]
+    legacy = provider().get(LEGACY)
+    if legacy is not None:
+        candidates.append(legacy.enc_secret)
+    candidates.append(settings.jwt_secret)
+    tried: set[str] = set()
+    for secret in candidates:
+        if not secret or secret in tried:
+            continue
+        tried.add(secret)
+        try:
+            return Key(LEGACY, secret, secret).fernet().decrypt(blob.encode()).decode()
+        except InvalidToken:
+            continue
+    raise KeyUnavailable("key 'legacy' does not decrypt this value")
+
+
 def decrypt(blob: str) -> str:
     if blob.startswith(PREFIX):
         try:
@@ -119,7 +140,7 @@ def decrypt(blob: str) -> str:
         except ValueError:
             raise KeyUnavailable("malformed ciphertext") from None
     else:
-        kid, token = LEGACY, blob
+        return _decrypt_unprefixed(blob)
     key = provider().get(kid)
     if key is None:
         raise KeyUnavailable(f"key '{kid}' is not in the key ring")

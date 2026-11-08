@@ -31,8 +31,10 @@ from app.api.v1 import (
 )
 from app.config import settings
 from app.database import session
+from app.idempotency_middleware import IdempotencyMiddleware
 from app.middleware import RequestContextMiddleware
 from app.utils.logging import configure_logging, thread_target
+from app.version import __version__
 
 configure_logging()
 
@@ -89,16 +91,27 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     lifespan=lifespan,
     title="LoopForge",
-    version="0.5.0",
+    version=__version__,
     description="Autonomous, feedback-driven AI software engineering platform.",
 )
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "If-Match"],
-    expose_headers=["ETag", "X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "If-Match", "Idempotency-Key"],
+    expose_headers=[
+        "ETag",
+        "X-Request-ID",
+        "Idempotent-Replay",
+        "Retry-After",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+        "X-Total-Count",
+        "Link",
+    ],  # fmt: skip
 )
 install_error_handlers(app)
 app.include_router(api_v1)
@@ -109,7 +122,7 @@ app.include_router(metrics.router)
 @app.get("/health", tags=["ops"])
 def health() -> dict[str, str]:
     """Liveness: the process is up."""
-    return {"status": "ok"}
+    return {"status": "ok", "version": __version__}
 
 
 @app.get("/health/ready", tags=["ops"])

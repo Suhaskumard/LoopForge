@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, require_org_role
+from app.api.pagination import Pager, pager
 from app.database.models import ApiToken
 from app.database.session import get_db
 from app.schemas.integrations import TokenCreate, TokenCreated, TokenOut
@@ -16,8 +17,12 @@ admin = require_org_role("admin")
 
 
 @router.get("", response_model=list[TokenOut])
-def list_tokens(p: Principal = Depends(admin), db: Session = Depends(get_db)) -> list[ApiToken]:
-    return api_token_service.list_tokens(db, p.org_id)
+def list_tokens(
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
+) -> list[ApiToken]:
+    return page.slice(api_token_service.list_tokens(db, p.org_id))
 
 
 @router.post("", response_model=TokenCreated, status_code=status.HTTP_201_CREATED)

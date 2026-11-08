@@ -17,3 +17,4 @@ workspaces/
 
 frontend/playwright-report/
 frontend/test-results/
+docs/_site/

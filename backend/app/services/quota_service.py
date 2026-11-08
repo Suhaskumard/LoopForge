@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database.models import AgentRun, Iteration, Membership, Organization, Project, Task
+from app.services import plans
 
 
 class QuotaExceeded(Exception):
@@ -106,25 +107,23 @@ def warnings(
 
 def usage(db: Session, org: Organization, now: datetime | None = None) -> dict[str, int | None]:
     used, created = tokens_used(db, org.id, now), tasks_created(db, org.id, now)
+    tq, tm = plans.token_quota(org), plans.max_tasks(org)  # the org's own cap, else its plan's
     return {
         "tokens_used": used,
-        "token_quota_month": org.token_quota_month,
-        "tokens_remaining": None
-        if org.token_quota_month is None
-        else max(0, org.token_quota_month - used),
+        "token_quota_month": tq,
+        "tokens_remaining": None if tq is None else max(0, tq - used),
         "tasks_created": created,
-        "max_tasks_month": org.max_tasks_month,
-        "tasks_remaining": None
-        if org.max_tasks_month is None
-        else max(0, org.max_tasks_month - created),
+        "max_tasks_month": tm,
+        "tasks_remaining": None if tm is None else max(0, tm - created),
     }
 
 
 def check_can_create_task(db: Session, org_id: uuid.UUID, user_id: uuid.UUID | None = None) -> None:
     org = db.get(Organization, org_id)
-    if org is not None and org.max_tasks_month is not None:
-        if tasks_created(db, org_id) >= org.max_tasks_month:
-            raise QuotaExceeded(f"monthly task quota reached ({org.max_tasks_month})")
+    cap = plans.max_tasks(org) if org is not None else None
+    if cap is not None:
+        if tasks_created(db, org_id) >= cap:
+            raise QuotaExceeded(f"monthly task quota reached ({cap})")
     m = _member(db, org_id, user_id)
     if m is not None and m.max_tasks_month is not None:
         if tasks_created(db, org_id, user_id=user_id) >= m.max_tasks_month:
@@ -133,9 +132,10 @@ def check_can_create_task(db: Session, org_id: uuid.UUID, user_id: uuid.UUID | N
 
 def check_can_start(db: Session, org_id: uuid.UUID, user_id: uuid.UUID | None = None) -> None:
     org = db.get(Organization, org_id)
-    if org is not None and org.token_quota_month is not None:
-        if tokens_used(db, org_id) >= org.token_quota_month:
-            raise QuotaExceeded(f"monthly token quota reached ({org.token_quota_month})")
+    cap = plans.token_quota(org) if org is not None else None
+    if cap is not None:
+        if tokens_used(db, org_id) >= cap:
+            raise QuotaExceeded(f"monthly token quota reached ({cap})")
     m = _member(db, org_id, user_id)
     if m is not None and m.token_quota_month is not None:
         if tokens_used(db, org_id, user_id=user_id) >= m.token_quota_month:
@@ -151,9 +151,10 @@ def token_ceiling(db: Session, task: Task, already_used_by_task: int) -> int | N
     if org is None:
         return None
     ceilings: list[int] = []
-    if org.token_quota_month is not None:
+    org_cap = plans.token_quota(org)
+    if org_cap is not None:
         other = tokens_used(db, org.id) - already_used_by_task  # this task's tokens already counted
-        ceilings.append(max(0, org.token_quota_month - max(0, other)))
+        ceilings.append(max(0, org_cap - max(0, other)))
     m = _member(db, org.id, task.created_by)
     if m is not None and m.token_quota_month is not None:
         mine = tokens_used(db, org.id, user_id=task.created_by) - already_used_by_task

@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     secrets_key: str = ""
     # Phase 17: key ring for rotation (see utils/keyring.py). Empty = only the legacy keys.
     keyring_json: str = ""
+    # The encryption key in use BEFORE upgrading to Phase 17 (old SECRETS_KEY, or old JWT_SECRET if
+    # SECRETS_KEY was unset). Old ciphertext keeps decrypting while SECRETS_KEY or the ring move on.
+    legacy_secrets_key: str = ""
     webhook_rotation_overlap_hours: int = 24  # old secret keeps signing this long after rotation
     github_api_base: str = "https://api.github.com"
     github_timeout_seconds: float = 20.0
@@ -120,6 +123,12 @@ class Settings(BaseSettings):
     # Phase 17: back-pressure. In queue mode a start is refused with 429 + Retry-After while this
     # many jobs already wait (0 = unlimited): protects workers and the database from a stampede.
     max_queued_jobs: int = 0
+    # Phase 18: public API. Requests per minute per API token / per signed-in user (0 = unlimited).
+    api_token_rate_limit_per_minute: int = 600
+    user_rate_limit_per_minute: int = 0
+    idempotency_ttl_hours: int = 24
+    # Phase 18: plans. {"free": {"token_quota_month": 100000, "max_tasks_month": 20}, ...}
+    plans_json: str = ""
     max_queued_jobs_per_org: int = 0
     backpressure_retry_after_seconds: int = 30
     lease_ttl_seconds: float = 30.0
@@ -163,6 +172,10 @@ class Settings(BaseSettings):
             from app.services.sso_mapping import validate_config
 
             validate_config(self.oidc_group_role_map_json, self.oidc_domain_org_map_json)
+        if self.plans_json.strip():
+            from app.services.plans import validate as validate_plans
+
+            validate_plans(self.plans_json)
         if self.keyring_json.strip():
             from app.utils.keyring import parse_keyring
 

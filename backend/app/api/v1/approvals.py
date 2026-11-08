@@ -16,6 +16,7 @@ from app.api.dependencies import (
     get_sandbox,
     get_viewer,
 )
+from app.api.pagination import Pager, pager
 from app.database.models import ApprovalComment, ApprovalRequest, AuditEvent, User
 from app.database.session import get_db, get_session_factory
 from app.execution.sandbox import Sandbox
@@ -45,14 +46,19 @@ def _owned(db: Session, principal: Principal, task_id: uuid.UUID) -> None:
 
 @router.get("/{task_id}/approvals", response_model=list[ApprovalOut])
 def list_approvals(
-    task_id: uuid.UUID, principal: Principal = Depends(get_viewer), db: Session = Depends(get_db)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
 ) -> list[ApprovalRequest]:
     _owned(db, principal, task_id)
-    return list(
-        db.scalars(
-            select(ApprovalRequest)
-            .where(ApprovalRequest.task_id == task_id)
-            .order_by(ApprovalRequest.created_at, ApprovalRequest.id)
+    return page.slice(
+        list(
+            db.scalars(
+                select(ApprovalRequest)
+                .where(ApprovalRequest.task_id == task_id)
+                .order_by(ApprovalRequest.created_at, ApprovalRequest.id)
+            )
         )
     )
 

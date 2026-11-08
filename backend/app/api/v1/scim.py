@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, require_org_role
+from app.api.pagination import Pager, pager
 from app.database.session import get_db
 from app.services import audit_service, scim_service
 from app.services.scim_service import ScimError
@@ -143,8 +144,12 @@ class ScimTokenCreated(ScimTokenOut):
 
 
 @admin_router.get("", response_model=list[ScimTokenOut])
-def list_tokens(p: Principal = Depends(admin), db: Session = Depends(get_db)) -> list[Any]:
-    return scim_service.list_tokens(db, p.org_id)
+def list_tokens(
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
+) -> list[Any]:
+    return page.slice(scim_service.list_tokens(db, p.org_id))
 
 
 @admin_router.post("", response_model=ScimTokenCreated, status_code=status.HTTP_201_CREATED)

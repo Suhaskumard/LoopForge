@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 if [ -x .venv/Scripts/python ]; then PY=$PWD/.venv/Scripts/python; else PY=${PYTHON:-$PWD/.venv/bin/python}; fi
 docker info >/dev/null 2>&1 || { echo "FAIL: no Docker daemon is reachable (start Docker Desktop)"; exit 1; }
 
-NAME="lf-load-$$"; PORT="${LOAD_PG_PORT:-5438}"; API_PORT="${LOAD_API_PORT:-8077}"
+NAME="lf-load-$$"; PORT="${LOAD_PG_PORT:-5438}"; API_PORT="${LOAD_API_PORT:-$("$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')}"
 USERS="${USERS:-20}"; SLO_P95="${SLO_P95:-2.5}"; SLO_ERR="${SLO_ERR:-0.005}"
 cleanup() {
   [ -n "${API_PID:-}" ] && kill "$API_PID" >/dev/null 2>&1 || true
@@ -27,7 +27,7 @@ done
 export DATABASE_URL="postgresql+psycopg://loopforge:loopforge@127.0.0.1:$PORT/loopforge_load"
 export ENVIRONMENT=development LLM_PROVIDER=fake SANDBOX_BACKEND=fake RUN_MODE=queue METRICS_ENABLED=false
 (cd backend && "$PY" -m alembic upgrade head)
-(cd backend && "$PY" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" --log-level warning >"${LOAD_API_LOG:-/dev/null}" 2>&1) &
+"$PY" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port "$API_PORT" --log-level warning >"${LOAD_API_LOG:-/dev/null}" 2>&1 &
 API_PID=$!
 for _ in $(seq 1 60); do curl -fs "http://127.0.0.1:$API_PORT/health/ready" >/dev/null 2>&1 && break; sleep 1; done
 curl -fs "http://127.0.0.1:$API_PORT/health/ready" >/dev/null || { echo "FAIL: API did not become ready"; exit 1; }

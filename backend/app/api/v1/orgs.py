@@ -1,6 +1,8 @@
 """Organizations, members, usage, audit log, export and data lifecycle (Phase 10, ADR-0017)."""
 
 import uuid
+from datetime import date
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -16,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, get_current_user, require_org_role
+from app.api.pagination import Pager, pager
 from app.database.models import AuditLog, Membership, Organization, User
 from app.database.session import get_db
 from app.schemas.org import (
@@ -46,6 +49,7 @@ from app.services import (
     org_service,
     quota_service,
     retention_service,
+    usage_service,
 )
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
@@ -122,6 +126,44 @@ def update(
     return org
 
 
+@router.get("/{org_id}/usage/report")
+def usage_report(
+    from_: date | None = Query(None, alias="from", description="First day (UTC), default: the 1st"),
+    to: date | None = Query(None, description="Last day, inclusive; default: today"),
+    group_by: str = Query("project", description="project | member | agent | model | day"),
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Usage by project, member, agent, model or day. Cost is an estimate, not billing data."""
+    try:
+        start, end = usage_service.period(from_, to)
+        return usage_service.report(db, p.org_id, start, end, group_by)
+    except usage_service.ReportError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+
+
+@router.get("/{org_id}/usage/report.csv")
+def usage_report_csv(
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = Query(None),
+    group_by: str = Query("project"),
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The same report as CSV (invoice / chargeback input). Labels are formula-injection safe."""
+    try:
+        start, end = usage_service.period(from_, to)
+        data = usage_service.report(db, p.org_id, start, end, group_by)
+    except usage_service.ReportError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+    name = f"usage-{data['period']['from']}-{data['period']['to']}-{group_by}.csv"
+    return Response(
+        usage_service.to_csv(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
 @router.get("/{org_id}/usage", response_model=UsageOut)
 def usage(p: Principal = Depends(viewer), db: Session = Depends(get_db)) -> UsageOut:
     return UsageOut(**quota_service.usage(db, _org(db, p)))
@@ -146,11 +188,19 @@ def _membership(db: Session, org_id: uuid.UUID, user_id: uuid.UUID) -> Membershi
 
 
 @router.get("/{org_id}/members", response_model=list[MemberOut])
-def members(p: Principal = Depends(viewer), db: Session = Depends(get_db)) -> list[MemberOut]:
-    rows = db.scalars(
-        select(Membership).where(Membership.org_id == p.org_id).order_by(Membership.created_at)
+def members(
+    p: Principal = Depends(viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
+) -> list[MemberOut]:
+    rows = list(
+        db.scalars(
+            select(Membership)
+            .where(Membership.org_id == p.org_id)
+            .order_by(Membership.created_at, Membership.id)
+        )
     )
-    return [_member_out(db, m) for m in rows]
+    return [_member_out(db, m) for m in page.slice(rows)]
 
 
 @router.post("/{org_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED)
@@ -251,8 +301,12 @@ def invite(
 
 
 @router.get("/{org_id}/invites", response_model=list[InviteOut])
-def list_invites(p: Principal = Depends(admin), db: Session = Depends(get_db)) -> list[object]:
-    return list(invite_service.pending(db, p.org_id))
+def list_invites(
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
+) -> list[object]:
+    return page.slice(list(invite_service.pending(db, p.org_id)))
 
 
 @router.delete("/{org_id}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)

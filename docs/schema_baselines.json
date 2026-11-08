@@ -1,0 +1,11 @@
+{
+  "_comment": "Alembic heads per release. The upgrade test migrates from previous_release.head to the current head with data. Update `previous_release` when a release is tagged (see docs/releasing.md); a test fails if `current.head` is not the real head.",
+  "previous_release": {
+    "name": "Phase 16 (last commit before the 1.0 release candidate work)",
+    "head": "0011"
+  },
+  "current": {
+    "name": "1.0.0-rc1",
+    "head": "0013"
+  }
+}

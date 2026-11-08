@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, require_org_role
+from app.api.pagination import Pager, pager
 from app.config import settings
 from app.database.models import WebhookDelivery, WebhookEndpoint
 from app.database.session import get_db
@@ -32,15 +33,18 @@ def _endpoint(db: Session, p: Principal, webhook_id: uuid.UUID) -> WebhookEndpoi
 
 @router.get("", response_model=list[WebhookOut])
 def list_webhooks(
-    p: Principal = Depends(admin), db: Session = Depends(get_db)
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
 ) -> list[WebhookEndpoint]:
-    return list(
+    rows = list(
         db.scalars(
             select(WebhookEndpoint)
             .where(WebhookEndpoint.org_id == p.org_id)
             .order_by(WebhookEndpoint.created_at)
         )
     )
+    return page.slice(rows)
 
 
 @router.post("", response_model=WebhookCreated, status_code=status.HTTP_201_CREATED)
@@ -128,14 +132,17 @@ def rotate_webhook_secret(
 
 @router.get("/{webhook_id}/deliveries", response_model=list[DeliveryOut])
 def deliveries(
-    webhook_id: uuid.UUID, p: Principal = Depends(admin), db: Session = Depends(get_db)
+    webhook_id: uuid.UUID,
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager(default=50)),
 ) -> list[WebhookDelivery]:
     ep = _endpoint(db, p, webhook_id)
-    return list(
+    rows = list(
         db.scalars(
             select(WebhookDelivery)
             .where(WebhookDelivery.endpoint_id == ep.id)
-            .order_by(WebhookDelivery.created_at.desc())
-            .limit(50)
+            .order_by(WebhookDelivery.created_at.desc(), WebhookDelivery.id)
         )
     )
+    return page.slice(rows)

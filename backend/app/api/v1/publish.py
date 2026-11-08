@@ -12,6 +12,7 @@ from app.api.dependencies import (
     get_viewer,
     require_org_role,
 )
+from app.api.pagination import Pager, pager
 from app.database.models import PublishRequest
 from app.database.session import get_db
 from app.schemas.integrations import GithubStatusOut, GithubTokenIn, PublishCreate, PublishOut
@@ -55,11 +56,14 @@ def request_publish(
 
 @router.get("/tasks/{task_id}/publish", response_model=list[PublishOut])
 def list_publish(
-    task_id: uuid.UUID, p: Principal = Depends(get_viewer), db: Session = Depends(get_db)
+    task_id: uuid.UUID,
+    p: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
 ) -> list[PublishRequest]:
     if task_service.get_owned_task(db, p.org_id, task_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
-    rows = publish_service.list_for_task(db, p.org_id, task_id)
+    rows = page.slice(list(publish_service.list_for_task(db, p.org_id, task_id)))
     return [publish_service.refresh_ci(db, r) for r in rows]
 
 

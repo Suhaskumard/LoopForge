@@ -510,6 +510,7 @@ def test_production_requires_smtp():
     base = {
         "environment": "production",
         "jwt_secret": "x" * 40,
+        "secrets_key": "s" * 40,  # Phase 17: production requires a separate encryption key
         "llm_provider": "openai",
         "sandbox_backend": "docker",
         "mail_backend": "console",

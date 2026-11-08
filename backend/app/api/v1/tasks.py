@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, get_developer, get_viewer
 from app.api.etag import check_if_match, set_etag
+from app.api.pagination import Pager, pager
 from app.config import settings
 from app.database.models import AuditEvent, Task
 from app.database.session import get_db
@@ -161,9 +162,12 @@ def upload_source(
 
 @router.get("/{task_id}/events", response_model=list[AuditEventOut])
 def events(
-    task_id: uuid.UUID, principal: Principal = Depends(get_viewer), db: Session = Depends(get_db)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager(default=500, maximum=1000)),
 ) -> list[AuditEvent]:
     task = task_service.get_owned_task(db, principal.org_id, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
-    return task_service.list_task_events(db, task)
+    return page.slice(task_service.list_task_events(db, task))

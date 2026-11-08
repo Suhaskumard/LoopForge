@@ -32,6 +32,7 @@ class OrgOut(BaseModel):
     retention_days: int | None
     redact_pii: bool
     require_mfa: bool
+    plan: str
     created_at: datetime
 
 

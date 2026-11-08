@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.dependencies import Principal, get_developer, get_llm, get_sandbox, get_viewer
 from app.api.etag import check_if_match, set_etag
+from app.api.pagination import Pager, pager
 from app.config import settings
 from app.database.models import (
     AgentRun,
@@ -151,19 +152,29 @@ def get_plan(
 
 @router.get("/{task_id}/requirements", response_model=list[RequirementOut])
 def requirements(
-    task_id: uuid.UUID, principal: Principal = Depends(get_viewer), db: Session = Depends(get_db)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
 ) -> list[Requirement]:
     task = _task(db, principal, task_id)
-    return list(
-        db.scalars(
-            select(Requirement).where(Requirement.task_id == task.id).order_by(Requirement.req_id)
+    return page.slice(
+        list(
+            db.scalars(
+                select(Requirement)
+                .where(Requirement.task_id == task.id)
+                .order_by(Requirement.req_id)
+            )
         )
     )
 
 
 @router.get("/{task_id}/agent-runs", response_model=list[AgentRunOut])
 def agent_runs(
-    task_id: uuid.UUID, principal: Principal = Depends(get_viewer), db: Session = Depends(get_db)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+    page: Pager = Depends(pager()),
 ) -> list[AgentRun]:
     task = _task(db, principal, task_id)
     stmt = (
@@ -172,7 +183,7 @@ def agent_runs(
         .where(Iteration.task_id == task.id)
         .order_by(Iteration.iteration_number, AgentRun.started_at, AgentRun.id)
     )
-    return list(db.scalars(stmt))
+    return page.slice(list(db.scalars(stmt)))
 
 
 def _source_artifacts(db: Session, iteration: Iteration) -> list[Artifact]:

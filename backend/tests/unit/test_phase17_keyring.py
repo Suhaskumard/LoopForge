@@ -143,3 +143,25 @@ def test_production_requires_a_separate_encryption_key():
         _prod(secrets_key="j" * 40)
     _prod(secrets_key="s" * 40)
     _prod(keyring_json=ring("k1"))
+
+
+def test_old_ciphertext_survives_moving_to_a_distinct_production_secrets_key(monkeypatch):
+    """Upgrade hazard: tokens were encrypted with JWT_SECRET (no SECRETS_KEY); production now needs
+    both and they must differ. LEGACY_SECRETS_KEY keeps the old values readable until rotation."""
+    import base64
+    import hashlib
+
+    original = settings.jwt_secret
+    old = Fernet(base64.urlsafe_b64encode(hashlib.sha256(original.encode()).digest()))
+    blob = old.encrypt(b"ghp_old").decode()
+    monkeypatch.setattr(settings, "secrets_key", "brand-new-secrets-key-0123456789abcdef")
+    assert decrypt_secret(blob) == "ghp_old"  # JWT_SECRET is still tried as the last resort
+    monkeypatch.setattr(settings, "jwt_secret", "a-completely-different-jwt-secret-0123456789")
+    with pytest.raises(KeyUnavailable):
+        decrypt_secret(blob)  # the old key is gone: loud, not silent
+    monkeypatch.setattr(settings, "legacy_secrets_key", "x" * 40)
+    with pytest.raises(KeyUnavailable):
+        decrypt_secret(blob)  # a wrong legacy key does not help
+    monkeypatch.setattr(settings, "legacy_secrets_key", original)
+    assert decrypt_secret(blob) == "ghp_old"  # the documented fix
+    assert encrypt_secret("new").startswith("v2:")  # and new writes use the new key

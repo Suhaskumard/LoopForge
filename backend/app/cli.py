@@ -16,6 +16,9 @@ from typing import Any
 
 import httpx
 
+from app.cli_completion import completion_script
+from app.version import __version__
+
 TERMINAL = {"COMPLETED", "FAILED", "ESCALATED", "CANCELLED"}
 
 
@@ -74,9 +77,10 @@ def run_task(
     return task, 0 if task["status"] == "COMPLETED" else 1
 
 
-def main(argv: Sequence[str] | None = None, client: httpx.Client | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="loopforge")
     parser.add_argument("--url", default=os.environ.get("LOOPFORGE_URL", "http://localhost:8000"))
+    parser.add_argument("--version", action="version", version=f"loopforge {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="create a task from a git repo and start it")
     run.add_argument("--repo", required=True, help="https git URL of the starting repository")
@@ -88,7 +92,46 @@ def main(argv: Sequence[str] | None = None, client: httpx.Client | None = None) 
     pub.add_argument("task_id")
     pub.add_argument("--repo", required=True, help="owner/name on GitHub")
     pub.add_argument("--base", default="main")
+    comp = sub.add_parser("completion", help="print a shell completion script (bash, zsh or fish)")
+    comp.add_argument("shell", choices=SHELLS)
+    keys = sub.add_parser(
+        "keys", help="key-ring operations (server host only; needs loopforge[server])"
+    )
+    keys.add_argument("rest", nargs=argparse.REMAINDER, help="status | rotate [--dry-run]")
+    ops = sub.add_parser(
+        "ops", help="operator commands (server host only; needs loopforge[server])"
+    )
+    ops.add_argument("rest", nargs=argparse.REMAINDER, help="plans | set-plan <org-slug> <plan>")
+    return parser
+
+
+SHELLS = ("bash", "zsh", "fish")
+
+
+def _delegate(command: str, rest: list[str]) -> int:
+    """`keys` and `ops` act on the database directly, so they live with the server code."""
+    try:
+        if command == "keys":
+            from app.keys_cli import main as run
+        else:
+            from app.ops_cli import main as run
+    except ImportError as exc:  # pragma: no cover - only without the server extra
+        print(
+            f"error: needs the server extra: pip install 'loopforge[server]' ({exc})",
+            file=sys.stderr,
+        )
+        return 2
+    return int(run(rest))
+
+
+def main(argv: Sequence[str] | None = None, client: httpx.Client | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "completion":
+        sys.stdout.write(completion_script(args.shell, parser))
+        return 0
+    if args.command in ("keys", "ops"):
+        return _delegate(args.command, [a for a in args.rest if a != "--"])
 
     token = os.environ.get("LOOPFORGE_TOKEN", "")
     if not token:
