@@ -9,6 +9,7 @@ from app.database.models import User
 from app.database.session import get_db
 from app.schemas.user import RefreshRequest, Token, UserCreate, UserOut
 from app.services import auth_service
+from app.utils.client_ip import client_ip
 from app.utils.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -40,7 +41,7 @@ def login(
     db: Session = Depends(get_db),
 ) -> Token:
     email = form.username.lower()
-    key = f"{request.client.host if request.client else '-'}|{email}"
+    key = f"{client_ip(request)}|{email}"
     if auth_service.is_login_blocked(db, key):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,

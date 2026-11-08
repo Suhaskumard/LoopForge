@@ -26,7 +26,7 @@ from app.orchestrator.checkpoint import get_checkpointer
 from app.orchestrator.graph import build_graph
 from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
-from app.services import report_service, task_service
+from app.services import lease_service, report_service, task_service
 from app.services.llm_client import LLMClient
 from app.services.task_service import TaskStatus
 from app.utils.redact import redact
@@ -63,6 +63,25 @@ def prepare_retry(db: Session, task: Task) -> Task:
     if TaskStatus(task.status) not in task_service.RETRYABLE_STATES:
         raise NotStartable(f"task is {task.status}; only FAILED or ESCALATED tasks can be retried")
     return task_service.transition(db, task, TaskStatus.PENDING)
+
+
+def dispatch(
+    background: Any,
+    factory: sessionmaker[Session],
+    kind: str,
+    task_id: uuid.UUID,
+    llm: LLMClient,
+    sandbox: Sandbox,
+) -> None:
+    """Run in this process (inline) or hand the job to the worker service (queue)."""
+    if settings.run_mode == "queue":
+        from app.services import job_service
+
+        with factory() as db:
+            job_service.enqueue(db, task_id, kind)
+        return
+    fn = execute_run if kind == "start" else resume_run
+    background.add_task(fn, factory, task_id, llm, sandbox)
 
 
 def _initial_state(task: Task, iteration: Iteration, config: LoopConfig = E3) -> LoopForgeState:
@@ -125,15 +144,29 @@ def _thread_id(db: Session, task: Task) -> str | None:
     return str(ev.event_data["thread_id"]) if ev else None
 
 
-def _claim(task_id: uuid.UUID) -> bool:
+def _claim(task_id: uuid.UUID, factory: sessionmaker[Session]) -> bool:
+    """In-process guard first (cheap), then the cross-process lease (ADR-0014)."""
     with _active_lock:
         if task_id in _active:
             return False
         _active.add(task_id)
-        return True
+    try:
+        with factory() as db:
+            if lease_service.acquire(db, task_id):
+                return True
+    except Exception:
+        log.exception("could not acquire lease for task %s", task_id)
+    with _active_lock:
+        _active.discard(task_id)
+    return False
 
 
-def _release(task_id: uuid.UUID) -> None:
+def _release(task_id: uuid.UUID, factory: sessionmaker[Session]) -> None:
+    try:
+        with factory() as db:
+            lease_service.release(db, task_id)
+    except Exception:
+        log.exception("could not release lease for task %s", task_id)  # it will expire
     with _active_lock:
         _active.discard(task_id)
 
@@ -231,11 +264,11 @@ def execute_run(
     config: LoopConfig = E3,
 ) -> None:
     """Background body of /start. Opens its own session; never raises."""
-    if not _claim(task_id):
+    if not _claim(task_id, session_factory):
         log.warning("run for task %s already active; ignoring", task_id)
         return
     try:
-        with session_factory() as db:
+        with lease_service.Heartbeat(session_factory, task_id), session_factory() as db:
             task = db.get(Task, task_id)
             if task is None:
                 log.error("execute_run: task %s vanished", task_id)
@@ -260,17 +293,17 @@ def execute_run(
             )
         _document(session_factory, task_id, llm)
     finally:
-        _release(task_id)
+        _release(task_id, session_factory)
 
 
 def resume_run(
     session_factory: sessionmaker[Session], task_id: Any, llm: LLMClient, sandbox: Sandbox
 ) -> bool:
     """Continue an interrupted run from its last checkpoint. Returns False if nothing to resume."""
-    if not _claim(task_id):
+    if not _claim(task_id, session_factory):
         return False
     try:
-        with session_factory() as db:
+        with lease_service.Heartbeat(session_factory, task_id), session_factory() as db:
             task = db.get(Task, task_id)
             if task is None or TaskStatus(task.status) in (
                 TaskStatus.PENDING,
@@ -294,7 +327,7 @@ def resume_run(
         _document(session_factory, task_id, llm)
         return True
     finally:
-        _release(task_id)
+        _release(task_id, session_factory)
 
 
 def interrupted_task_ids(db: Session) -> list[uuid.UUID]:

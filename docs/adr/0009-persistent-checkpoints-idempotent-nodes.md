@@ -24,5 +24,5 @@ from its checkpoint").
 **Consequences.** The per-iteration state lives in two places (checkpoint for control flow,
 database for domain data); the database is authoritative and the checkpoint only says "where".
 The in-process guard does not protect against two *processes* resuming the same task; a
-distributed lock is future work (Phase 7). The Postgres saver is implemented but is only
+distributed lock arrived in Phase 7 (per-task run lease, ADR-0014). The Postgres saver is implemented but is only
 exercised by the SQLite-backed test suite here.

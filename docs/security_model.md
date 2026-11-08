@@ -42,7 +42,7 @@
 Secret redaction, approval gates, budgets and the expanded injection suite are described and evidenced in `docs/security_review.md` (threat table, tests, residual risks).
 
 ## Known limits (honest list)
-- Rate-limit key uses the direct client IP; behind a proxy configure trusted `X-Forwarded-For` handling (Phase 7/10).
+- Rate-limit key uses the direct peer address unless `TRUSTED_PROXY_COUNT=N` is set; then the Nth `X-Forwarded-For` entry from the right is used and anything further left (client-forged) is ignored (Phase 7, `utils/client_ip.py`).
 - HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).
 - No email verification or password reset yet.
 - Phase 3 executes generated code only inside the sandbox. Ordinary Docker containers are **not** an absolute security boundary against hostile code; evaluate gVisor/Firecracker and rootless Docker for stronger isolation (spec §13.1). No custom seccomp/AppArmor profile ships yet (Docker defaults apply). Dependency vulnerability scanning and hash-verified retrieval (Addendum §19.2 items 4-6) are not implemented; the approved-package list is the only control.

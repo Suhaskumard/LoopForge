@@ -258,3 +258,36 @@ class ApprovalRequest(Base):
     resume_status: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[datetime] = mapped_column(default=_now)
     decided_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class RunLease(Base):
+    """Cross-process lock: the single owner currently driving a task's loop (Phase 7, ADR-0014).
+
+    Held by a heartbeat; an expired lease means the owner died and the task may be taken over.
+    """
+
+    __tablename__ = "run_leases"
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
+    owner: Mapped[str] = mapped_column(String)
+    expires_at: Mapped[datetime] = mapped_column()
+    acquired_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class Job(Base):
+    """A unit of work for the worker service: start or resume one task's run."""
+
+    __tablename__ = "jobs"
+    __table_args__ = (
+        CheckConstraint("kind IN ('start','resume')", name="ck_jobs_kind"),
+        CheckConstraint("status IN ('queued','running','done','failed')", name="ck_jobs_status"),
+        Index("ix_jobs_status_created", "status", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), index=True)
+    kind: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="queued")
+    claimed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    claimed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)

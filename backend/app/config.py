@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     ws_max_connections_per_user: int = 10
     # Estimated blended price per 1k tokens (USD). There is no billing data: cost is tokens x rate.
     cost_per_1k_tokens: float = 0.002
+    # Phase 7: scale-out. inline = FastAPI background task (default); queue = jobs table + worker.
+    run_mode: Literal["inline", "queue"] = "inline"
+    lease_ttl_seconds: float = 30.0
+    worker_poll_seconds: float = 1.0
+    # Number of reverse proxies in front of the API whose X-Forwarded-For entry is trusted.
+    trusted_proxy_count: int = 0
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:

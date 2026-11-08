@@ -91,7 +91,7 @@ def approve(
     assert task is not None
     _decide(db, req, "approved")
     task_service.transition(db, task, TaskStatus(req.resume_status))
-    background.add_task(run_service.resume_run, factory, task.id, llm, sandbox)
+    run_service.dispatch(background, factory, "resume", task.id, llm, sandbox)
     return req
 
 

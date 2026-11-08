@@ -39,6 +39,12 @@ PENDING ─start→ PLANNING ─Planner (LLM → ProjectPlan)→ GENERATING ─B
 - `utils/redact.py` scrubs secrets from prompts, summaries, audit events and stored logs.
 - `orchestrator/loop_config.py`: E1-E3 and A1-A4 are switches on the one production loop. `benchmarks/` holds 30 tasks with hidden tests, `run_benchmarks.py` and `analyze.py` (ADR-0012).
 
+## Phase 7 - scale-out
+- `RUN_MODE=queue` makes the API enqueue `jobs` rows instead of running the loop in-process; `python -m app.worker` (any number of them, `docker compose --profile workers up`) claims and runs them. Default `inline` is unchanged.
+- `services/lease_service.py`: per-task `run_leases` row with heartbeat (`LEASE_TTL_SECONDS`); a second process cannot drive a task a live process holds, and a dead owner's task is taken over after expiry. `job_service.recover` re-queues resumes for orphaned work.
+- `TRUSTED_PROXY_COUNT` for correct login rate-limit keys behind proxies. Details and limits: ADR-0014.
+- `make gate7` = Phase 6 gate + the Phase 7 tests.
+
 ## Key design rules (from the spec)
 1. Evidence over assertion · 2. Maker ≠ checker · 3. Deterministic control (no LLM in the loop controller) · 4. Revalidate everything · 5. Bounded by default · 6. Isolation first · 7. Full traceability · 8. Loop before interface.
 

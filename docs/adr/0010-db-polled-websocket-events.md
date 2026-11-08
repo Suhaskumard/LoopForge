@@ -18,6 +18,6 @@ milliseconds before it records the verdict.
 ## Consequences
 + Correct with many workers, after restarts, and for late joiners; no new infrastructure; trivially testable.
 - About 1 s latency and one small query per open socket per second. Per-user connection cap bounds the cost.
-  A push bus (Postgres LISTEN/NOTIFY or Redis) belongs to Phase 7 when scale demands it.
+  A push bus (Postgres LISTEN/NOTIFY or Redis) remains future work: Phase 7 kept DB polling because it is already correct across API and worker processes.
 Auth: browsers cannot set headers on a WebSocket, so the access JWT is a `token` query parameter with the same
 checks as REST (signature, expiry, `tv`). Tokens are short-lived (15 min); log lines must not record the query string.

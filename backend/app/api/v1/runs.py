@@ -79,7 +79,7 @@ def start(
         task = run_service.prepare_start(db, task)
     except run_service.NotStartable as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
-    background.add_task(run_service.execute_run, factory, task.id, llm, sandbox)
+    run_service.dispatch(background, factory, "start", task.id, llm, sandbox)
     set_etag(response, task.version)
     return task
 
@@ -319,7 +319,7 @@ def resume(
     task = _task(db, user, task_id)
     if task.id not in run_service.interrupted_task_ids(db):
         raise HTTPException(status.HTTP_409_CONFLICT, f"task is {task.status}; nothing to resume")
-    background.add_task(run_service.resume_run, factory, task.id, llm, sandbox)
+    run_service.dispatch(background, factory, "resume", task.id, llm, sandbox)
     return task
 
 
