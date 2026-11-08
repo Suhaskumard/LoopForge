@@ -23,7 +23,7 @@ and `task_id`. The API stores the request id on the job, and the worker logs wit
 `X-Request-ID` to correlate with a gateway. There is no distributed-tracing backend: the ids are in logs only.
 
 ## Configuration that matters in production
-`ENVIRONMENT=production` (refuses the default JWT secret, the fake LLM and the fake sandbox), `RUN_MODE=queue`,
+`ENVIRONMENT=production` (refuses the default JWT secret, the fake LLM and the fake sandbox, and any `MAIL_BACKEND` other than `smtp`), `RUN_MODE=queue`,
 `TRUSTED_PROXY_COUNT`, `METRICS_ENABLED`/`METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`,
 `DB_POOL_RECYCLE_SECONDS`, `DB_POOL_PRE_PING` (default on: a connection killed by a DB failover is replaced instead of
 failing the request), `LEASE_TTL_SECONDS`, `MAX_TOKEN_BUDGET`. See `.env.example`.

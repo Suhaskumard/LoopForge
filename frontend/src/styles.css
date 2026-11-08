@@ -2,15 +2,15 @@
   --bg: #f5f6f8;
   --surface: #ffffff;
   --text: #1c2128;
-  --muted: #6a7480;
+  --muted: #566070;
   --border: #dfe3e8;
   --primary: #3b6cf0;
   --primary-text: #ffffff;
-  --ok: #1f8a5b;
+  --ok: #15683f;
   --ok-bg: #e2f5ec;
-  --bad: #c8372d;
+  --bad: #ac2920;
   --bad-bg: #fbe7e5;
-  --warn: #a8700b;
+  --warn: #7d5208;
   --warn-bg: #fbf0d9;
   --info-bg: #e6edfd;
   --add-bg: #e6f6ec;
@@ -170,3 +170,20 @@ details { margin-bottom: .5rem; } summary { cursor: pointer; }
 button.danger { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
 button.danger:disabled { opacity: .5; cursor: not-allowed; }
 .check { display: flex; align-items: center; gap: .5rem; }
+
+/* Phase 15: notifications, a11y helpers, small screens */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.bell { position: relative; }
+.bell-panel { position: absolute; right: 0; top: 2.2rem; width: min(22rem, 90vw); z-index: 20; margin: 0; }
+.notes { list-style: none; padding: 0; margin: 0 0 .5rem; display: grid; gap: .4rem; }
+.notes .unread { font-weight: 600; }
+.review { display: grid; gap: .5rem; width: 100%; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .nav { flex-wrap: wrap; gap: .4rem .8rem; }
+  .page { padding-left: .75rem; padding-right: .75rem; }
+  .table { table-layout: fixed; }
+  .table th, .table td { overflow-wrap: anywhere; }
+  .row > label { min-width: 100%; }
+}
+.banner button.link, .banner a { color: var(--text); text-decoration: underline; }

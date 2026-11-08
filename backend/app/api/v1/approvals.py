@@ -4,12 +4,19 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.dependencies import Principal, get_approver, get_llm, get_sandbox, get_viewer
-from app.database.models import ApprovalRequest, AuditEvent
+from app.api.dependencies import (
+    Principal,
+    get_approver,
+    get_developer,
+    get_llm,
+    get_sandbox,
+    get_viewer,
+)
+from app.database.models import ApprovalComment, ApprovalRequest, AuditEvent, User
 from app.database.session import get_db, get_session_factory
 from app.execution.sandbox import Sandbox
 from app.services import audit_service, run_service, task_service
@@ -119,3 +126,84 @@ def reject(
     _decide(db, req, "rejected", principal, request)
     task_service.transition(db, task, TaskStatus.ESCALATED)
     return req
+
+
+# ---- inline review comments (Phase 15) -------------------------------------------------------
+
+
+class CommentIn(BaseModel):
+    file_path: str = Field(default="", max_length=300)
+    line: int | None = Field(default=None, ge=1)
+    body: str = Field(min_length=1, max_length=2000)
+
+
+class CommentOut(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    author: str
+    file_path: str
+    line: int | None
+    body: str
+    created_at: datetime
+
+
+def _approval_of(
+    db: Session, principal: Principal, task_id: uuid.UUID, approval_id: uuid.UUID
+) -> ApprovalRequest:
+    _owned(db, principal, task_id)
+    req = db.get(ApprovalRequest, approval_id)
+    if req is None or req.task_id != task_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Approval not found")
+    return req
+
+
+def _comment_out(db: Session, c: ApprovalComment) -> CommentOut:
+    author = db.get(User, c.user_id)
+    return CommentOut(
+        id=c.id, user_id=c.user_id, author=author.email if author else "", file_path=c.file_path,
+        line=c.line, body=c.body, created_at=c.created_at,
+    )  # fmt: skip
+
+
+@router.get("/{task_id}/approvals/{approval_id}/comments", response_model=list[CommentOut])
+def list_comments(
+    task_id: uuid.UUID,
+    approval_id: uuid.UUID,
+    principal: Principal = Depends(get_viewer),
+    db: Session = Depends(get_db),
+) -> list[CommentOut]:
+    _approval_of(db, principal, task_id, approval_id)
+    rows = db.scalars(
+        select(ApprovalComment)
+        .where(ApprovalComment.approval_id == approval_id)
+        .order_by(ApprovalComment.created_at, ApprovalComment.id)
+    )
+    return [_comment_out(db, c) for c in rows]
+
+
+@router.post(
+    "/{task_id}/approvals/{approval_id}/comments",
+    response_model=CommentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_comment(
+    task_id: uuid.UUID,
+    approval_id: uuid.UUID,
+    data: CommentIn,
+    request: Request,
+    principal: Principal = Depends(get_developer),
+    db: Session = Depends(get_db),
+) -> CommentOut:
+    _approval_of(db, principal, task_id, approval_id)
+    c = ApprovalComment(
+        approval_id=approval_id, user_id=principal.user.id, file_path=data.file_path,
+        line=data.line, body=data.body,
+    )  # fmt: skip
+    db.add(c)
+    db.commit()
+    audit_service.record(
+        db, org_id=principal.org_id, actor_id=principal.user.id, action="approval.comment",
+        target_type="task", target_id=task_id, detail={"approval": str(approval_id)},
+        request=request,
+    )  # fmt: skip
+    return _comment_out(db, c)

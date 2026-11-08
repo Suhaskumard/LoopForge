@@ -20,6 +20,77 @@ export const isTerminal = (s: string): boolean => (TERMINAL as string[]).include
 export interface User {
   id: string;
   email: string;
+  email_verified_at?: string | null;
+}
+
+export interface SessionInfo {
+  family_id: string;
+  user_agent: string;
+  ip: string;
+  created_at: string;
+  last_used_at: string | null;
+  current: boolean;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  detail: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  language: "python" | "javascript";
+  requirement: string;
+  acceptance_criteria: string[];
+}
+
+export interface OnboardingStep {
+  id: string;
+  title: string;
+  done: boolean;
+  hint: string;
+}
+
+export interface QuotaWarning {
+  scope: "org" | "member";
+  resource: "tokens" | "tasks";
+  used: number;
+  cap: number;
+}
+
+export interface MyUsage {
+  org: Usage;
+  member: Usage;
+  warnings: QuotaWarning[];
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  role: Role;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface ApprovalComment {
+  id: string;
+  author: string;
+  file_path: string;
+  line: number | null;
+  body: string;
+  created_at: string;
+}
+
+export interface FailureExplanation {
+  what_failed: string[];
+  repair_attempts: { failure_class: string; root_cause: string; files: string[]; outcome: string }[];
+  next_steps: string[];
 }
 
 export type Role = "viewer" | "developer" | "approver" | "admin";
@@ -291,6 +362,7 @@ export interface FinalReport {
   status: string;
   outcome: string;
   escalation_reason: string | null;
+  failure_explanation?: FailureExplanation | null;
   iterations: {
     number: number;
     status: string;

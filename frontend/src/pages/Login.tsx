@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 
@@ -91,6 +91,7 @@ export function Login() {
         {mode === "register" && <p className="muted small">At least 8 characters, with a letter and a digit.</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <button className="primary" disabled={busy}>{mode === "login" ? "Sign in" : "Create account"}</button>
+        {mode === "login" && <Link to="/forgot-password">Forgot your password?</Link>}
         <button type="button" className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
           {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}
         </button>

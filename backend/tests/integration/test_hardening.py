@@ -123,7 +123,7 @@ def test_production_requires_strong_secret():
         Settings(environment="production", jwt_secret="change-me")
     with pytest.raises(ValueError):
         Settings(environment="production", jwt_secret="short")
-    Settings(environment="production", jwt_secret="x" * 40)  # ok
+    Settings(environment="production", jwt_secret="x" * 40, mail_backend="smtp")  # ok
     Settings(environment="development")  # default secret allowed in dev
 
 

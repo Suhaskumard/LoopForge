@@ -22,6 +22,7 @@ from app.database.session import get_db
 from app.schemas.task import AuditEventOut, TaskCreate, TaskOut
 from app.services import (
     audit_service,
+    notification_service,
     project_service,
     quota_service,
     repo_import,
@@ -48,7 +49,7 @@ def create(
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
     try:
-        quota_service.check_can_create_task(db, principal.org_id)
+        quota_service.check_can_create_task(db, principal.org_id, principal.user.id)
     except quota_service.QuotaExceeded as exc:
         audit_service.record(
             db, org_id=principal.org_id, actor_id=principal.user.id, action="quota.blocked",
@@ -77,11 +78,13 @@ def create(
         require_plan_approval=data.require_plan_approval,
         source_type=data.source_type,
         source_ref=data.git_url,
+        created_by=principal.user.id,
     )
     audit_service.record(
         db, org_id=principal.org_id, actor_id=principal.user.id, action="task.create",
         target_type="task", target_id=task.id, detail={"project": str(project.id)}, request=request,
     )  # fmt: skip
+    notification_service.check_quota_warnings(db, principal.org_id, principal.user.id)
     return task
 
 

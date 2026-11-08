@@ -44,7 +44,14 @@ from app.schemas.run import (
     TestResultOut,
 )
 from app.schemas.task import TaskOut
-from app.services import audit_service, quota_service, run_service, task_service, workspace
+from app.services import (
+    audit_service,
+    notification_service,
+    quota_service,
+    run_service,
+    task_service,
+    workspace,
+)
 from app.services.llm_client import LLMClient
 from app.services.workspace import WorkspaceError
 
@@ -85,7 +92,7 @@ def start(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
     check_if_match(if_match, task.version)
     try:
-        quota_service.check_can_start(db, principal.org_id)
+        quota_service.check_can_start(db, principal.org_id, task.created_by)
     except quota_service.QuotaExceeded as exc:
         audit_service.record(
             db, org_id=principal.org_id, actor_id=principal.user.id, action="quota.blocked",
@@ -101,6 +108,7 @@ def start(
         target_type="task", target_id=task.id, request=request,
     )  # fmt: skip
     run_service.dispatch(background, factory, "start", task.id, llm, sandbox)
+    notification_service.check_quota_warnings(db, principal.org_id, task.created_by)
     set_etag(response, task.version)
     return task
 

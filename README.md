@@ -20,6 +20,10 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 15 - a product people can use
+- Email verification, password reset, emailed invitations, a sessions page, in-app/email/webhook notifications, per-member quotas, task templates, an onboarding checklist, failure explanations in the report and inline review comments on approvals. Mail: `MAIL_BACKEND=console|smtp` (production requires `smtp`; see `.env.example`). ADR-0022.
+- Browser tests: `cd frontend && npm ci && npx playwright install chromium && npm run e2e` (journeys, axe accessibility, phone width). `make gate15` runs everything.
+
 ## Phase 14 - measurement tooling (the real run is still to be done)
 - The benchmark runner can run the 20 Phase 8 tasks (`--suite phase8|all`: repo-input and JavaScript, real provider only); cost is priced per agent run; the manifest also hashes the settings and the Phase 8 task set.
 - `analyze.py` adds paired-by-task "distinguishable from noise" verdicts per switch against E3, and a failure analysis.

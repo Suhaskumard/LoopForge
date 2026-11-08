@@ -2,7 +2,16 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,9 +22,15 @@ from app.schemas.org import (
     AuditOut,
     DeleteDataOut,
     DeleteDataRequest,
+    InviteAccept,
+    InviteAccepted,
+    InviteCreate,
+    InviteOut,
     MemberAdd,
     MemberOut,
+    MemberQuota,
     MemberUpdate,
+    MyUsageOut,
     OrgCreate,
     OrgMembershipOut,
     OrgOut,
@@ -23,9 +38,17 @@ from app.schemas.org import (
     RetentionOut,
     UsageOut,
 )
-from app.services import audit_service, org_service, quota_service, retention_service
+from app.services import (
+    audit_service,
+    invite_service,
+    mail_service,
+    org_service,
+    quota_service,
+    retention_service,
+)
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
+invites_router = APIRouter(prefix="/invites", tags=["organizations"])
 
 viewer = require_org_role("viewer")
 admin = require_org_role("admin")
@@ -187,6 +210,105 @@ def remove_member(
         target_id=user_id, request=request,
     )  # fmt: skip
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---- Phase 15: invitations, member quotas ---------------------------------------------------
+
+_INVITE_REPLY = {"detail": "Invitation sent if the address can receive one."}
+
+
+@router.post("/{org_id}/invites", status_code=status.HTTP_202_ACCEPTED)
+def invite(
+    data: InviteCreate,
+    request: Request,
+    background: BackgroundTasks,
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """The reply is the same whether or not the address has an account or is already a member."""
+    email = data.email.lower()
+    user = db.scalars(select(User).where(User.email == email)).first()
+    already = (
+        user is not None
+        and db.scalars(
+            select(Membership).where(Membership.org_id == p.org_id, Membership.user_id == user.id)
+        ).first()
+    )
+    if not already:
+        inv, raw = invite_service.create(db, p.org_id, email, data.role, p.user.id)
+        background.add_task(mail_service.send_invite, email, _org(db, p).name, data.role, raw)
+        audit_service.record(
+            db, org_id=p.org_id, actor_id=p.user.id, action="invite.create",
+            target_type="invite", target_id=inv.id, detail={"email": email, "role": data.role},
+            request=request,
+        )  # fmt: skip
+    return _INVITE_REPLY
+
+
+@router.get("/{org_id}/invites", response_model=list[InviteOut])
+def list_invites(p: Principal = Depends(admin), db: Session = Depends(get_db)) -> list[object]:
+    return list(invite_service.pending(db, p.org_id))
+
+
+@router.delete("/{org_id}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_invite(
+    invite_id: uuid.UUID,
+    request: Request,
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    if not invite_service.revoke(db, p.org_id, invite_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
+    audit_service.record(
+        db, org_id=p.org_id, actor_id=p.user.id, action="invite.revoke", target_type="invite",
+        target_id=invite_id, request=request,
+    )  # fmt: skip
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@invites_router.post("/accept", response_model=InviteAccepted)
+def accept_invite(
+    data: InviteAccept,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> InviteAccepted:
+    try:
+        inv = invite_service.accept(db, user, data.token)
+    except invite_service.InviteError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
+    audit_service.record(
+        db, org_id=inv.org_id, actor_id=user.id, action="invite.accept", target_type="invite",
+        target_id=inv.id, detail={"role": inv.role}, request=request,
+    )  # fmt: skip
+    return InviteAccepted(org_id=inv.org_id, role=inv.role)
+
+
+@router.put("/{org_id}/members/{user_id}/quota", response_model=UsageOut)
+def set_member_quota(
+    user_id: uuid.UUID,
+    data: MemberQuota,
+    request: Request,
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> UsageOut:
+    m = _membership(db, p.org_id, user_id)
+    m.token_quota_month, m.max_tasks_month = data.token_quota_month, data.max_tasks_month
+    db.commit()
+    audit_service.record(
+        db, org_id=p.org_id, actor_id=p.user.id, action="member.quota_change",
+        target_type="user", target_id=user_id, detail=data.model_dump(), request=request,
+    )  # fmt: skip
+    return UsageOut(**quota_service.member_usage(db, p.org_id, user_id))
+
+
+@router.get("/{org_id}/my-usage", response_model=MyUsageOut)
+def my_usage(p: Principal = Depends(viewer), db: Session = Depends(get_db)) -> MyUsageOut:
+    return MyUsageOut(
+        org=UsageOut(**quota_service.usage(db, _org(db, p))),
+        member=UsageOut(**quota_service.member_usage(db, p.org_id, p.user.id)),
+        warnings=quota_service.warnings(db, p.org_id, p.user.id),
+    )
 
 
 # ---- audit, export, lifecycle ----------------------------------------------------------------

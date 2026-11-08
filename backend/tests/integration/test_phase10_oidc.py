@@ -5,6 +5,7 @@ import hashlib
 import json
 import time
 import urllib.parse
+from datetime import UTC, datetime
 
 import httpx
 import jwt
@@ -350,8 +351,30 @@ def test_configuration_is_validated():
             jwt_secret="x" * 40,
             llm_provider="openai",
             sandbox_backend="docker",
+            mail_backend="smtp",
             oidc_issuer="http://idp.example.com",
             oidc_client_id="a",
             oidc_client_secret="b",
         )
     assert Settings(oidc_issuer="").oidc_issuer == ""  # off by default
+
+
+def test_a_verified_password_account_is_linked_to_the_sso_identity(client, idp):
+    """Phase 15: once the LoopForge address is verified, SSO may link instead of refusing."""
+    h = register_and_login(client, "sso.user@corp.example")
+    with client.factory() as db:
+        user = db.query(User).one()
+        user.email_verified_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+    tokens = fragment(login(client, idp))
+    assert tokens.keys() == {"access_token", "refresh_token"}
+    with client.factory() as db:
+        user = db.query(User).one()  # still one account: linked, not duplicated
+        assert user.oidc_sub is not None and user.password_hash  # password login keeps working
+    assert client.get(f"{API}/auth/me", headers=h).status_code == 200
+
+
+def test_a_new_sso_user_is_marked_verified(client, idp):
+    login(client, idp)
+    with client.factory() as db:
+        assert db.query(User).one().email_verified_at is not None

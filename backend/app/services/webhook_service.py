@@ -37,6 +37,8 @@ EVENTS = (
     "publish.approved",
     "publish.rejected",
     "publish.pushed",
+    "approval.needed",
+    "quota.near_limit",
     "ping",
 )
 SIGNATURE_HEADER = "X-LoopForge-Signature"

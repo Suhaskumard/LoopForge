@@ -88,3 +88,44 @@ class DeleteDataOut(BaseModel):
 
 class RetentionOut(BaseModel):
     purged_tasks: int
+
+
+class InviteCreate(BaseModel):
+    email: EmailStr
+    role: Role = "developer"
+
+
+class InviteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    email: EmailStr
+    role: Role
+    expires_at: datetime
+    created_at: datetime
+
+
+class InviteAccept(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+class InviteAccepted(BaseModel):
+    org_id: uuid.UUID
+    role: Role
+
+
+class MemberQuota(BaseModel):
+    token_quota_month: int | None = Field(default=None, ge=0)
+    max_tasks_month: int | None = Field(default=None, ge=0)
+
+
+class QuotaWarning(BaseModel):
+    scope: str
+    resource: str
+    used: int
+    cap: int
+
+
+class MyUsageOut(BaseModel):
+    org: UsageOut
+    member: UsageOut
+    warnings: list[QuotaWarning]

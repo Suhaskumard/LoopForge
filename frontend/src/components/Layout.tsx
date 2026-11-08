@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router";
 import { useAuth } from "../auth";
+import { AccountBanners, NotificationBell } from "./Notifications";
 import { Loading } from "./ui";
 
 export function Protected() {
@@ -39,7 +40,8 @@ function Layout() {
           activeOrg && <span className="muted who" data-testid="org-name">{activeOrg.name}</span>
         )}
         {activeOrg && <span className="badge" data-testid="role">{activeOrg.role}</span>}
-        <span className="muted who">{user?.email}</span>
+        <NotificationBell />
+        <NavLink to="/settings" className="who">{user?.email}</NavLink>
         <button
           className="link"
           onClick={() => {
@@ -51,6 +53,7 @@ function Layout() {
       </nav>
       {/* key: switching organization remounts the page, so nothing from the old one stays on screen */}
       <main className="page" key={activeOrg?.id ?? "none"}>
+        <AccountBanners user={user} orgId={activeOrg?.id ?? null} />
         <Outlet />
       </main>
     </div>

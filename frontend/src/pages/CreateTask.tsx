@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../api/client";
-import type { Project, Task } from "../api/types";
+import type { Project, Task, Template } from "../api/types";
 import { Card } from "../components/ui";
 
 export const DEMO_REQUIREMENT =
@@ -23,6 +23,22 @@ export function CreateTask() {
   const [zip, setZip] = useState<File | null>(null);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+
+  const [templates, setTemplates] = useState<Template[]>([]);
+  useEffect(() => {
+    api
+      .get<Template[]>("/templates")
+      .then((t) => Array.isArray(t) && setTemplates(t))
+      .catch(() => undefined); // templates are a convenience; the form works without them
+  }, []);
+  const applyTemplate = (id: string) => {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    setName(t.id.replace(/-/g, "_"));
+    setRequirement(t.requirement);
+    setCriteria(t.acceptance_criteria.join("\n"));
+    setLanguage(t.language);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -56,6 +72,17 @@ export function CreateTask() {
       <header className="page-head"><h1>New task</h1></header>
       <Card>
         <form className="form" onSubmit={(e) => void submit(e)}>
+          {templates.length > 0 && (
+            <label>
+              Start from a template
+              <select aria-label="Template" defaultValue="" onChange={(e) => applyTemplate(e.target.value)}>
+                <option value="">None — write my own</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Project name
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} />

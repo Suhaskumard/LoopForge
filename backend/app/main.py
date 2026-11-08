@@ -15,6 +15,8 @@ from app.api.v1 import (
     analytics,
     approvals,
     auth,
+    guide,
+    notifications,
     orgs,
     projects,
     publish,
@@ -35,6 +37,9 @@ configure_logging()
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
 api_v1.include_router(orgs.router)
+api_v1.include_router(orgs.invites_router)
+api_v1.include_router(notifications.router)
+api_v1.include_router(guide.router)
 api_v1.include_router(sso.router)
 api_v1.include_router(projects.router)
 api_v1.include_router(tasks.router)

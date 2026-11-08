@@ -1,5 +1,7 @@
 import { Route, Routes, Navigate } from "react-router";
 import { Protected } from "./components/Layout";
+import { AcceptInvite, ForgotPassword, ResetPassword, VerifyEmail } from "./pages/AccountLinks";
+import { Settings } from "./pages/Settings";
 import { Admin } from "./pages/Admin";
 import { Analytics } from "./pages/Analytics";
 import { CodeWorkspace } from "./pages/CodeWorkspace";
@@ -14,7 +16,12 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route element={<Protected />}>
+        <Route path="/settings" element={<Settings />} />
         <Route path="/" element={<CommandCenter />} />
         <Route path="/tasks/new" element={<CreateTask />} />
         <Route path="/tasks/:id" element={<LiveWorkflow />} />

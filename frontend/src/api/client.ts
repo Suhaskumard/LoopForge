@@ -139,11 +139,17 @@ export class ApiClient {
   async request<T>(
     method: string,
     path: string,
-    opts: { json?: unknown; auth?: boolean; query?: Record<string, string | number | undefined> } = {},
+    opts: {
+      json?: unknown;
+      auth?: boolean;
+      query?: Record<string, string | number | undefined>;
+      headers?: Record<string, string>;
+    } = {},
   ): Promise<T> {
     const send = async (): Promise<Response> => {
       const headers: Record<string, string> = opts.auth !== false ? this.orgHeader() : {};
       if (opts.json !== undefined) headers["Content-Type"] = "application/json";
+      Object.assign(headers, opts.headers);
       if (opts.auth !== false && this.access) headers["Authorization"] = `Bearer ${this.access}`;
       return this.fetchImpl(this.base + path + queryString(opts.query), {
         method,
@@ -170,6 +176,17 @@ export class ApiClient {
   }
   post<T>(path: string, json?: unknown): Promise<T> {
     return this.request<T>("POST", path, { json });
+  }
+  put<T>(path: string, json?: unknown): Promise<T> {
+    return this.request<T>("PUT", path, { json });
+  }
+  delete(path: string): Promise<void> {
+    return this.request<void>("DELETE", path);
+  }
+
+  /** Sent as `X-Refresh-Token` so the sessions page can mark which session is this one. */
+  get currentRefreshToken(): string | null {
+    return this.storage.getItem(REFRESH_KEY);
   }
 
   /** Authenticated multipart upload (repository zip). The browser sets the multipart boundary. */

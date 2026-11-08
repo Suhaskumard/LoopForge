@@ -43,7 +43,7 @@ from app.orchestrator.decision import Decision, Limits, evaluate_iteration, fail
 from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
 from app.schemas.plan import ProjectPlan
-from app.services import task_service, workspace
+from app.services import notification_service, task_service, workspace
 from app.services.task_service import TaskStatus
 from app.utils.redact import redact
 
@@ -390,6 +390,11 @@ def build_graph(
             db.add(req)
             db.commit()
             audit("approval_requested", {"kind": kind, "iteration": number, "id": str(req.id)})
+            notification_service.notify_safely(
+                db, task.project.org_id, "approval.needed", f"Approval needed: {req.summary}"[:200],
+                {"task_id": str(task.id), "approval_id": str(req.id), "kind": kind},
+                roles=("approver", "admin"), dedupe_key=f"approval:{req.id}",
+            )  # fmt: skip
         db.refresh(req)
         if req.status == "pending":
             if task.status != TaskStatus.AWAITING_APPROVAL.value:

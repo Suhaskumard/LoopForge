@@ -19,6 +19,7 @@ import time
 import urllib.parse
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -193,11 +194,21 @@ def complete_login(
     user = db.scalars(select(User).where(User.oidc_issuer == issuer, User.oidc_sub == sub)).first()
     if user is not None:
         return user
-    if db.scalars(select(User).where(User.email == email)).first() is not None:
+    existing = db.scalars(select(User).where(User.email == email)).first()
+    if existing is not None:
+        # Phase 15: link only when the LoopForge account's address was itself verified (a mailed
+        # link was followed), so pre-registering someone else's address cannot capture their SSO.
+        if existing.email_verified_at is not None and existing.oidc_sub is None:
+            existing.oidc_issuer, existing.oidc_sub = issuer, sub
+            db.commit()
+            return existing
         raise SSOError(
             "an account with this email already exists; sign in with your password instead"
         )
-    user = User(email=email, password_hash=None, oidc_issuer=issuer, oidc_sub=sub)
+    user = User(
+        email=email, password_hash=None, oidc_issuer=issuer, oidc_sub=sub,
+        email_verified_at=datetime.now(UTC).replace(tzinfo=None),  # the IdP verified it
+    )  # fmt: skip
     user.id = uuid.uuid4()
     db.add(user)
     db.commit()

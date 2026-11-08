@@ -14,3 +14,6 @@ workspaces/
 *.checkpoints.sqlite
 .coverage.*
 .smoke/
+
+frontend/playwright-report/
+frontend/test-results/

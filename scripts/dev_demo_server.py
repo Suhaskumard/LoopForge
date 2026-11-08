@@ -100,6 +100,23 @@ def fresh_sandbox() -> ScriptedSandbox:
 app.dependency_overrides[get_llm] = fresh_llm
 app.dependency_overrides[get_sandbox] = fresh_sandbox
 
+# E2E=1 (Playwright): mail goes to an in-process outbox that the browser tests read over HTTP. This
+# route exists ONLY in this demo server, never in the real app.
+if os.environ.get("E2E") == "1":
+    from app.config import settings  # noqa: E402
+    from app.services import mail_service  # noqa: E402
+
+    settings.mail_backend = "memory"
+    settings.login_max_attempts = 1000  # tests sign in many times from one address
+
+    @app.get("/__test__/outbox")
+    def _outbox(to: str | None = None) -> list[dict[str, str]]:
+        return [
+            {"to": m.to, "subject": m.subject, "body": m.body}
+            for m in mail_service.outbox
+            if to is None or m.to == to
+        ]
+
 if __name__ == "__main__":
     Base.metadata.create_all(engine)
     print(f"demo data in {work}")

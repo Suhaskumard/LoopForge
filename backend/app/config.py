@@ -108,6 +108,21 @@ class Settings(BaseSettings):
     worker_recover_seconds: float = 10.0  # how often a worker scans for orphaned jobs/tasks
     # Number of reverse proxies in front of the API whose X-Forwarded-For entry is trusted.
     trusted_proxy_count: int = 0
+    # Phase 15: mail (ADR-0022). console = log only (dev); memory = in-process outbox (tests);
+    # smtp = real delivery (the only backend allowed in production).
+    mail_backend: Literal["console", "memory", "smtp"] = "console"
+    mail_from: str = "LoopForge <no-reply@localhost>"
+    smtp_host: str = "localhost"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_starttls: bool = True
+    smtp_timeout_seconds: float = 10.0
+    app_base_url: str = "http://localhost:5173"  # base of links placed in emails
+    verify_token_ttl_hours: int = 48
+    reset_token_ttl_minutes: int = 60
+    invite_ttl_days: int = 7
+    quota_warn_fraction: float = 0.8
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:
@@ -122,6 +137,8 @@ class Settings(BaseSettings):
             raise ValueError("WEBHOOK_ALLOW_PRIVATE_HOSTS is not allowed in production")
         if self.environment == "production" and not self.github_api_base.startswith("https://"):
             raise ValueError("GITHUB_API_BASE must use https in production")
+        if self.environment == "production" and self.mail_backend != "smtp":
+            raise ValueError("MAIL_BACKEND must be smtp in production")
         if self.model_prices_json.strip():
             try:
                 prices = json.loads(self.model_prices_json)

@@ -60,7 +60,7 @@ real defects: short production JWT secrets were accepted, and `TRUNCATE` could w
 - Rate-limit key uses the direct peer address unless `TRUSTED_PROXY_COUNT=N` is set; then the Nth `X-Forwarded-For` entry from the right is used and anything further left (client-forged) is ignored (Phase 7, `utils/client_ip.py`).
 - LoopForge's own tokens are HS256 with a shared secret (key rotation not built). SSO ID tokens are verified with the provider's asymmetric keys.
 - Phase 10 limits (no invitation emails, no SCIM/group mapping, triggers are tamper-resistant not tamper-proof, Postgres paths untested here): ADR-0017.
-- No email verification or password reset yet.
+- Phase 15 (ADR-0022): email verification, password reset (same reply for any address, rate limited, ends all sessions), invitations and a sessions page exist. Registration still answers 409 for a taken address, and email deliverability (SPF/DKIM) is not tested.
 - Phase 3 executes generated code only inside the sandbox. Ordinary Docker containers are **not** an absolute security boundary against hostile code; evaluate gVisor/Firecracker and rootless Docker for stronger isolation (spec §13.1). No custom seccomp/AppArmor profile ships yet (Docker defaults apply). Dependency vulnerability scanning and hash-verified retrieval (Addendum §19.2 items 4-6) are not implemented; the approved-package list is the only control.
 - WebSocket tokens travel in the URL query: keep access logs from recording query strings; tokens expire in 15 minutes.
 - Prompt-injection defences reduce, but do not eliminate, the chance a real model is misled; the hard guarantees are the schema/workspace refusals and the absence of any shell or network capability in agents.

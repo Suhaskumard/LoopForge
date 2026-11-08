@@ -105,3 +105,28 @@ Authenticate with `Authorization: Bearer lfk_...`; a token is bound to its organ
 | GET | /metrics | bearer `METRICS_TOKEN` when set | Prometheus text. **404 unless `METRICS_ENABLED=true`.** No user data or ids; HTTP series use route templates. Workers expose their own on `WORKER_METRICS_PORT`. |
 
 Every response carries `X-Request-ID` (your own is honoured); the same id appears in the JSON logs, and in the worker's logs for any job that request created.
+
+## Phase 15 - accounts, notifications, guidance (all under `/api/v1`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/auth/verify-email` | public | `{token}`; single use; marks the address verified |
+| POST | `/auth/resend-verification` | user | 202; nothing is sent if already verified |
+| POST | `/auth/password-reset/request` | public | `{email}`; **always 202 with the same body**; rate limited per IP+address |
+| POST | `/auth/password-reset/confirm` | public | `{token, password}`; ends every session; 204 |
+| GET | `/auth/sessions` | user | one row per signed-in device; send `X-Refresh-Token` to mark the current one |
+| DELETE | `/auth/sessions/{family_id}` | user | revoke one of your own sessions (404 otherwise) |
+| POST | `/orgs/{org_id}/invites` | admin | `{email, role}`; always 202, same reply for known/unknown/member addresses |
+| GET | `/orgs/{org_id}/invites` | admin | pending invitations |
+| DELETE | `/orgs/{org_id}/invites/{id}` | admin | revoke |
+| POST | `/invites/accept` | user | `{token}`; needs a verified account whose email equals the invitation's |
+| PUT | `/orgs/{org_id}/members/{user_id}/quota` | admin | `{token_quota_month, max_tasks_month}`; null = no personal cap |
+| GET | `/orgs/{org_id}/my-usage` | viewer | org and personal usage plus quota warnings |
+| GET | `/notifications` | user | `{unread, items}`; `?unread_only=true`, `?limit=` |
+| POST | `/notifications/read-all`, `/notifications/{id}/read` | user | 204 |
+| GET/PUT | `/notifications/preferences` | user | `{notify_email}` |
+| GET | `/templates` | user | starter task templates |
+| GET | `/me/onboarding` | user | getting-started checklist derived from stored facts |
+| GET/POST | `/tasks/{task_id}/approvals/{id}/comments` | viewer / developer | inline review comments |
+
+`GET /tasks/{id}/report` gained `failure_explanation` (what failed, what Repair tried, what a person should do) for FAILED/ESCALATED tasks. New webhook events: `approval.needed`, `quota.near_limit`.

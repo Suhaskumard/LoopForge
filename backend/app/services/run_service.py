@@ -31,6 +31,7 @@ from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
 from app.services import (
     lease_service,
+    notification_service,
     quota_service,
     report_service,
     source_service,
@@ -271,6 +272,18 @@ def _notify_terminal(session_factory: sessionmaker[Session], task_id: Any) -> No
                     db, project.org_id, event[task.status],
                     {"task_id": str(task.id), "status": task.status},
                 )  # fmt: skip
+                title = {
+                    "COMPLETED": "Task finished",
+                    "FAILED": "Task failed",
+                    "ESCALATED": "Task needs a human",
+                }[task.status]
+                owner = task.created_by or project.user_id
+                notification_service.notify_safely(
+                    db, project.org_id, event[task.status], f"{title}: {task.requirement[:80]}",
+                    {"task_id": str(task.id), "status": task.status}, user_ids=[owner],
+                    dedupe_key=f"task:{task.id}:{task.status}", webhook=False,
+                )  # fmt: skip
+                notification_service.check_quota_warnings(db, project.org_id, owner)  # tokens grew
                 if settings.run_mode == "inline":  # no worker process to deliver them
                     webhook_service.deliver_due(db)
     except Exception:

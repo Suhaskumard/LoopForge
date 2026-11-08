@@ -53,6 +53,37 @@ export function Report() {
             {r.escalation_reason && <span>Reason: {r.escalation_reason}</span>}
           </section>
 
+          {r.failure_explanation && (
+            <Card title="Why it was not accepted">
+              <div data-testid="failure-explanation">
+                <ul>
+                  {r.failure_explanation.what_failed.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+                <h3>What the Repair agent tried</h3>
+                {r.failure_explanation.repair_attempts.length === 0 ? (
+                  <p className="muted">No repair was attempted.</p>
+                ) : (
+                  <ul>
+                    {r.failure_explanation.repair_attempts.map((a, i) => (
+                      <li key={i}>
+                        {a.failure_class || "failure"}: {a.root_cause} → {a.outcome}
+                        {a.files.length > 0 && <span className="muted small"> ({a.files.join(", ")})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <h3>What a person should do</h3>
+                <ol>
+                  {r.failure_explanation.next_steps.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ol>
+              </div>
+            </Card>
+          )}
+
           <div className="kpis">
             <Kpi label="Tests passed" value={`${r.tests.passed} / ${r.tests.total}`} hint={`coverage ${pct(r.tests.coverage, 0)}`} />
             <Kpi label="Iterations" value={String(r.iterations.length)} />

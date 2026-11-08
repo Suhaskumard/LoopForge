@@ -36,6 +36,22 @@ class ReportIteration(BaseModel):
     repair_files: list[str]
 
 
+class RepairAttempt(BaseModel):
+    iteration: int | None
+    failure_class: str
+    root_cause: str
+    files: list[str]
+    outcome: str
+
+
+class FailureExplanation(BaseModel):
+    """Plain-language account of a task that was not accepted (Phase 15). Derived from records."""
+
+    what_failed: list[str]
+    repair_attempts: list[RepairAttempt]
+    next_steps: list[str]
+
+
 class FinalReport(BaseModel):
     """Everything here is read from stored execution records (spec: evidence over assertion)."""
 
@@ -55,3 +71,4 @@ class FinalReport(BaseModel):
     approvals: list[dict[str, Any]]
     readme_generated: bool
     generated_at: str
+    failure_explanation: FailureExplanation | None = None

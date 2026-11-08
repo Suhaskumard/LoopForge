@@ -43,6 +43,8 @@ class User(Base):
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     oidc_issuer: Mapped[str | None] = mapped_column(String, nullable=True)  # Phase 10 SSO
     oidc_sub: Mapped[str | None] = mapped_column(String, nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(nullable=True)  # Phase 15
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True)  # Phase 15 preference
     created_at: Mapped[datetime] = mapped_column(default=_now)
     __table_args__ = (UniqueConstraint("oidc_issuer", "oidc_sub", name="uq_users_oidc"),)
     projects: Mapped[list["Project"]] = relationship(
@@ -83,6 +85,8 @@ class Membership(Base):
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String, default="developer")
+    token_quota_month: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Phase 15
+    max_tasks_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_now)
     org: Mapped[Organization] = relationship(back_populates="memberships")
     user: Mapped[User] = relationship(back_populates="memberships")
@@ -148,6 +152,7 @@ class Task(Base):
     source_type: Mapped[str] = mapped_column(String, default="none", server_default="none")
     source_ref: Mapped[str | None] = mapped_column(String, nullable=True)
     source_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)  # Ph.15
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {"version_id_col": version}
     created_at: Mapped[datetime] = mapped_column(default=_now)
@@ -293,6 +298,77 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String, unique=True)
     expires_at: Mapped[datetime] = mapped_column()
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    # Phase 15: session metadata shown on the sessions page
+    user_agent: Mapped[str] = mapped_column(String, default="")
+    ip: Mapped[str] = mapped_column(String, default="")
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class EmailToken(Base):
+    """Single-use token mailed to a user (verify | reset). Only a SHA-256 hash is stored."""
+
+    __tablename__ = "email_tokens"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('verify','reset')", name="ck_email_token_purpose"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    expires_at: Mapped[datetime] = mapped_column()
+    used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class OrgInvite(Base):
+    """An emailed invitation to join an organization with a role (Phase 15)."""
+
+    __tablename__ = "org_invites"
+    __table_args__ = (
+        CheckConstraint("role IN ('viewer','developer','approver','admin')", name="ck_invite_role"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    email: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String, default="developer")
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column()
+    accepted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class Notification(Base):
+    """In-app notification for one user (Phase 15)."""
+
+    __tablename__ = "notifications"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    org_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    kind: Mapped[str] = mapped_column(String)
+    title: Mapped[str] = mapped_column(String, default="")
+    detail: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    dedupe_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    __table_args__ = (
+        Index("ix_notifications_user_read", "user_id", "read_at"),
+        UniqueConstraint("user_id", "dedupe_key", name="uq_notification_dedupe"),
+    )
+
+
+class ApprovalComment(Base):
+    """A reviewer's inline comment on an approval's diff (Phase 15)."""
+
+    __tablename__ = "approval_comments"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    approval_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("approval_requests.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    file_path: Mapped[str] = mapped_column(String, default="")
+    line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 

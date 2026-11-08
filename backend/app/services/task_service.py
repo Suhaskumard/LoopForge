@@ -67,8 +67,10 @@ def create_task(
     require_plan_approval: bool = False,
     source_type: str = "none",
     source_ref: str | None = None,
+    created_by: uuid.UUID | None = None,
 ) -> Task:
     task = Task(
+        created_by=created_by,
         project_id=project.id,
         requirement=requirement,
         max_iterations=max_iterations,

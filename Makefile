@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 gate13 gate14 bench-regression bench-check test-postgres test-keycloak docker-worker-smoke preflight eval bench-validate bench-harness acceptance demo-final
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 gate13 gate14 gate15 e2e bench-regression bench-check test-postgres test-keycloak docker-worker-smoke preflight eval bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -92,6 +92,12 @@ gate13:    ## everything above + PostgreSQL, real Docker sandbox, Keycloak, cont
 
 gate14:    ## everything above + measurement tooling: Phase 8 suite, regression benchmark, report and defaults checks
 	bash scripts/phase14_gate.sh
+
+gate15:    ## everything above + accounts/notifications/quotas tests, frontend checks, Playwright + axe
+	bash scripts/phase15_gate.sh
+
+e2e:       ## Playwright journeys, accessibility and phone-width checks (needs npm ci in frontend/)
+	cd frontend && PYTHON=../$(PY) npx playwright test
 
 bench-regression:  ## fixed regression subset against the synthetic oracle (KIND=real for the budgeted real run)
 	bash scripts/bench_regression.sh

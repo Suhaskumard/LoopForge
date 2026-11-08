@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type { Overview, Task } from "../api/types";
+import { Onboarding } from "../components/Onboarding";
 import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
 import { money, num, pct, seconds } from "../lib/format";
@@ -20,6 +21,7 @@ export function CommandCenter() {
         {can("developer") && <Link className="button primary" to="/tasks/new">New task</Link>}
       </header>
 
+      <Onboarding />
       {overview.error && <ErrorBox error={overview.error} />}
       {!o && overview.loading && <Loading />}
       {o && (

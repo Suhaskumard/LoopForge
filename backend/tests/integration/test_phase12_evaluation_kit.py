@@ -186,6 +186,8 @@ def test_collect_records_commit_dirtiness_and_hashes():
     assert set(info) == {
         "git",
         "tasks_sha256",
+        "tasks_phase8_sha256",
+        "settings_sha256",
         "loop_configs_sha256",
         "requirements_runtime_sha256",
         "python",

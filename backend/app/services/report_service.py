@@ -13,10 +13,17 @@ from app.database.models import (
     Artifact,
     AuditEvent,
     Iteration,
+    RepairHistory,
     Requirement,
     Task,
 )
-from app.schemas.report import FinalReport, ReportIteration, ReportRequirement
+from app.schemas.report import (
+    FailureExplanation,
+    FinalReport,
+    RepairAttempt,
+    ReportIteration,
+    ReportRequirement,
+)
 from app.services import analytics_service, workspace
 
 TERMINAL = ("COMPLETED", "FAILED", "ESCALATED", "CANCELLED")
@@ -46,6 +53,83 @@ def _escalation_reason(db: Session, task: Task) -> str | None:
         .order_by(AuditEvent.created_at.desc())
     ).first()
     return f"Decision Engine: {last.event_data.get('action')}" if last else None
+
+
+def explain_failure(
+    db: Session,
+    task: Task,
+    rows: list[ReportIteration],
+    quality: dict[str, object],
+    approvals: list[dict[str, object]],
+    reason: str | None,
+) -> FailureExplanation | None:
+    """What failed, what the Repair agent tried, and what a human should do next (Phase 15).
+
+    Only stored facts are used; nothing here is model-written, so it cannot contradict the report.
+    """
+    if task.status not in ("FAILED", "ESCALATED"):
+        return None
+    what: list[str] = []
+    last = rows[-1] if rows else None
+    if reason:
+        what.append(f"Stop reason: {reason}")
+    if last is not None and last.tests_total:
+        what.append(
+            f"The last iteration ({last.number}) passed {last.tests_passed} of "
+            f"{last.tests_total} tests; {last.tests_failed} failed."
+        )
+    elif last is not None:
+        what.append(f"The last iteration ({last.number}) produced no test results.")
+    else:
+        what.append("The run stopped before any iteration was recorded.")
+    crit = int(quality.get("critical_issues") or 0)  # type: ignore[call-overload]
+    sec = int(quality.get("high_security_findings") or 0)  # type: ignore[call-overload]
+    if crit:
+        what.append(f"The independent review found {crit} blocking issue(s).")
+    if sec:
+        what.append(f"{sec} high-severity security finding(s) remain.")
+    rejected = [a for a in approvals if a["status"] == "rejected"]
+    if rejected:
+        what.append(f"A person rejected the {rejected[-1]['kind']} approval.")
+
+    attempts = [
+        RepairAttempt(
+            iteration=None,
+            failure_class=h.failure_class or h.failure_category,
+            root_cause=(h.root_cause or h.original_failure)[:300],
+            files=[str(f) for f in h.files_modified],
+            outcome=h.outcome or h.regression_status or "unknown",
+        )
+        for h in db.scalars(
+            select(RepairHistory)
+            .where(RepairHistory.task_id == task.id)
+            .order_by(RepairHistory.created_at)
+        )
+    ]
+
+    steps: list[str] = []
+    if rejected:
+        steps.append(
+            "Revise the requirement or plan to address the rejection, then start a new task."
+        )
+    if sec or crit:
+        steps.append(
+            "Read the review findings and fix the flagged code by hand or tighten the requirement."
+        )
+    if attempts and len({a.root_cause for a in attempts}) < len(attempts):
+        steps.append("The same cause came back after repair: the requirement may be ambiguous.")
+    if last is not None and last.tests_failed:
+        steps.append(
+            "Open the Code tab, read the failing test output, and compare it with the requirement."
+        )
+    if reason and ("budget" in reason.lower() or "quota" in reason.lower()):
+        steps.append("Raise the token budget (or wait for the monthly quota) and run again.")
+    if not steps:
+        steps.append(
+            "Review the iteration history below and decide whether to refine the requirement."
+        )
+    steps.append("Nothing in this task is accepted: do not ship its output without human review.")
+    return FailureExplanation(what_failed=what, repair_attempts=attempts, next_steps=steps)
 
 
 def _source_files(db: Session, it: Iteration) -> list[dict[str, str]]:
@@ -110,12 +194,17 @@ def build_report(db: Session, task: Task) -> FinalReport:
         )
     ]
     readme_path = workspace.log_dir(task.id, last.iteration_number) / README_NAME if last else None
+    reason = _escalation_reason(db, task)
+    quality_summary = {
+        "high_security_findings": len(quality.get("bandit_high", [])),
+        "critical_issues": review.get("critical_issues", 0),
+    }
     return FinalReport(
         task_id=task.id,
         requirement=task.requirement,
         status=task.status,
         outcome=_OUTCOME.get(task.status, "Still in progress: no verdict yet."),
-        escalation_reason=_escalation_reason(db, task),
+        escalation_reason=reason,
         iterations=rows,
         requirements=[
             ReportRequirement(
@@ -149,6 +238,7 @@ def build_report(db: Session, task: Task) -> FinalReport:
         approvals=approvals,
         readme_generated=bool(readme_path and readme_path.exists()),
         generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        failure_explanation=explain_failure(db, task, rows, quality_summary, approvals, reason),
     )
 
 
@@ -202,6 +292,18 @@ def render_markdown(r: FinalReport, readme: str | None = None) -> str:
     ]
     if not r.acceptance_criteria:
         out.append("No review was recorded.")
+    if r.failure_explanation:
+        fe = r.failure_explanation
+        out += ["", "## Why it was not accepted", ""]
+        out += [f"- {w}" for w in fe.what_failed]
+        out += ["", "### What the Repair agent tried", ""]
+        out += [
+            f"- {a.failure_class or 'failure'}: {a.root_cause} -> {a.outcome}"
+            + (f" (files: {', '.join(a.files)})" if a.files else "")
+            for a in fe.repair_attempts
+        ] or ["- No repair was attempted."]
+        out += ["", "### What a person should do", ""]
+        out += [f"- {n}" for n in fe.next_steps]
     if r.approvals:
         out += ["", "## Human approvals", ""]
         out += [f"- {a['kind']} (iteration {a['iteration']}): {a['status']}" for a in r.approvals]
