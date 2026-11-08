@@ -1,5 +1,6 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import { Protected } from "./components/Layout";
+import { Admin } from "./pages/Admin";
 import { Analytics } from "./pages/Analytics";
 import { CodeWorkspace } from "./pages/CodeWorkspace";
 import { CommandCenter } from "./pages/CommandCenter";
@@ -21,6 +22,7 @@ export function App() {
         <Route path="/tasks/:id/evaluation" element={<Evaluation />} />
         <Route path="/tasks/:id/report" element={<Report />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

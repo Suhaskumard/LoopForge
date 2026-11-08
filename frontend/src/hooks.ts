@@ -104,7 +104,10 @@ export function useTaskEvents(taskId: string): {
       if (stopped) return;
       if (!token) return setConnection("closed");
       const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-      socket = new WebSocket(`${scheme}://${window.location.host}/ws/tasks/${taskId}?token=${encodeURIComponent(token)}`);
+      const org = api.orgId ? `&org=${encodeURIComponent(api.orgId)}` : "";
+      socket = new WebSocket(
+        `${scheme}://${window.location.host}/ws/tasks/${taskId}?token=${encodeURIComponent(token)}${org}`,
+      );
       socket.onopen = () => {
         failures = 0;
         if (poll) clearInterval(poll);

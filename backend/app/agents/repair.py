@@ -59,17 +59,17 @@ def _relevant_files(base_files: dict[str, str], failure_text: str) -> str:
 def _similar_fixes(
     db: Session, task: Task, fingerprint: str, failure_class: str, limit: int = 2
 ) -> list[RepairHistory]:
-    """Repairs that RESOLVED a similar failure in the same owner's other tasks (Phase 9).
+    """Repairs that RESOLVED a similar failure in the same ORGANIZATION's other tasks (Phase 9/10).
 
-    Exact fingerprint matches come first, then the same failure class. Other users' history is
-    never used (org-level sharing is a Phase 10 decision).
+    Exact fingerprint matches come first, then the same failure class. Another organization's
+    history is never used: it is another tenant's data (ADR-0017).
     """
     base = (
         select(RepairHistory)
         .join(Task, RepairHistory.task_id == Task.id)
         .join(Project, Task.project_id == Project.id)
         .where(
-            Project.user_id == task.project.user_id,
+            Project.org_id == task.project.org_id,
             RepairHistory.task_id != task.id,
             RepairHistory.outcome == "resolved",
         )

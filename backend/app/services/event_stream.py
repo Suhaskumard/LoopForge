@@ -148,13 +148,13 @@ def _settle_terminal_events(events: list[dict[str, Any]]) -> None:
 
 
 def poll_task(
-    factory: sessionmaker[Session], user_id: uuid.UUID, task_id: uuid.UUID
+    factory: sessionmaker[Session], org_id: uuid.UUID, task_id: uuid.UUID
 ) -> tuple[str, list[dict[str, Any]]] | None:
-    """Current status and full event history, or None if the task is not this user's."""
+    """Current status and full event history, or None if the task is not in this organization."""
     with factory() as db:
         task = db.get(Task, task_id)
         project = db.get(Project, task.project_id) if task else None
-        if task is None or project is None or project.user_id != user_id:
+        if task is None or project is None or project.org_id != org_id:
             return None
         audits = list(
             db.scalars(

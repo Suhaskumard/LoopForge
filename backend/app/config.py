@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     max_token_budget: int = 30000
     documentation_agent_enabled: bool = True  # README generation after a terminal state
     approval_max_repair_files: int = 5  # larger repairs wait for a human
+    # Phase 10: generic OpenID Connect login (disabled while OIDC_ISSUER is empty)
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_redirect_uri: str = "http://localhost:8000/api/v1/auth/sso/callback"
+    oidc_scopes: str = "openid email profile"
+    oidc_allowed_domains: str = ""  # comma list; empty = any verified email domain
+    sso_frontend_url: str = "http://localhost:5173/login"  # where the browser lands after SSO
     llm_provider: Literal["openai", "fake"] = "openai"
     llm_max_retries: int = 3
     llm_backoff_base_seconds: float = 1.0
@@ -76,6 +84,13 @@ class Settings(BaseSettings):
             raise ValueError("LLM_PROVIDER=fake is not allowed in production")
         if self.environment == "production" and self.sandbox_backend == "fake":
             raise ValueError("SANDBOX_BACKEND=fake is not allowed in production")
+        if self.oidc_issuer:
+            if not self.oidc_client_id or not self.oidc_client_secret:
+                raise ValueError(
+                    "OIDC_CLIENT_ID and OIDC_CLIENT_SECRET are required with OIDC_ISSUER"
+                )
+            if self.environment == "production" and not self.oidc_issuer.startswith("https://"):
+                raise ValueError("OIDC_ISSUER must use https in production")
         return self
 
     def model_for(self, agent: str) -> str | None:

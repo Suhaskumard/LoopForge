@@ -8,7 +8,11 @@
 | Stolen refresh token | Opaque 384-bit random; only SHA-256 stored; **rotation on every use**; replay of a spent token revokes the whole family | `services/auth_service.rotate`, `test_refresh_token_reuse_revokes_whole_family` |
 | Forged / expired JWT | HS256 signature + `exp` verified; unknown subject rejected | `test_expired_and_foreign_tokens_rejected` |
 | Weak production secret | App refuses to start with `JWT_SECRET` = default or <32 chars when `ENVIRONMENT=production` | `config.py` |
-| Cross-tenant data access | All queries owner-scoped; foreign IDs return **404** (not 403) to avoid existence leaks | `test_cross_user_isolation` |
+| Cross-tenant data access | Phase 10: all queries scoped by **organization** (`Project.org_id`); foreign IDs return **404**; a non-member of the header org gets 403; every route x role is tested and the matrix is checked complete against `app.routes` | `test_phase10_authz.py` |
+| Privilege escalation inside an org | Roles read from the DB per request (no role in the JWT); approve/reject need *approver*; admin actions need *admin*; the last admin cannot be removed | `test_phase10_authz.py` |
+| Tampering with the audit trail | `audit_log` UPDATE/DELETE rejected by DB triggers; secrets redacted on write | `test_phase10_governance.py` |
+| SSO token forgery / replay | PKCE + state + nonce, JWKS-verified asymmetric signature only, `iss`/`aud`/`exp` checked, one-time provider codes; no automatic linking to password accounts | `test_phase10_oidc.py` |
+| Quota abuse / runaway spend | Server-side monthly token and task quotas; runs capped at what is left | `test_phase10_governance.py` |
 | Lost updates / races | `version_id_col`, `If-Match`/ETag, row lock on status transitions | `test_concurrency.py` |
 | Invalid state in DB | CHECK constraints (status values, iterations ≥1), UNIQUE (task, iteration#), UNIQUE (task, req_id) | `models.py`, `test_hardening.py` |
 | Info leaks via errors | Unhandled exceptions return a generic 500 + request id; details only in server logs | `api/errors.py` |
@@ -43,7 +47,8 @@ Secret redaction, approval gates, budgets and the expanded injection suite are d
 
 ## Known limits (honest list)
 - Rate-limit key uses the direct peer address unless `TRUSTED_PROXY_COUNT=N` is set; then the Nth `X-Forwarded-For` entry from the right is used and anything further left (client-forged) is ignored (Phase 7, `utils/client_ip.py`).
-- HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).
+- LoopForge's own tokens are HS256 with a shared secret (key rotation not built). SSO ID tokens are verified with the provider's asymmetric keys.
+- Phase 10 limits (no invitation emails, no SCIM/group mapping, triggers are tamper-resistant not tamper-proof, Postgres paths untested here): ADR-0017.
 - No email verification or password reset yet.
 - Phase 3 executes generated code only inside the sandbox. Ordinary Docker containers are **not** an absolute security boundary against hostile code; evaluate gVisor/Firecracker and rootless Docker for stronger isolation (spec §13.1). No custom seccomp/AppArmor profile ships yet (Docker defaults apply). Dependency vulnerability scanning and hash-verified retrieval (Addendum §19.2 items 4-6) are not implemented; the approved-package list is the only control.
 - WebSocket tokens travel in the URL query: keep access logs from recording query strings; tokens expire in 15 minutes.

@@ -1,4 +1,6 @@
-# Database schema (migrations `0001`-`0004`)
+# Database schema (migrations `0001`-`0006`)
+
+Phase 10 (`0006`): `organizations`, `memberships` (role CHECK), `audit_log` (append-only by trigger), `projects.org_id` (NOT NULL; `user_id` = creator), `users.password_hash` nullable + `oidc_issuer`/`oidc_sub` (unique pair), `approval_requests.decided_by`. Data step: a personal organization per existing user.
 
 Phase 8 (`0004`): `tasks.source_type` (`none|zip|git`), `source_ref` (file name or git URL), `source_hash` (sha256 of the imported file set; set once the seed exists). Phase 7 (`0003`): `run_leases`, `jobs`.
 
@@ -14,8 +16,11 @@ users 1─N refresh_tokens          login_attempts (standalone, keyed by "ip|ema
 
 | Table | Notes |
 |---|---|
-| users | `email` unique, `password_hash` (bcrypt), `token_version` (global-logout counter) |
-| projects | owner `user_id`, `language`, `version` (optimistic lock) |
+| users | `email` unique, `password_hash` (bcrypt; NULL for SSO-only users), `token_version` (global-logout counter), `oidc_issuer`/`oidc_sub` |
+| organizations | tenant: `slug` unique, `token_quota_month`, `max_tasks_month`, `retention_days` (NULL = no cap/keep), `redact_pii` |
+| memberships | (`org_id`,`user_id`) unique, `role` viewer/developer/approver/admin |
+| audit_log | org-level, append-only (DB triggers reject UPDATE/DELETE): `actor_id`, `action`, `target_*`, redacted `detail`, `ip` |
+| projects | `org_id` (tenant scope), creator `user_id`, `language`, `version` (optimistic lock) |
 | tasks | `status` CHECK-constrained to the 12 lifecycle states (adds `AWAITING_APPROVAL`), optional `token_budget` / `max_cost`, `require_plan_approval`, `max_iterations ≥ 1`, `acceptance_criteria` JSONB, `version` |
 | iterations | UNIQUE (`task_id`, `iteration_number`) |
 | agent_runs | one row per agent call: **`model` (Phase 9, nullable: model that served it)**, status `running|success|failed|timeout`, tokens, duration, `started_at` (chronological order), error, **summaries only (never full prompts)** |

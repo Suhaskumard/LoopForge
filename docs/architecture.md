@@ -45,6 +45,12 @@ PENDING ─start→ PLANNING ─Planner (LLM → ProjectPlan)→ GENERATING ─B
 - `TRUSTED_PROXY_COUNT` for correct login rate-limit keys behind proxies. Details and limits: ADR-0014.
 - `make gate7` = Phase 6 gate + the Phase 7 tests.
 
+## Phase 10 - organizations, roles, SSO, audit, quotas
+- **Multi-tenant**: every project/task belongs to an organization; users can be in several and pick one (`X-Org-Id`, org switcher in the UI). Roles `viewer < developer < approver < admin`, read from the database per request. Non-members get 404 (path) / 403 (header). Registering creates a personal organization; migration `0006` moves existing data into one.
+- **Audit log** (`audit_log`): who did what, redacted, **append-only via DB triggers**; admins read it at `GET /orgs/{id}/audit` and in the Admin page.
+- **Quotas** per organization and month (tokens, tasks) enforced at task create and run start, and the run is capped at what is left. **Data**: retention days, zip export, confirmed delete-all.
+- **OIDC SSO** (generic; PKCE + state + nonce, ID token verified against JWKS): set `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`; password login stays. New dependency: `cryptography`. Details, threat decisions and **known limits**: ADR-0017. `make gate10`.
+
 ## Phase 9 - smarter loop
 - Repair now (1) is told the **failure class** (syntax / import / environment / test_wrong / logic, `evaluation/failure_class.py`) with a matching strategy, (2) sees only the **relevant files in full** plus outlines of the rest (`agents/repair_context.py`), (3) has any patch that **weakens tests** rejected - fewer tests or assertions, added skip/xfail (`evaluation/test_guard.py`), and (4) is shown **similar repairs that resolved** failures in the same owner's other tasks.
 - **Per-agent models**: `MODEL_PLANNER`, `MODEL_BUILDER`, `MODEL_REPAIR`, `MODEL_REVIEWER`, `MODEL_DOCUMENTATION` (empty = `OPENAI_MODEL`); the model used is stored on each `agent_runs` row.

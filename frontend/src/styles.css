@@ -158,3 +158,15 @@ label.check { flex-direction: row; align-items: center; gap: .5rem; color: var(-
 label.check input { width: auto; }
 details { margin-bottom: .5rem; } summary { cursor: pointer; }
 .banner.ok { border-color: var(--ok); background: var(--ok-bg); }
+
+/* Phase 10: organizations, roles, admin */
+.org-switch { max-width: 14rem; }
+.btn-link { display: block; text-align: center; padding: .55rem .9rem; border-radius: 8px; text-decoration: none; }
+.center { text-align: center; margin: 0; }
+.table { width: 100%; border-collapse: collapse; margin-bottom: .75rem; }
+.table th, .table td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.tabs button { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: .4rem .8rem; cursor: pointer; color: var(--muted); }
+.tabs button.active { color: var(--text); border-bottom-color: var(--primary); }
+button.danger { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
+button.danger:disabled { opacity: .5; cursor: not-allowed; }
+.check { display: flex; align-items: center; gap: .5rem; }

@@ -8,7 +8,18 @@ import { useAsync } from "../hooks";
  * approve (the run resumes) or reject (the task is escalated). `signal` changes whenever new
  * events arrive, which refreshes the list.
  */
-export function Approvals({ taskId, signal, onDecided }: { taskId: string; signal: number; onDecided: () => void }) {
+export function Approvals({
+  taskId,
+  signal,
+  onDecided,
+  canDecide = true,
+}: {
+  taskId: string;
+  signal: number;
+  onDecided: () => void;
+  /** Only approvers and admins may decide; everyone else sees that the run is waiting. */
+  canDecide?: boolean;
+}) {
   const list = useAsync(() => api.get<Approval[]>(`/tasks/${taskId}/approvals`), [taskId, signal]);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
@@ -36,7 +47,7 @@ export function Approvals({ taskId, signal, onDecided }: { taskId: string; signa
 
   return (
     <section className="banner" role="alert" data-testid="approvals">
-      <strong>The run is paused and needs your decision.</strong>
+      <strong>{canDecide ? "The run is paused and needs your decision." : "The run is paused and waiting for an approver."}</strong>
       {pending.map((a) => (
         <div key={a.id} className="approval">
           <div>
@@ -50,10 +61,14 @@ export function Approvals({ taskId, signal, onDecided }: { taskId: string; signa
               </ul>
             )}
           </div>
-          <div className="row">
-            <button className="primary" disabled={busy === a.id} onClick={() => void decide(a, "approve")}>Approve and continue</button>
-            <button disabled={busy === a.id} onClick={() => void decide(a, "reject")}>Reject (escalate)</button>
-          </div>
+          {canDecide ? (
+            <div className="row">
+              <button className="primary" disabled={busy === a.id} onClick={() => void decide(a, "approve")}>Approve and continue</button>
+              <button disabled={busy === a.id} onClick={() => void decide(a, "reject")}>Reject (escalate)</button>
+            </div>
+          ) : (
+            <p className="muted small">Your role cannot approve; ask an approver or admin of this organization.</p>
+          )}
         </div>
       ))}
       {error && <p className="error">{error}</p>}

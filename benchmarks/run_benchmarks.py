@@ -120,7 +120,14 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
     from app.execution.runner import run_command
     from app.orchestrator.loop_config import PRESETS
     from app.schemas.project import ProjectCreate
-    from app.services import analytics_service, project_service, run_service, task_service, workspace
+    from app.services import (
+        analytics_service,
+        org_service,
+        project_service,
+        run_service,
+        task_service,
+        workspace,
+    )
     from sqlalchemy import select
 
     if args.provider == "oracle":
@@ -163,7 +170,7 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
         user = User(email=f"bench-{uuid.uuid4().hex[:6]}@example.com", password_hash="x")
         db.add(user)
         db.commit()
-        user_id = user.id
+        user_id, org_id = user.id, org_service.create_personal_org(db, user).id
 
     spent_tokens, spent_cost = 0, 0.0
     for config_name in configs:
@@ -187,7 +194,7 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
 
                 started = time.perf_counter()
                 with SessionLocal() as db:
-                    project = project_service.create_project(db, user_id, ProjectCreate(name=f"b_{meta['id']}"[:60]))
+                    project = project_service.create_project(db, org_id, user_id, ProjectCreate(name=f"b_{meta['id']}"[:60]))
                     task = task_service.create_task(
                         db, project, meta["requirement"], 5, list(meta["acceptance_criteria"]),
                         token_budget=args.token_budget,

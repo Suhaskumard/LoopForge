@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth";
 import type { Overview, Task } from "../api/types";
 import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
@@ -7,6 +8,7 @@ import { money, num, pct, seconds } from "../lib/format";
 
 /** Screen 1 — Command Center. KPI definitions: spec §9.1, computed server-side in one place. */
 export function CommandCenter() {
+  const { can } = useAuth();
   const overview = useAsync(() => api.get<Overview>("/analytics/overview"), []);
   const tasks = useAsync(() => api.get<Task[]>("/tasks", { limit: 50 }), []);
   const o = overview.data;
@@ -15,7 +17,7 @@ export function CommandCenter() {
     <>
       <header className="page-head">
         <h1>Command Center</h1>
-        <Link className="button primary" to="/tasks/new">New task</Link>
+        {can("developer") && <Link className="button primary" to="/tasks/new">New task</Link>}
       </header>
 
       {overview.error && <ErrorBox error={overview.error} />}

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import settings
 from app.database.models import User
 from app.database.session import get_session_factory
+from app.services import org_service
 from app.services.event_stream import TERMINAL, poll_task
 from app.utils.security import decode_access_token
 
@@ -30,17 +31,24 @@ WS_TOO_MANY = 4429
 _open: defaultdict[uuid.UUID, int] = defaultdict(int)
 
 
-def _user_for(factory: sessionmaker[Session], token: str | None) -> uuid.UUID | None:
+def _user_for(
+    factory: sessionmaker[Session], token: str | None, org: str | None = None
+) -> tuple[uuid.UUID, uuid.UUID] | None:
+    """(user id, org id) for a valid token whose user belongs to the requested org (Phase 10)."""
     claims = decode_access_token(token or "")
     if claims is None:
         return None
     try:
         uid = uuid.UUID(str(claims["sub"]))
+        requested = uuid.UUID(org) if org else None
     except ValueError:
         return None
     with factory() as db:
         user = db.get(User, uid)
-        return uid if user is not None and claims.get("tv") == user.token_version else None
+        if user is None or claims.get("tv") != user.token_version:
+            return None
+        ctx = org_service.resolve(db, uid, requested)
+        return None if ctx is None else (uid, ctx.org_id)
 
 
 @router.websocket("/ws/tasks/{task_id}")
@@ -48,13 +56,15 @@ async def task_events(
     websocket: WebSocket,
     task_id: uuid.UUID,
     token: str | None = None,
+    org: str | None = None,
     factory: sessionmaker[Session] = Depends(get_session_factory),
 ) -> None:
-    user_id = await run_in_threadpool(_user_for, factory, token)
-    if user_id is None:
+    who = await run_in_threadpool(_user_for, factory, token, org)
+    if who is None:
         await websocket.close(code=WS_UNAUTHORIZED)
         return
-    first = await run_in_threadpool(poll_task, factory, user_id, task_id)
+    user_id, org_id = who
+    first = await run_in_threadpool(poll_task, factory, org_id, task_id)
     if first is None:  # unknown and foreign tasks look identical (no existence leak)
         await websocket.close(code=WS_NOT_FOUND)
         return
@@ -76,7 +86,7 @@ async def task_events(
                 await websocket.close(code=1000)
                 return
             await asyncio.sleep(settings.ws_poll_seconds)
-            result = await run_in_threadpool(poll_task, factory, user_id, task_id)
+            result = await run_in_threadpool(poll_task, factory, org_id, task_id)
     except WebSocketDisconnect:
         return
     finally:

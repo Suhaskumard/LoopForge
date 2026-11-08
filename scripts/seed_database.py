@@ -9,7 +9,7 @@ from sqlalchemy import select  # noqa: E402
 
 from app.database.models import Project, User  # noqa: E402
 from app.database.session import SessionLocal  # noqa: E402
-from app.services import task_service  # noqa: E402
+from app.services import org_service, task_service  # noqa: E402
 from app.utils.security import hash_password  # noqa: E402
 
 DEMO_EMAIL = "demo@example.com"
@@ -26,9 +26,13 @@ def main() -> None:
             user = User(email=DEMO_EMAIL, password_hash=hash_password("demo12345"))
             db.add(user)
             db.commit()
-        project = db.scalars(select(Project).where(Project.user_id == user.id)).first()
+        ctx = org_service.resolve(db, user.id, None)
+        org_id = ctx.org_id if ctx else org_service.create_personal_org(db, user).id
+        project = db.scalars(select(Project).where(Project.org_id == org_id)).first()
         if project is None:
-            project = Project(user_id=user.id, name="employee_management", language="python")
+            project = Project(
+                user_id=user.id, org_id=org_id, name="employee_management", language="python"
+            )
             db.add(project)
             db.commit()
             task_service.create_task(db, project, DEMO_REQUIREMENT, 5, [])

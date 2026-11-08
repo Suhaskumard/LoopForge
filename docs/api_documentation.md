@@ -56,3 +56,26 @@ Example:
 curl -X POST :8000/api/v1/auth/register -H 'content-type: application/json' -d '{"email":"a@b.co","password":"password123"}'
 curl -X POST :8000/api/v1/auth/login -d 'username=a@b.co&password=password123'
 ```
+
+## Phase 10 - organizations (all under `/api/v1`)
+
+Work endpoints take the organization from the `X-Org-Id` header (default: your first organization); a non-member gets 403. Routes with `{org_id}` in the path return 404 to non-members. Roles: viewer < developer < approver < admin. Every `GET` above needs **viewer**; create/start/cancel/retry/resume/upload/PUT/DELETE of projects and tasks need **developer**; approve/reject need **approver**.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET / POST | /orgs | any user | my organizations with my role / create one (creator = admin) |
+| GET | /orgs/{org_id} | viewer | settings |
+| PATCH | /orgs/{org_id} | admin | `name`, `token_quota_month`, `max_tasks_month`, `retention_days`, `redact_pii`; send `null` to clear a cap |
+| GET | /orgs/{org_id}/usage | viewer | tokens and tasks this month vs. quota |
+| GET / POST | /orgs/{org_id}/members | viewer / admin | `POST {email, role}`: the user must already be registered; 409 duplicate |
+| PATCH / DELETE | /orgs/{org_id}/members/{user_id} | admin | 409 if it would leave no admin |
+| GET | /orgs/{org_id}/audit | admin | `?action=&actor_id=&limit=&offset=`, newest first |
+| GET | /orgs/{org_id}/export | admin | zip of JSON (no secrets) |
+| POST | /orgs/{org_id}/retention/run | admin | purge finished tasks older than `retention_days` |
+| DELETE | /orgs/{org_id}/data | admin | body `{confirm: <slug>}`; removes all projects and tasks, keeps org/members/audit |
+| GET | /auth/config | - | `{sso_enabled}` |
+| GET | /auth/sso/login | - | 302 to the identity provider (sets the signed state cookie) |
+| GET | /auth/sso/callback | - | 302 to the SPA with `#access_token=&refresh_token=` or `#error=` |
+| WS | /ws/tasks/{id}?token=&org= | viewer | `org` optional (default: first membership) |
+
+429 is returned when an organization quota is reached (`quota.blocked` is audit-logged). Approvals now record who decided (`approval_requests.decided_by`).

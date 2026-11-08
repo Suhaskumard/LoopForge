@@ -11,6 +11,7 @@ import logging
 import threading
 import time
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,10 +25,17 @@ from app.database.models import AuditEvent, Iteration, Task
 from app.execution.languages import get_profile
 from app.execution.sandbox import Sandbox
 from app.orchestrator.checkpoint import get_checkpointer
-from app.orchestrator.graph import build_graph
+from app.orchestrator.graph import build_graph, limits_from_settings
 from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
-from app.services import lease_service, report_service, source_service, task_service, workspace
+from app.services import (
+    lease_service,
+    quota_service,
+    report_service,
+    source_service,
+    task_service,
+    workspace,
+)
 from app.services.llm_client import LLMClient
 from app.services.repo_import import RepoImportError
 from app.services.task_service import TaskStatus
@@ -193,18 +201,20 @@ def _drive(
     tokens_used: int,
     config: LoopConfig = E3,
 ) -> None:
+    budget = min(settings.max_token_budget, task.token_budget or settings.max_token_budget)
+    ceiling = quota_service.token_ceiling(db, task, tokens_used)  # Phase 10: org monthly quota
+    if ceiling is not None:
+        budget = min(budget, max(ceiling, 1))
     ctx = AgentContext(
         db=db,
         task=task,
         iteration=_latest_iteration(db, task),
         llm=llm,
-        tracker=TokenTracker(
-            min(settings.max_token_budget, task.token_budget or settings.max_token_budget),
-            used=tokens_used,
-        ),
+        tracker=TokenTracker(budget, used=tokens_used),
     )
+    limits = replace(limits_from_settings(task, config), max_tokens=budget)
     try:
-        final: dict[str, Any] = build_graph(ctx, sandbox, config=config).invoke(
+        final: dict[str, Any] = build_graph(ctx, sandbox, limits=limits, config=config).invoke(
             graph_input, config={"configurable": {"thread_id": thread_id}}
         )
     except Exception as exc:  # a bug or infrastructure failure must not strand the task

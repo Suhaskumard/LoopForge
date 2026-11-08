@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.agents.base import AgentContext
 from app.database.models import Base, Iteration, Project, Task, User
 from app.database.session import make_engine
+from app.services import org_service
 from app.services.llm_client import FakeLLMClient
 from app.utils.token_tracker import TokenTracker
 
@@ -29,7 +30,8 @@ def ctx(db, llm):
     user = User(email="a@x.com", password_hash="x")
     db.add(user)
     db.flush()
-    project = Project(user_id=user.id, name="p")
+    org = org_service.create_personal_org(db, user)
+    project = Project(user_id=user.id, org_id=org.id, name="p")
     db.add(project)
     db.flush()
     task = Task(

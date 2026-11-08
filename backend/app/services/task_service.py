@@ -103,21 +103,21 @@ def transition(db: Session, task: Task, new: TaskStatus) -> Task:
     return task
 
 
-def get_owned_task(db: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
+def get_owned_task(db: Session, org_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
     stmt = (
         select(Task)
         .join(Project, Task.project_id == Project.id)
-        .where(Task.id == task_id, Project.user_id == user_id)
+        .where(Task.id == task_id, Project.org_id == org_id)
     )
     return db.scalars(stmt).first()
 
 
-def get_owned_task_for_update(db: Session, user_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
+def get_owned_task_for_update(db: Session, org_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
     """Like get_owned_task but takes a row lock (no-op on SQLite) to serialise transitions."""
     stmt = (
         select(Task)
         .join(Project, Task.project_id == Project.id)
-        .where(Task.id == task_id, Project.user_id == user_id)
+        .where(Task.id == task_id, Project.org_id == org_id)
         .with_for_update(of=Task)
     )
     return db.scalars(stmt).first()
@@ -129,12 +129,12 @@ def list_task_events(db: Session, task: Task) -> list[AuditEvent]:
 
 
 def list_owned_tasks(
-    db: Session, user_id: uuid.UUID, limit: int = 50, offset: int = 0
+    db: Session, org_id: uuid.UUID, limit: int = 50, offset: int = 0
 ) -> list[Task]:
     stmt = (
         select(Task)
         .join(Project, Task.project_id == Project.id)
-        .where(Project.user_id == user_id)
+        .where(Project.org_id == org_id)
         .order_by(Task.created_at, Task.id)
         .limit(limit)
         .offset(offset)

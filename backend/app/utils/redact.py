@@ -41,6 +41,18 @@ def redact(text: str) -> str:
     return _ASSIGNMENT.sub(lambda m: f"{m.group(1)}{m.group(2)}{REDACTED}", text)
 
 
+# ---- personal data (Phase 10): OPT-IN per organization, never part of `redact` ---------------
+# Emails/phone numbers legitimately appear in code and test fixtures, so masking them everywhere
+# would corrupt prompts; an organization that needs it enables it for its audit trail.
+_EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_PHONE = re.compile(r"(?<!\w)\+?\d[\d ().-]{7,}\d(?!\w)")
+
+
+def redact_pii(text: str) -> str:
+    """Mask email addresses and phone-number-shaped digit runs."""
+    return _PHONE.sub(REDACTED, _EMAIL.sub(REDACTED, text)) if text else text
+
+
 def contains_secret(text: str) -> bool:
     return redact(text) != text
 

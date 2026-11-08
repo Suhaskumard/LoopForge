@@ -101,12 +101,12 @@ def _task_seconds(its: list[Iteration], ended: datetime | None) -> float | None:
     return max((ended - start).total_seconds(), 0.0)
 
 
-def overview(db: Session, user_id: uuid.UUID) -> OverviewOut:
+def overview(db: Session, org_id: uuid.UUID) -> OverviewOut:
     tasks = list(
         db.scalars(
             select(Task)
             .join(Project, Task.project_id == Project.id)
-            .where(Project.user_id == user_id)
+            .where(Project.org_id == org_id)
             .order_by(Task.created_at.desc(), Task.id)
         )
     )
@@ -270,14 +270,14 @@ def iteration_analytics(db: Session, it: Iteration) -> IterationAnalyticsOut:
     )
 
 
-def _agent_rows(db: Session, user_id: uuid.UUID) -> list[AgentRun]:
+def _agent_rows(db: Session, org_id: uuid.UUID) -> list[AgentRun]:
     return list(
         db.scalars(
             select(AgentRun)
             .join(Iteration, AgentRun.iteration_id == Iteration.id)
             .join(Task, Iteration.task_id == Task.id)
             .join(Project, Task.project_id == Project.id)
-            .where(Project.user_id == user_id)
+            .where(Project.org_id == org_id)
             .order_by(AgentRun.started_at, AgentRun.id)
         )
     )
@@ -299,15 +299,15 @@ def _agent_stat(name: str, rows: list[AgentRun]) -> AgentStatOut:
     )
 
 
-def agent_analytics(db: Session, user_id: uuid.UUID) -> list[AgentStatOut]:
+def agent_analytics(db: Session, org_id: uuid.UUID) -> list[AgentStatOut]:
     grouped: dict[str, list[AgentRun]] = defaultdict(list)
-    for r in _agent_rows(db, user_id):
+    for r in _agent_rows(db, org_id):
         grouped[r.agent_name].append(r)
     return [_agent_stat(n, grouped.get(n, [])) for n in AGENT_NAMES]
 
 
-def agent_status(db: Session, user_id: uuid.UUID, name: str) -> AgentStatusOut:
-    rows = [r for r in _agent_rows(db, user_id) if r.agent_name == name]
+def agent_status(db: Session, org_id: uuid.UUID, name: str) -> AgentStatusOut:
+    rows = [r for r in _agent_rows(db, org_id) if r.agent_name == name]
     base = _agent_stat(name, rows)
     last = rows[-1] if rows else None
     return AgentStatusOut(

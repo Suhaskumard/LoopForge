@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import Artifact, Iteration, Project, Task, User
 from app.schemas.plan import FileChange
-from app.services import workspace
+from app.services import org_service, workspace
 from app.services.workspace import WorkspaceError, resolve_safe, write_changes
 
 
@@ -54,7 +54,8 @@ def iteration(db):
     user = User(email="w@x.com", password_hash="x")
     db.add(user)
     db.flush()
-    project = Project(user_id=user.id, name="p")
+    org = org_service.create_personal_org(db, user)
+    project = Project(user_id=user.id, org_id=org.id, name="p")
     db.add(project)
     db.flush()
     task = Task(project_id=project.id, requirement="r")

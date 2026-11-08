@@ -14,9 +14,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    event,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.schema import DDL
 
 JsonType = JSON().with_variant(JSONB(), "postgresql")  # type: ignore[no-untyped-call]
 
@@ -37,18 +39,75 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)  # None: SSO-only user
     token_version: Mapped[int] = mapped_column(Integer, default=0)
+    oidc_issuer: Mapped[str | None] = mapped_column(String, nullable=True)  # Phase 10 SSO
+    oidc_sub: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_now)
+    __table_args__ = (UniqueConstraint("oidc_issuer", "oidc_sub", name="uq_users_oidc"),)
     projects: Mapped[list["Project"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    memberships: Mapped[list["Membership"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+ROLES = ("viewer", "developer", "approver", "admin")  # ascending privilege (Phase 10, ADR-0017)
+
+
+class Organization(Base):
+    """Tenant boundary. Every project (and so every task, report, event) belongs to exactly one."""
+
+    __tablename__ = "organizations"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String)
+    slug: Mapped[str] = mapped_column(String, unique=True, index=True)
+    token_quota_month: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = no cap
+    max_tasks_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = keep
+    redact_pii: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    memberships: Mapped[list["Membership"]] = relationship(
+        back_populates="org", cascade="all, delete-orphan"
+    )
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+    __table_args__ = (
+        UniqueConstraint("org_id", "user_id", name="uq_membership"),
+        CheckConstraint("role IN ('viewer','developer','approver','admin')", name="ck_member_role"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String, default="developer")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    org: Mapped[Organization] = relationship(back_populates="memberships")
+    user: Mapped[User] = relationship(back_populates="memberships")
+
+
+class AuditLog(Base):
+    """Append-only, org-level record of who did what (DB triggers reject UPDATE and DELETE)."""
+
+    __tablename__ = "audit_log"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    target_type: Mapped[str] = mapped_column(String, default="")
+    target_id: Mapped[str] = mapped_column(String, default="")
+    detail: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    ip: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
 
 
 class Project(Base):
     __tablename__ = "projects"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)  # creator
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(Text, default="")
     language: Mapped[str] = mapped_column(String, default="python")
@@ -269,6 +328,7 @@ class ApprovalRequest(Base):
     resume_status: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[datetime] = mapped_column(default=_now)
     decided_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)  # Phase 10
 
 
 class RunLease(Base):
@@ -302,3 +362,42 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(default=_now)
     claimed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+# ---- audit_log is append-only: the database refuses UPDATE and DELETE (Phase 10, ADR-0017) ------
+# Installed whenever the table is created (create_all in tests/dev and migration 0006 both end up
+# with the same triggers), so the guarantee does not depend on how the schema was built.
+def _ddl(sql: str) -> DDL:
+    return DDL(sql)  # type: ignore[no-untyped-call]
+
+
+def _install_audit_triggers() -> None:
+    table = AuditLog.__table__
+    for verb in ("UPDATE", "DELETE"):
+        event.listen(
+            table,
+            "after_create",
+            _ddl(
+                f"CREATE TRIGGER audit_log_no_{verb.lower()} BEFORE {verb} ON audit_log "
+                "BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END"
+            ).execute_if(dialect="sqlite"),
+        )
+    event.listen(
+        table,
+        "after_create",
+        _ddl(
+            "CREATE OR REPLACE FUNCTION audit_log_immutable() RETURNS trigger AS $$ "
+            "BEGIN RAISE EXCEPTION 'audit_log is append-only'; END; $$ LANGUAGE plpgsql"
+        ).execute_if(dialect="postgresql"),
+    )
+    event.listen(
+        table,
+        "after_create",
+        _ddl(
+            "CREATE TRIGGER audit_log_no_change BEFORE UPDATE OR DELETE ON audit_log "
+            "FOR EACH ROW EXECUTE FUNCTION audit_log_immutable()"
+        ).execute_if(dialect="postgresql"),
+    )
+
+
+_install_audit_triggers()

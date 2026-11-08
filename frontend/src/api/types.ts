@@ -22,6 +22,53 @@ export interface User {
   email: string;
 }
 
+export type Role = "viewer" | "developer" | "approver" | "admin";
+export const ROLE_RANK: Record<Role, number> = { viewer: 0, developer: 1, approver: 2, admin: 3 };
+
+/** An organization the signed-in user belongs to, with their role in it. */
+export interface OrgMembership {
+  id: string;
+  name: string;
+  slug: string;
+  role: Role;
+}
+
+export interface OrgDetails {
+  id: string;
+  name: string;
+  slug: string;
+  token_quota_month: number | null;
+  max_tasks_month: number | null;
+  retention_days: number | null;
+  redact_pii: boolean;
+}
+
+export interface Member {
+  user_id: string;
+  email: string;
+  role: Role;
+}
+
+export interface Usage {
+  tokens_used: number;
+  token_quota_month: number | null;
+  tokens_remaining: number | null;
+  tasks_created: number;
+  max_tasks_month: number | null;
+  tasks_remaining: number | null;
+}
+
+export interface AuditEntry {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  detail: Record<string, unknown>;
+  ip: string;
+  created_at: string;
+}
+
 export interface Project {
   id: string;
   name: string;

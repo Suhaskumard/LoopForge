@@ -48,6 +48,6 @@ clone, and secret formats outside the pattern list.
 - **WebSocket token in the URL** can land in proxy logs; 15-minute lifetime limits the damage.
 - **Refresh token in sessionStorage** is readable by any XSS (ADR-0011); mitigated by CSP and no HTML injection, not removed.
 - **No dependency vulnerability scanning**, no SBOM, no signed images.
-- **Single shared approver model**: any owner can approve; no separation of duties.
+- **Approver model (Phase 10)**: approvals now need the *approver* role and record who decided; there is still no rule preventing the person who started a task from approving it (no separation of duties).
 - **CI has never run on GitHub**, and nothing has been penetration-tested by a third party.
 - **The real Docker sandbox was not exercised in this environment** unless the acceptance check reports item 4 as PASS.

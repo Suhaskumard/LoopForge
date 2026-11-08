@@ -8,7 +8,7 @@ from app.config import settings
 from app.database.models import User
 from app.database.session import get_db
 from app.schemas.user import RefreshRequest, Token, UserCreate, UserOut
-from app.services import auth_service
+from app.services import audit_service, auth_service, org_service
 from app.utils.client_ip import client_ip
 from app.utils.security import create_access_token, hash_password, verify_password
 
@@ -24,13 +24,18 @@ def _token_pair(user: User, refresh_token: str) -> Token:
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(data: UserCreate, db: Session = Depends(get_db)) -> User:
+def register(data: UserCreate, request: Request, db: Session = Depends(get_db)) -> User:
     email = data.email.lower()
     if db.scalars(select(User).where(User.email == email)).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     user = User(email=email, password_hash=hash_password(data.password))
     db.add(user)
     db.commit()
+    org = org_service.create_personal_org(db, user)
+    audit_service.record(
+        db, org_id=org.id, actor_id=user.id, action="auth.register", target_type="user",
+        target_id=user.id, request=request,
+    )  # fmt: skip
     return user
 
 
@@ -49,10 +54,21 @@ def login(
             headers={"Retry-After": str(settings.login_window_seconds)},
         )
     user = db.scalars(select(User).where(User.email == email)).first()
-    if user is None or not verify_password(form.password, user.password_hash):
-        auth_service.record_login_failure(db, key)
+    if (
+        user is None
+        or not user.password_hash
+        or not verify_password(form.password, user.password_hash)
+    ):
+        auth_service.record_login_failure(
+            db, key
+        )  # SSO-only users (no password) cannot log in here
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
     auth_service.clear_login_failures(db, key)
+    ctx = org_service.resolve(db, user.id, None)
+    audit_service.record(
+        db, org_id=ctx.org_id if ctx else None, actor_id=user.id, action="auth.login",
+        target_type="user", target_id=user.id, detail={"method": "password"}, request=request,
+    )  # fmt: skip
     return _token_pair(user, auth_service.start_session(db, user))
 
 

@@ -3,6 +3,7 @@ import { Background, ReactFlow, type Edge, type Node } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth";
 import type { Task } from "../api/types";
 import { isTerminal } from "../api/types";
 import { Approvals } from "../components/Approvals";
@@ -58,6 +59,7 @@ export function buildGraph(live: LiveState): { nodes: Node[]; edges: Edge[] } {
 /** Screen 3 — Live Workflow: agent graph, current agent/iteration, status and event timeline. */
 export function LiveWorkflow() {
   const { id = "" } = useParams();
+  const { can } = useAuth();
   const task = useAsync(() => api.get<Task>(`/tasks/${id}`), [id]);
   const { live, connection, reconnect } = useTaskEvents(id);
   const [actionError, setActionError] = useState<string>();
@@ -89,16 +91,16 @@ export function LiveWorkflow() {
         <div className="row">
           <span className={`conn ${connection}`} data-testid="connection">{connection}</span>
           {t && <StatusBadge status={t.status} />}
-          {t?.status === "PENDING" && <button className="primary" onClick={() => void act("start")}>Start</button>}
-          {t && ["FAILED", "ESCALATED"].includes(t.status) && (
+          {can("developer") && t?.status === "PENDING" && <button className="primary" onClick={() => void act("start")}>Start</button>}
+          {can("developer") && t && ["FAILED", "ESCALATED"].includes(t.status) && (
             <button onClick={() => void act("retry", "start")}>Retry</button>
           )}
-          {t && !isTerminal(t.status) && t.status !== "PENDING" && <button onClick={() => void act("cancel")}>Cancel</button>}
+          {can("developer") && t && !isTerminal(t.status) && t.status !== "PENDING" && <button onClick={() => void act("cancel")}>Cancel</button>}
         </div>
       </header>
       <TaskTabs id={id} />
       {t?.status === "AWAITING_APPROVAL" && (
-        <Approvals taskId={id} signal={live.timeline.length} onDecided={() => { task.reload(); reconnect(); }} />
+        <Approvals taskId={id} signal={live.timeline.length} canDecide={can("approver")} onDecided={() => { task.reload(); reconnect(); }} />
       )}
       {task.error && <ErrorBox error={task.error} />}
       {actionError && <p className="error" role="alert">{actionError}</p>}

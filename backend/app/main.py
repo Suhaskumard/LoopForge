@@ -10,7 +10,18 @@ from sqlalchemy import text
 
 from app.api import ws
 from app.api.errors import install_error_handlers
-from app.api.v1 import agents, analytics, approvals, auth, projects, reports, runs, tasks
+from app.api.v1 import (
+    agents,
+    analytics,
+    approvals,
+    auth,
+    orgs,
+    projects,
+    reports,
+    runs,
+    sso,
+    tasks,
+)
 from app.config import settings
 from app.database import session
 from app.middleware import RequestContextMiddleware
@@ -20,6 +31,8 @@ configure_logging()
 
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
+api_v1.include_router(orgs.router)
+api_v1.include_router(sso.router)
 api_v1.include_router(projects.router)
 api_v1.include_router(tasks.router)
 api_v1.include_router(runs.router)

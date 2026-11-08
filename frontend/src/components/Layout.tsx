@@ -10,16 +10,35 @@ export function Protected() {
 }
 
 function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, orgs, activeOrg, switchOrg, can } = useAuth();
   const navigate = useNavigate();
   return (
     <div className="shell">
       <nav className="nav">
         <strong className="brand">LoopForge</strong>
         <NavLink to="/" end>Command Center</NavLink>
-        <NavLink to="/tasks/new">New task</NavLink>
+        {can("developer") && <NavLink to="/tasks/new">New task</NavLink>}
         <NavLink to="/analytics">Loop Analytics</NavLink>
+        {can("admin") && <NavLink to="/admin">Admin</NavLink>}
         <span className="spacer" />
+        {orgs.length > 1 ? (
+          <select
+            aria-label="Organization"
+            className="org-switch"
+            value={activeOrg?.id ?? ""}
+            onChange={(e) => {
+              switchOrg(e.target.value);
+              navigate("/");
+            }}
+          >
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        ) : (
+          activeOrg && <span className="muted who" data-testid="org-name">{activeOrg.name}</span>
+        )}
+        {activeOrg && <span className="badge" data-testid="role">{activeOrg.role}</span>}
         <span className="muted who">{user?.email}</span>
         <button
           className="link"
@@ -30,7 +49,8 @@ function Layout() {
           Sign out
         </button>
       </nav>
-      <main className="page">
+      {/* key: switching organization remounts the page, so nothing from the old one stays on screen */}
+      <main className="page" key={activeOrg?.id ?? "none"}>
         <Outlet />
       </main>
     </div>

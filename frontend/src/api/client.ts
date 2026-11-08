@@ -30,6 +30,7 @@ export interface ClientOptions {
 }
 
 const REFRESH_KEY = "loopforge.refresh";
+const ORG_KEY = "loopforge.org";
 
 export class ApiClient {
   private access: string | null = null;
@@ -55,9 +56,28 @@ export class ApiClient {
     this.storage.setItem(REFRESH_KEY, t.refresh_token);
   }
 
+  /** Take over a session created elsewhere (the SSO callback hands tokens over in the URL fragment). */
+  adoptTokens(t: Tokens): void {
+    this.setTokens(t);
+  }
+
+  /** The organization every request is made in (`X-Org-Id`); remembered for the tab. */
+  get orgId(): string | null {
+    return this.storage.getItem(ORG_KEY);
+  }
+  setOrg(id: string | null): void {
+    if (id) this.storage.setItem(ORG_KEY, id);
+    else this.storage.removeItem(ORG_KEY);
+  }
+  private orgHeader(): Record<string, string> {
+    const id = this.orgId;
+    return id ? { "X-Org-Id": id } : {};
+  }
+
   clear(): void {
     this.access = null;
     this.storage.removeItem(REFRESH_KEY);
+    this.storage.removeItem(ORG_KEY);
   }
 
   async login(email: string, password: string): Promise<void> {
@@ -122,7 +142,7 @@ export class ApiClient {
     opts: { json?: unknown; auth?: boolean; query?: Record<string, string | number | undefined> } = {},
   ): Promise<T> {
     const send = async (): Promise<Response> => {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = opts.auth !== false ? this.orgHeader() : {};
       if (opts.json !== undefined) headers["Content-Type"] = "application/json";
       if (opts.auth !== false && this.access) headers["Authorization"] = `Bearer ${this.access}`;
       return this.fetchImpl(this.base + path + queryString(opts.query), {
@@ -159,7 +179,7 @@ export class ApiClient {
       form.append("file", file);
       return this.fetchImpl(this.base + path, {
         method: "POST",
-        headers: this.access ? { Authorization: `Bearer ${this.access}` } : {},
+        headers: { ...this.orgHeader(), ...(this.access ? { Authorization: `Bearer ${this.access}` } : {}) },
         body: form,
       });
     };
@@ -174,7 +194,7 @@ export class ApiClient {
   async blob(path: string): Promise<Blob> {
     if (this.access === null) await this.refresh();
     const res = await this.fetchImpl(this.base + path, {
-      headers: this.access ? { Authorization: `Bearer ${this.access}` } : {},
+      headers: { ...this.orgHeader(), ...(this.access ? { Authorization: `Bearer ${this.access}` } : {}) },
     });
     if (!res.ok) throw await toError(res);
     return res.blob();

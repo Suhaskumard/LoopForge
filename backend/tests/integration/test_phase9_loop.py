@@ -56,5 +56,5 @@ def test_oracle_run_with_e3_and_phase9_ablations_and_table(tmp_path):
     assert "Phase 9 ablations" in report.stdout and "NOT A MEASUREMENT" in report.stdout
     assert "| P0 |" in report.stdout and "| P2 |" in report.stdout
     assert "| P1 | failure-class repair strategies | 0 | To be measured" in report.stdout  # noqa: E501
-    # with this few trials the intervals overlap, and the report must say so rather than claim a gain
+    # few trials: the intervals overlap, and the report must say so rather than claim a gain
     assert "not distinguishable from noise" in report.stdout
