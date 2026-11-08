@@ -14,6 +14,7 @@ class TaskCreate(BaseModel):
     token_budget: int | None = Field(default=None, ge=1000)
     max_cost: float | None = Field(default=None, gt=0)
     require_plan_approval: bool = False
+    learn_from_task: bool = True  # Phase 16: False keeps this task's repairs out of shared memory
     # Phase 8: start from an existing repository; a zip is uploaded via /tasks/{id}/source.
     source_type: Literal["none", "zip", "git"] = "none"
     git_url: str | None = Field(default=None, max_length=300)
@@ -39,6 +40,7 @@ class TaskOut(BaseModel):
     token_budget: int | None = None
     max_cost: float | None = None
     require_plan_approval: bool = False
+    learn_from_task: bool = True
     source_type: str = "none"
     source_ref: str | None = None
     source_hash: str | None = None

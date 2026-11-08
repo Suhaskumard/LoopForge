@@ -1,0 +1,17 @@
+{
+  "id": "go-08-wordcount",
+  "category": "go",
+  "language": "go",
+  "difficulty": "medium",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/wordcount.go` (package `lib`) and your own tests in `lib/wordcount_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func WordCount(s string) map[string]int`. Count how often each word occurs. Words are separated by any whitespace and compared case-insensitively (keys are lower-case). An empty or blank string returns an empty, non-nil map.",
+  "acceptance_criteria": [
+    "func WordCount(s string) map[string]int: Count how often each word occurs. Words are separated by any whitespace and compared case-insensitively (keys are lower-case). An empty or blank string returns an empty, non-nil map."
+  ],
+  "source": "none",
+  "module": "lib/wordcount.go",
+  "signature": "func WordCount(s string) map[string]int",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

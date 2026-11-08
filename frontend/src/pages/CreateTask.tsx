@@ -17,7 +17,8 @@ export function CreateTask() {
   const [tokenBudget, setTokenBudget] = useState("");
   const [maxCost, setMaxCost] = useState("");
   const [planApproval, setPlanApproval] = useState(false);
-  const [language, setLanguage] = useState<"python" | "javascript">("python");
+  const [learn, setLearn] = useState(true);
+  const [language, setLanguage] = useState<"python" | "javascript" | "go">("python");
   const [sourceType, setSourceType] = useState<"none" | "zip" | "git">("none");
   const [gitUrl, setGitUrl] = useState("");
   const [zip, setZip] = useState<File | null>(null);
@@ -55,6 +56,7 @@ export function CreateTask() {
         token_budget: tokenBudget ? Number(tokenBudget) : undefined,
         max_cost: maxCost ? Number(maxCost) : undefined,
         require_plan_approval: planApproval,
+        learn_from_task: learn ? undefined : false,
         source_type: sourceType,
         git_url: sourceType === "git" ? gitUrl.trim() : undefined,
       });
@@ -97,10 +99,11 @@ export function CreateTask() {
               <select
                 value={language}
                 aria-label="Language"
-                onChange={(e) => setLanguage(e.target.value as "python" | "javascript")}
+                onChange={(e) => setLanguage(e.target.value as "python" | "javascript" | "go")}
               >
                 <option value="python">Python (FastAPI, pytest)</option>
                 <option value="javascript">JavaScript / TypeScript (Jest)</option>
+                <option value="go">Go, standard library (experimental)</option>
               </select>
             </label>
             <label>
@@ -181,6 +184,10 @@ export function CreateTask() {
           <label className="check">
             <input type="checkbox" checked={planApproval} onChange={(e) => setPlanApproval(e.target.checked)} />
             Pause for my approval after planning, before any code is written
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} />
+            Let LoopForge reuse what it learns from this task's repairs as hints for other tasks in this organization
           </label>
           <p className="muted small">
             Budgets are enforced by the server: reaching one escalates the task instead of spending more. A repair

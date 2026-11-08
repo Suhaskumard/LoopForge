@@ -68,8 +68,10 @@ def create_task(
     source_type: str = "none",
     source_ref: str | None = None,
     created_by: uuid.UUID | None = None,
+    learn_from_task: bool = True,
 ) -> Task:
     task = Task(
+        learn_from_task=learn_from_task,
         created_by=created_by,
         project_id=project.id,
         requirement=requirement,

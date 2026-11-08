@@ -37,6 +37,30 @@ def read_decisions(text: str) -> dict:
     return json.loads(m.group(1))
 
 
+PHASE16_SWITCHES = (
+    "affected_tests_first",
+    "patch_edits",
+    "changed_line_coverage",
+    "test_mutation_check",
+    "memory_expiry",
+)
+
+
+def check_heldout() -> list[str]:
+    """Held-out tasks must exist and must not be in the regression subset (which is tuning feedback)."""
+    problems: list[str] = []
+    held = set(json.loads((ROOT / "benchmarks" / "heldout.json").read_text(encoding="utf-8"))["tasks"])
+    existing = {
+        p.name for d in ("tasks", "tasks_phase8", "tasks_go") for p in (ROOT / "benchmarks" / d).iterdir()
+    }
+    for t in sorted(held - existing):
+        problems.append(f"heldout.json names an unknown task: {t}")
+    subset = json.loads((ROOT / "benchmarks" / "regression" / "subset.json").read_text(encoding="utf-8"))
+    for t in sorted(held & set(subset["tasks"])):
+        problems.append(f"held-out task {t} is in the regression subset (tuning feedback)")
+    return problems
+
+
 def check(decisions: dict) -> list[str]:
     from app.config import Settings
     from app.orchestrator.loop_config import LoopConfig
@@ -63,6 +87,10 @@ def check(decisions: dict) -> list[str]:
             problems.append(f"switches_on: unknown switch {name!r}")
         elif loop_defaults[name] is not True:
             problems.append(f"switches_on: {name} is off by default in LoopConfig")
+    for name in PHASE16_SWITCHES:  # unmeasured switches may never be on by default
+        if loop_defaults.get(name) is not False:
+            problems.append(f"Phase 16 switch {name} must default to off until a real run supports it")
+    problems += check_heldout()
     return problems
 
 

@@ -20,6 +20,10 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 16 - a smarter, broader loop (mechanisms only; nothing measured on a real model)
+- Five default-off switches with ablation presets (`--config Q1..Q5,P5`): affected-tests-first, patch edits with conflict handling, changed-line coverage, a mutation-style test check, memory expiry. A Go language adapter (`--suite go`, 10 tasks) and a held-out task split. Tasks can opt out of being learned from. ADR-0023; `make gate16`.
+- **The Go tasks and image have not been compiled or built here**: run `python benchmarks/validate_go.py --require-go` where Go is installed.
+
 ## Phase 15 - a product people can use
 - Email verification, password reset, emailed invitations, a sessions page, in-app/email/webhook notifications, per-member quotas, task templates, an onboarding checklist, failure explanations in the report and inline review comments on approvals. Mail: `MAIL_BACKEND=console|smtp` (production requires `smtp`; see `.env.example`). ADR-0022.
 - Browser tests: `cd frontend && npm ci && npx playwright install chromium && npm run e2e` (journeys, axe accessibility, phone width). `make gate15` runs everything.

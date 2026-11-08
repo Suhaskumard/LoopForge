@@ -41,3 +41,5 @@ A test (`test_migrations.py`) fails if the models and migration ever drift, and 
 Phase 12 (`0008`): `jobs.request_id` (nullable) - the id of the HTTP request that enqueued the job; the worker logs with it so API and worker lines can be correlated.
 
 Phase 15 (`0010`): `users.email_verified_at`, `users.notify_email`; `memberships.token_quota_month` / `max_tasks_month` (personal caps, NULL = none); `tasks.created_by` (quota attribution); `refresh_tokens.user_agent` / `ip` / `last_used_at` (sessions page). New tables: `email_tokens` (hashed single-use verify/reset tokens), `org_invites` (hashed token, role, expiry, accepted/revoked), `notifications` (unique `(user_id, dedupe_key)` so an event is delivered once), `approval_comments`. ADR-0022.
+
+Phase 16 (`0011`): `tasks.learn_from_task` (boolean, default true). When false, repairs recorded for that task are never offered as hints to other tasks. ADR-0023.

@@ -1,0 +1,4 @@
+# Go modules importable by generated code (standard library is always available).
+# One module path per line. The image has NO network and no module cache beyond what is built in,
+# so a module may be listed here only if the Dockerfile also vendors it at build time.
+# Empty on purpose: Phase 16 ships standard-library-only Go.

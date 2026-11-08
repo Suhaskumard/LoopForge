@@ -77,6 +77,7 @@ def _tests_view(summary: TestSummary) -> dict[str, Any]:
         "skipped": summary.skipped,
         "coverage": summary.coverage,
         "timed_out": summary.timed_out,
+        "partial": summary.partial,
         "failures": [asdict(f) for f in summary.failures],
     }
 
@@ -92,6 +93,7 @@ def _summary_from_row(row: TestResult) -> TestSummary:
         timed_out=d.get("timed_out", False),
         report_found=d.get("report_found", False),
         coverage=row.coverage,
+        partial=d.get("partial", False),
         duration_seconds=d.get("duration_seconds", 0.0),
         failures=[TestFailure(**f) for f in d.get("failures", [])],
     )
@@ -191,7 +193,17 @@ def build_graph(
             if task.status in (TaskStatus.GENERATING.value, TaskStatus.REPAIRING.value):
                 task_service.transition(db, task, TaskStatus.EXECUTING)
             row = db.scalars(select(TestResult).where(TestResult.iteration_id == it.id)).first()
-            summary = _summary_from_row(row) if row else verifier.run(ctx, sandbox)
+            summary = (
+                _summary_from_row(row)
+                if row
+                else verifier.run(
+                    ctx,
+                    sandbox,
+                    affected_first=config.affected_tests_first,
+                    changed_line_cov=config.changed_line_coverage,
+                    mutation_check=config.test_mutation_check,
+                )
+            )
             if row is None:
                 audit(
                     "tests_executed",
@@ -319,7 +331,9 @@ def build_graph(
         return {
             "decision": decision.value,
             "failure_fingerprints": fps,
-            "best_test_count": max(state["best_test_count"], tests["total_tests"]),
+            "best_test_count": state["best_test_count"]
+            if tests.get("partial")
+            else max(state["best_test_count"], tests["total_tests"]),
             "status": "cancelled" if decision is Decision.STOP else decision.value,
             "final_report": _final_report(state, it, decision),
             "tokens_used": ctx.tracker.used,
@@ -342,6 +356,8 @@ def build_graph(
                 targeted_context=config.targeted_context,
                 test_guard=config.test_guard,
                 history_retrieval=config.history_retrieval,
+                memory_expiry=config.memory_expiry,
+                patch_edits=config.patch_edits,
             )
         except AgentFailure as exc:
             return fail(state, "repair", exc, escalate=exc.escalate)

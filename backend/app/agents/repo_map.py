@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from app.evaluation import go_report
 from app.execution.languages import LanguageProfile
 
 MAX_TREE = 300
@@ -40,6 +41,14 @@ def _js_symbols(text: str) -> list[str]:
     return names[:MAX_SYMBOLS_PER_FILE]
 
 
+def symbols_for(profile: LanguageProfile, text: str) -> list[str]:
+    if profile.name == "python":
+        return _py_symbols(text)
+    if profile.name == "go":
+        return go_report.symbols(text)
+    return _js_symbols(text)
+
+
 def _entry_points(profile: LanguageProfile, files: dict[str, str]) -> list[str]:
     found: list[str] = []
     if profile.name == "python":
@@ -47,6 +56,10 @@ def _entry_points(profile: LanguageProfile, files: dict[str, str]) -> list[str]:
             if path.endswith(("main.py", "app.py", "__main__.py", "manage.py")) or (
                 path.endswith(".py") and "__main__" in text and "if __name__" in text
             ):
+                found.append(path)
+    elif profile.name == "go":
+        for path, text in files.items():
+            if path.endswith(".go") and not path.endswith("_test.go") and "func main(" in text:
                 found.append(path)
     else:
         try:
@@ -65,7 +78,7 @@ def build_repo_map(files: dict[str, str], profile: LanguageProfile) -> dict[str,
     source = [p for p in paths if any(p.endswith(e) for e in profile.source_extensions)]
     symbols: dict[str, list[str]] = {}
     for path in source[:MAX_SYMBOL_FILES]:
-        syms = _py_symbols(files[path]) if profile.name == "python" else _js_symbols(files[path])
+        syms = symbols_for(profile, files[path])
         if syms:
             symbols[path] = syms
     return {

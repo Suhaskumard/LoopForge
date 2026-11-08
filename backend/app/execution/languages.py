@@ -16,13 +16,16 @@ from app.config import settings
 
 PY_SOURCE_EXT = frozenset({".py"})
 JS_SOURCE_EXT = frozenset({".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"})
+GO_SOURCE_EXT = frozenset({".go"})
 _TEST_NAME = {
     "python": re.compile(r"(^|/)(test_[^/]*|[^/]*_test)\.py$|(^|/)tests/[^/]*\.py$"),
     "javascript": re.compile(r"(\.|/)(test|spec)\.(m|c)?[jt]sx?$|(^|/)__tests__/"),
+    "go": re.compile(r"_test\.go$"),
 }
 _TEST_DECL = {
     "python": re.compile(r"^\s*(?:async\s+)?def\s+test_\w+", re.M),
     "javascript": re.compile(r"^\s*(?:it|test)(?:\.\w+)?\s*\(", re.M),
+    "go": re.compile(r"^func\s+Test\w*\s*\(", re.M),
 }
 JS_APPROVED_FILE = (
     Path(__file__).resolve().parents[2] / "sandbox" / "node" / "approved_packages_js.txt"
@@ -102,7 +105,34 @@ def _js_deps(text: str, approved: dict[str, str] | None = None) -> list[str]:
     return violations
 
 
-_CHECKERS: dict[str, Callable[[str], list[str]]] = {"python": _py_deps, "javascript": _js_deps}
+GO_APPROVED_FILE = Path(__file__).resolve().parents[2] / "sandbox" / "go" / "approved_modules.txt"
+_GO_REQUIRE = re.compile(r"^\s*(?:require\s+)?([\w.\-]+(?:/[\w.\-~]+)+)\s+v[\w.\-+]+", re.M)
+
+
+def load_approved_go(path: Path = GO_APPROVED_FILE) -> set[str]:
+    if not path.is_file():
+        return set()
+    lines = (raw.split("#", 1)[0].strip() for raw in path.read_text(encoding="utf-8").splitlines())
+    return {line.split()[0] for line in lines if line}
+
+
+def _go_deps(text: str, approved: set[str] | None = None) -> list[str]:
+    """go.mod policy: the standard library plus approved, image-vendored modules (no network)."""
+    approved = approved if approved is not None else load_approved_go()
+    violations = [
+        f"module not approved: {m}" for m in _GO_REQUIRE.findall(text) if m not in approved
+    ]
+    for directive in ("replace", "toolchain", "godebug"):
+        if re.search(rf"^\s*{directive}\b", text, re.M):
+            violations.append(f"go.mod directive not allowed: {directive}")
+    return violations
+
+
+_CHECKERS: dict[str, Callable[[str], list[str]]] = {
+    "python": _py_deps,
+    "javascript": _js_deps,
+    "go": _go_deps,
+}
 
 PYTHON = LanguageProfile(
     name="python",
@@ -153,9 +183,30 @@ JAVASCRIPT = LanguageProfile(
     test_command_label="jest",
 )
 
-PROFILES: dict[str, LanguageProfile] = {"python": PYTHON, "javascript": JAVASCRIPT}
+# Phase 16 (ADR-0023). `go test -json` writes its events to STDOUT, so there is no report file: the
+# Verifier parses stdout (report_name is only a placeholder). Coverage is a statement profile.
+GO = LanguageProfile(
+    name="go",
+    source_extensions=GO_SOURCE_EXT,
+    manifest="go.mod",
+    image_setting="sandbox_image_go",
+    test_argv=("go", "test", "-json", "-count=1", "-coverprofile=/out/coverage.out", "./..."),
+    report_name="go-test.stdout",
+    coverage_name="coverage.out",
+    lint_argv=("go", "vet", "./..."),
+    framework_label="Go module (net/http and the standard library, go test)",
+    test_command_label="gotest",
+)
+
+PROFILES: dict[str, LanguageProfile] = {"python": PYTHON, "javascript": JAVASCRIPT, "go": GO}
 SUPPORTED = tuple(PROFILES)
-_ALIASES = {"typescript": "javascript", "js": "javascript", "ts": "javascript", "py": "python"}
+_ALIASES = {
+    "typescript": "javascript",
+    "js": "javascript",
+    "ts": "javascript",
+    "py": "python",
+    "golang": "go",
+}
 
 
 def get_profile(name: str | None) -> LanguageProfile:
@@ -168,11 +219,15 @@ def get_profile(name: str | None) -> LanguageProfile:
 
 def image_for_argv(argv: list[str]) -> str:
     """Sandbox image for an (already allowlisted) command: JS tools run in the Node image."""
+    if argv and argv[0] == "go":
+        return GO.image
     return JAVASCRIPT.image if argv and argv[0] in ("jest", "eslint") else PYTHON.image
 
 
 def detect_language(files: dict[str, str]) -> str:
     """Pick the profile for an imported repository from its manifest / source mix."""
+    if "go.mod" in files and "requirements.txt" not in files and "package.json" not in files:
+        return "go"
     if "package.json" in files and "requirements.txt" not in files:
         return "javascript"
     py = sum(1 for p in files if p.endswith(".py"))

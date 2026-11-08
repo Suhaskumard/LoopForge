@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     # inside the worker (e.g. /srv/loopforge/workspaces). Empty = same paths on both sides.
     sandbox_host_workspace_root: str = ""
     sandbox_image_js: str = "loopforge-sandbox-node"
+    sandbox_image_go: str = "loopforge-sandbox-go"
     sandbox_memory_mb: int = 256
     sandbox_cpus: float = 1.0
     sandbox_pids_limit: int = 64
@@ -123,6 +124,9 @@ class Settings(BaseSettings):
     reset_token_ttl_minutes: int = 60
     invite_ttl_days: int = 7
     quota_warn_fraction: float = 0.8
+    # Phase 16: with the memory_expiry switch on, retained repairs older than this are not offered
+    # as hints (0 = never expire). Off by default: the switch is unmeasured.
+    memory_ttl_days: int = 0
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:

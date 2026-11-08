@@ -58,6 +58,14 @@ and the iteration/token defaults, as keys of the comment below (`max_iterations`
 
 <!-- decisions: {} -->
 
+### Phase 16 switches - To be measured
+
+Five switches (`affected_tests_first`, `patch_edits`, `changed_line_coverage`, `test_mutation_check`, `memory_expiry`) exist and are
+**off by default**; ablation presets Q1-Q5 (one on) and P5 (all on) exist. **No real-model result exists for any of them**, so no
+claim is made that they help, and `benchmarks/check_defaults.py` fails if one is turned on before a published run says to. Tune only
+with `--exclude-heldout`; the tasks in `benchmarks/heldout.json` are for release time (`--heldout`). The 10 Go tasks
+(`--suite go`) are real-provider only. See ADR-0023.
+
 ### Manual steps (what `make eval` automates)
 ```bash
 # 1. build the sandbox image once (Docker running)

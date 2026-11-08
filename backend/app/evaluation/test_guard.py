@@ -8,6 +8,7 @@ compares a test file before and after a repair; any finding rejects the patch (`
 import ast
 import re
 
+from app.evaluation import go_report
 from app.execution.languages import PYTHON, LanguageProfile
 
 _JS_TEST = re.compile(r"^\s*(?:it|test)\s*\(", re.M)
@@ -78,8 +79,9 @@ def detect_test_weakening(
             if after[2] > before[2]:
                 findings.append(f"{path}: adds skip/xfail markers")
         else:
-            b_tests, b_asserts, b_skips = _js_stats(old)
-            a_tests, a_asserts, a_skips = _js_stats(new)
+            stats = go_report.test_stats if profile.name == "go" else _js_stats
+            b_tests, b_asserts, b_skips = stats(old)
+            a_tests, a_asserts, a_skips = stats(new)
             if a_tests < b_tests:
                 findings.append(f"{path}: tests reduced from {b_tests} to {a_tests}")
             if a_asserts < b_asserts:

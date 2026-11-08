@@ -25,17 +25,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 TASKS_DIR = ROOT / "tasks"
 PHASE8_DIR = ROOT / "tasks_phase8"
-SUITES = {"core": [TASKS_DIR], "phase8": [PHASE8_DIR], "all": [TASKS_DIR, PHASE8_DIR]}
+GO_DIR = ROOT / "tasks_go"
+SUITES = {
+    "core": [TASKS_DIR],
+    "phase8": [PHASE8_DIR],
+    "go": [GO_DIR],
+    "all": [TASKS_DIR, PHASE8_DIR],
+    "full": [TASKS_DIR, PHASE8_DIR, GO_DIR],  # + the Go tasks (Phase 16)
+}
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent / "backend"))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default="E3", help="comma list of E1,E2,E3,A1..A4,P0..P4")
+    ap.add_argument("--config", default="E3", help="comma list of E1,E2,E3,A1..A4,P0..P5,Q1..Q5")
     ap.add_argument("--trials", type=int, default=1, help="repeated trials per task (>=3 for statistics)")
     ap.add_argument("--suite", choices=sorted(SUITES), default="core",
-                    help="core = the 30 tasks; phase8 = 10 repo-input + 10 JavaScript (real provider only); all = both")
+                    help="core = the 30 tasks; phase8 = 10 repo-input + 10 JavaScript, go = 10 Go (both real provider only); all = core + phase8; full = all + go")
     ap.add_argument("--tasks", default="", help="comma list of task ids (default: all)")
     ap.add_argument("--category", default="", help="only tasks of this category")
     ap.add_argument("--provider", choices=["openai", "oracle"], default="openai")
@@ -43,12 +50,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--token-budget", type=int, default=30000, help="per-trial token cap (<= server MAX_TOKEN_BUDGET)")
     ap.add_argument("--max-total-tokens", type=int, default=0, help="stop the whole run beyond this (0 = no cap)")
     ap.add_argument("--max-total-cost", type=float, default=0.0, help="stop beyond this estimated $ (0 = no cap)")
+    ap.add_argument("--heldout", action="store_true",
+                    help="run ONLY the held-out tasks (benchmarks/heldout.json): release time, never for tuning")
+    ap.add_argument("--exclude-heldout", action="store_true",
+                    help="skip the held-out tasks; use this for every tuning or ablation run")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the cost ceiling, run nothing")
     return ap.parse_args(argv)
 
 
 def load_tasks(args: argparse.Namespace) -> list[dict]:
     wanted = {t for t in args.tasks.split(",") if t}
+    heldout = set(json.loads((ROOT / "heldout.json").read_text(encoding="utf-8"))["tasks"])
     tasks = []
     for root in SUITES[getattr(args, "suite", "core")]:
         for d in sorted(root.iterdir()):
@@ -58,6 +70,10 @@ def load_tasks(args: argparse.Namespace) -> list[dict]:
             if wanted and meta["id"] not in wanted:
                 continue
             if args.category and meta["category"] != args.category:
+                continue
+            if getattr(args, "heldout", False) and meta["id"] not in heldout:
+                continue
+            if getattr(args, "exclude_heldout", False) and meta["id"] in heldout:
                 continue
             meta["dir"] = d
             meta.setdefault("language", "python")

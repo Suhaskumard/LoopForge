@@ -1,0 +1,17 @@
+{
+  "id": "go-01-clamp",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/clamp.go` (package `lib`) and your own tests in `lib/clamp_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Clamp(value, min, max int) (int, error)`. Return value limited to [min, max]. If min > max return a non-nil error.",
+  "acceptance_criteria": [
+    "func Clamp(value, min, max int) (int, error): Return value limited to [min, max]. If min > max return a non-nil error."
+  ],
+  "source": "none",
+  "module": "lib/clamp.go",
+  "signature": "func Clamp(value, min, max int) (int, error)",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

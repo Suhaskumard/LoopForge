@@ -1,0 +1,17 @@
+{
+  "id": "go-05-reverse",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/reverse.go` (package `lib`) and your own tests in `lib/reverse_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Reverse(s string) string`. Return s reversed by Unicode characters (runes), not bytes.",
+  "acceptance_criteria": [
+    "func Reverse(s string) string: Return s reversed by Unicode characters (runes), not bytes."
+  ],
+  "source": "none",
+  "module": "lib/reverse.go",
+  "signature": "func Reverse(s string) string",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

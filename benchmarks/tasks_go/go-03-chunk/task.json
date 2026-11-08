@@ -1,0 +1,17 @@
+{
+  "id": "go-03-chunk",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/chunk.go` (package `lib`) and your own tests in `lib/chunk_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Chunk(xs []int, size int) ([][]int, error)`. Split xs into consecutive slices of length size (the last may be shorter). size <= 0 returns a non-nil error. An empty xs returns an empty result.",
+  "acceptance_criteria": [
+    "func Chunk(xs []int, size int) ([][]int, error): Split xs into consecutive slices of length size (the last may be shorter). size <= 0 returns a non-nil error. An empty xs returns an empty result."
+  ],
+  "source": "none",
+  "module": "lib/chunk.go",
+  "signature": "func Chunk(xs []int, size int) ([][]int, error)",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

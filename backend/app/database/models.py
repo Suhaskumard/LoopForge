@@ -15,6 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     event,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -153,6 +154,10 @@ class Task(Base):
     source_ref: Mapped[str | None] = mapped_column(String, nullable=True)
     source_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)  # Ph.15
+    # Phase 16: False = repairs from this task are never offered as hints to other tasks.
+    learn_from_task: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {"version_id_col": version}
     created_at: Mapped[datetime] = mapped_column(default=_now)

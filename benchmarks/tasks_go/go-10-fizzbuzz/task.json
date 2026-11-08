@@ -1,0 +1,17 @@
+{
+  "id": "go-10-fizzbuzz",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/fizzbuzz.go` (package `lib`) and your own tests in `lib/fizzbuzz_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func FizzBuzz(n int) []string`. Return the numbers 1..n as strings, replacing multiples of 3 with \"Fizz\", multiples of 5 with \"Buzz\" and multiples of both with \"FizzBuzz\". n <= 0 returns an empty (non-nil) slice.",
+  "acceptance_criteria": [
+    "func FizzBuzz(n int) []string: Return the numbers 1..n as strings, replacing multiples of 3 with \"Fizz\", multiples of 5 with \"Buzz\" and multiples of both with \"FizzBuzz\". n <= 0 returns an empty (non-nil) slice."
+  ],
+  "source": "none",
+  "module": "lib/fizzbuzz.go",
+  "signature": "func FizzBuzz(n int) []string",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

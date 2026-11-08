@@ -1,0 +1,12 @@
+{
+  "comment": "Held-out tasks (Phase 16): NEVER used to choose, tune or ablate a switch or a default. Run them only at release time with `run_benchmarks.py --heldout`. Use `--exclude-heldout` for every tuning run. Changing this list needs a note in ADR-0023.",
+  "tasks": [
+    "auth-06-lockout",
+    "bug-06-delete-noop",
+    "crud-06-events",
+    "dv-06-money",
+    "int-06-room-booking",
+    "go-09-parsekv",
+    "go-10-fizzbuzz"
+  ]
+}

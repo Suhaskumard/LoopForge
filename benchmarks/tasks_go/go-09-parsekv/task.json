@@ -1,0 +1,17 @@
+{
+  "id": "go-09-parsekv",
+  "category": "go",
+  "language": "go",
+  "difficulty": "medium",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/parsekv.go` (package `lib`) and your own tests in `lib/parsekv_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func ParseKV(s string) (map[string]string, error)`. Parse \"key=value\" pairs separated by semicolons, trimming spaces around keys and values (e.g. \"a=1; b=2\"). An empty string returns an empty, non-nil map. A non-empty item without \"=\" or with an empty key returns a non-nil error. If a key repeats, the last value wins.",
+  "acceptance_criteria": [
+    "func ParseKV(s string) (map[string]string, error): Parse \"key=value\" pairs separated by semicolons, trimming spaces around keys and values (e.g. \"a=1; b=2\"). An empty string returns an empty, non-nil map. A non-empty item without \"=\" or with an empty key returns a non-nil error. If a key repeats, the last value wins."
+  ],
+  "source": "none",
+  "module": "lib/parsekv.go",
+  "signature": "func ParseKV(s string) (map[string]string, error)",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

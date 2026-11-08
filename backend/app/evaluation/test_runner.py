@@ -10,8 +10,9 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.evaluation import go_report
 from app.evaluation.classifier import extract_error_type
-from app.execution.languages import JAVASCRIPT, PYTHON, LanguageProfile, jest_counts
+from app.execution.languages import GO, JAVASCRIPT, PYTHON, LanguageProfile, jest_counts
 from app.execution.runner import run_command
 from app.execution.sandbox import ExecResult, Sandbox
 
@@ -48,6 +49,10 @@ class TestSummary:
     coverage: float | None = None
     duration_seconds: float = 0.0
     failures: list[TestFailure] = field(default_factory=list)
+    # Phase 16: True when only the tests affected by a change were run (a failing subset). Such a
+    # result is a repair signal, never a verdict: the suite-shrink guard must not read it as
+    # "tests deleted".
+    partial: bool = False
 
     @property
     def ok(self) -> bool:
@@ -114,6 +119,40 @@ def parse_report(raw: str, result: ExecResult, timeout: int) -> TestSummary:
     summary.failed = max(broken, len(summary.failures))
     if summary.failed and not summary.total:
         summary.total = summary.failed
+    return summary
+
+
+def parse_go_report(result: ExecResult, timeout: int) -> TestSummary:
+    """Normalise `go test -json` (stdout) into the TestSummary the other languages produce."""
+    summary = TestSummary(
+        exit_code=result.exit_code,
+        timed_out=result.timed_out,
+        duration_seconds=result.duration_seconds,
+    )
+    if result.timed_out:
+        summary.failed = 1
+        summary.failures.append(
+            TestFailure(
+                "<execution>", f"execution exceeded {timeout}s and was killed", _clip(result.stderr)
+            )
+        )
+        return summary
+    data = go_report.summarize(go_report.parse_events(result.stdout))
+    if not data["found"]:
+        summary.failed = 1
+        tail = _ANSI.sub("", (result.stderr or result.stdout)[-MAX_TRACE_CHARS:])
+        summary.failures.append(
+            TestFailure("<execution>", f"no test report produced (exit {result.exit_code})", tail)
+        )
+        return summary
+    summary.report_found = True
+    summary.total, summary.passed = data["total"], data["passed"]
+    summary.skipped, summary.failed = data["skipped"], data["failed"]
+    for f in data["failures"]:
+        summary.failures.append(TestFailure(f["nodeid"], f["message"], _clip(f["traceback"])))
+    summary.failed = max(summary.failed, len(summary.failures))
+    if summary.failed and not summary.total:
+        summary.total = summary.failed  # a build failure counts as one failing "test"
     return summary
 
 
@@ -187,19 +226,24 @@ def run_tests(
     out_dir: Path,
     timeout: int,
     profile: LanguageProfile = PYTHON,
+    only: list[str] | None = None,
 ) -> tuple[TestSummary, ExecResult]:
     report = out_dir / profile.report_name
     coverage = out_dir / profile.coverage_name
     report.unlink(missing_ok=True)
     coverage.unlink(missing_ok=True)
-    result = run_command(sandbox, workspace, out_dir, list(profile.test_argv), timeout)
+    result = run_command(sandbox, workspace, out_dir, [*profile.test_argv, *(only or [])], timeout)
     raw = report.read_text(encoding="utf-8", errors="replace") if report.is_file() else ""
-    if profile is JAVASCRIPT:
+    if profile is GO:
+        summary = parse_go_report(result, timeout)
+        summary.coverage = go_report.parse_coverprofile(coverage)
+    elif profile is JAVASCRIPT:
         summary = parse_jest_report(raw, result, timeout)
         summary.coverage = parse_js_coverage(coverage)
     else:
         summary = parse_report(raw, result, timeout)
         summary.coverage = parse_coverage(coverage)
+    summary.partial = bool(only)
     return summary, result
 
 

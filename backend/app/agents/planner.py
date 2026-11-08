@@ -36,6 +36,12 @@ SYSTEM_JS_NOTE = """
   test files end in .test.js/.test.ts.
   Only jest, ts-jest, typescript, eslint, @types/jest and @types/node are available."""
 
+SYSTEM_GO_NOTE = """
+- This is a Go module tested with `go test`; set framework to "Go".
+  Include go.mod (module name, a `go` directive, NO require/replace lines: standard library only);
+  tests are *_test.go files in the same package directory as the code, named TestXxx(t *testing.T).
+  Use net/http, net/http/httptest, encoding/json and testing. No third-party modules."""
+
 SYSTEM_REPO_NOTE = """
 - Set framework to "FastAPI" for Python and "Node.js" for JavaScript/TypeScript.
 - An EXISTING repository is provided (map below, inside <untrusted_input>). Plan the SMALLEST set
@@ -69,6 +75,8 @@ def run(ctx: AgentContext, requirement: str) -> ProjectPlan:
     system = SYSTEM.replace("{framework}", profile.framework_label)
     if profile.name == "javascript":
         system += SYSTEM_JS_NOTE
+    elif profile.name == "go":
+        system += SYSTEM_GO_NOTE
     user = f"Requirement:\n{wrap_untrusted(requirement)}"
     if seed:
         system += SYSTEM_REPO_NOTE

@@ -10,7 +10,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from app.execution.languages import JAVASCRIPT, PYTHON, LanguageProfile
+from app.evaluation import go_report
+from app.execution.languages import GO, JAVASCRIPT, PYTHON, LanguageProfile
 from app.execution.runner import run_command
 from app.execution.sandbox import Sandbox
 
@@ -103,6 +104,20 @@ def _run_js_quality(
     return report
 
 
+def _run_go_quality(
+    sandbox: Sandbox, workspace: Path, out_dir: Path, timeout: int
+) -> QualityReport:
+    """`go vet` only. There is no Go security scanner in the image: that gap is documented
+    (ADR-0023), not hidden - `bandit_high` stays empty and no 'clean scan' is claimed."""
+    report = QualityReport()
+    res = run_command(sandbox, workspace, out_dir, list(GO.lint_argv), timeout)
+    if res.timed_out or res.exit_code not in (0, 1, 2):
+        report.tool_errors.append(f"go vet: did not complete (exit {res.exit_code})")
+    else:
+        report.ruff = go_report.parse_vet(res.stderr or res.stdout)
+    return report
+
+
 def run_quality(
     sandbox: Sandbox,
     workspace: Path,
@@ -110,6 +125,8 @@ def run_quality(
     timeout: int,
     profile: LanguageProfile = PYTHON,
 ) -> QualityReport:
+    if profile is GO:
+        return _run_go_quality(sandbox, workspace, out_dir, timeout)
     if profile is JAVASCRIPT:
         return _run_js_quality(sandbox, workspace, out_dir, timeout)
     report = QualityReport()

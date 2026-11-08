@@ -130,3 +130,7 @@ Every response carries `X-Request-ID` (your own is honoured); the same id appear
 | GET/POST | `/tasks/{task_id}/approvals/{id}/comments` | viewer / developer | inline review comments |
 
 `GET /tasks/{id}/report` gained `failure_explanation` (what failed, what Repair tried, what a person should do) for FAILED/ESCALATED tasks. New webhook events: `approval.needed`, `quota.near_limit`.
+
+## Phase 16
+
+`POST /tasks` accepts `learn_from_task` (default `true`); `false` keeps that task's repairs out of the shared repair memory. `GET /tasks/{id}` returns it. Projects may set `language` to `go` (standard-library-only modules; see ADR-0023 for the untested-image caveat).

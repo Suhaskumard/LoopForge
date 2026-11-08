@@ -1,0 +1,17 @@
+{
+  "id": "go-04-uniq",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/uniq.go` (package `lib`) and your own tests in `lib/uniq_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Uniq(xs []int) []int`. Remove duplicates, keeping the first occurrence of each value and the original order. An empty input returns an empty (non-nil) slice.",
+  "acceptance_criteria": [
+    "func Uniq(xs []int) []int: Remove duplicates, keeping the first occurrence of each value and the original order. An empty input returns an empty (non-nil) slice."
+  ],
+  "source": "none",
+  "module": "lib/uniq.go",
+  "signature": "func Uniq(xs []int) []int",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "go-02-capitalize",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/capitalize.go` (package `lib`) and your own tests in `lib/capitalize_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Capitalize(s string) string`. Upper-case the first character and lower-case the rest (ASCII). An empty string returns an empty string.",
+  "acceptance_criteria": [
+    "func Capitalize(s string) string: Upper-case the first character and lower-case the rest (ASCII). An empty string returns an empty string."
+  ],
+  "source": "none",
+  "module": "lib/capitalize.go",
+  "signature": "func Capitalize(s string) string",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

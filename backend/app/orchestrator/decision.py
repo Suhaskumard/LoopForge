@@ -63,7 +63,7 @@ def evaluate_iteration(state: dict[str, Any], limits: Limits, now: float | None 
     tests, review = state["test_results"], state["review_results"]
 
     # Repair must never "pass" by deleting tests: the suite may not shrink below its best size.
-    if tests["total_tests"] < state.get("best_test_count", 0):
+    if not tests.get("partial") and tests["total_tests"] < state.get("best_test_count", 0):
         return Decision.ESCALATE
 
     if is_accepted(tests, review):

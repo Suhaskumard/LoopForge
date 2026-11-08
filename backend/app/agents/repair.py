@@ -8,8 +8,10 @@ Phase 9 (ADR-0016), each part switchable through `LoopConfig` for ablation:
 failure-class strategy, targeted context, test-weakening guard, retrieval of similar past repairs.
 """
 
+import hashlib
 import json
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -17,11 +19,13 @@ from sqlalchemy.orm import Session
 
 from app.agents.base import AgentContext, OutputRejected, call_agent, wrap_untrusted
 from app.agents.repair_context import select_context
+from app.config import settings
 from app.database.models import Iteration, Project, RepairHistory, Task
 from app.evaluation.failure_class import STRATEGIES, FailureClass, classify_failure
 from app.evaluation.test_guard import detect_test_weakening
 from app.execution.languages import PYTHON, LanguageProfile, get_profile
-from app.schemas.loop import RepairOutput
+from app.schemas.loop import RepairOutput, RepairPatchOutput
+from app.schemas.plan import FileChange, _Strict
 from app.services import workspace
 from app.services.workspace import WorkspaceError
 
@@ -57,7 +61,12 @@ def _relevant_files(base_files: dict[str, str], failure_text: str) -> str:
 
 
 def _similar_fixes(
-    db: Session, task: Task, fingerprint: str, failure_class: str, limit: int = 2
+    db: Session,
+    task: Task,
+    fingerprint: str,
+    failure_class: str,
+    limit: int = 2,
+    expiry: bool = False,
 ) -> list[RepairHistory]:
     """Repairs that RESOLVED a similar failure in the same ORGANIZATION's other tasks (Phase 9/10).
 
@@ -73,8 +82,12 @@ def _similar_fixes(
             RepairHistory.task_id != task.id,
             RepairHistory.outcome == "resolved",
         )
+        .where(Task.learn_from_task.is_(True))  # Phase 16: a task can opt out of being learned from
         .order_by(RepairHistory.created_at.desc())
     )
+    if expiry and settings.memory_ttl_days > 0:
+        cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=settings.memory_ttl_days)
+        base = base.where(RepairHistory.created_at >= cutoff)
     exact = list(db.scalars(base.where(RepairHistory.fingerprint == fingerprint).limit(limit)))
     if len(exact) >= limit:
         return exact
@@ -120,6 +133,37 @@ def _validator(
     return validate
 
 
+SYSTEM_PATCH_ADDENDUM = """
+Patch mode: for a SMALL change to an existing file you may send `patches` instead of the whole
+file: {"path", "base_sha256", "edits": [{"search", "replace"}]}. `base_sha256` is the hash shown on
+the file's header line; each `search` must be copied exactly from the file and occur exactly once.
+Use `changes` (complete content) for new files and for large rewrites. If an edit is rejected,
+send the whole file instead."""
+
+
+def _file_hashes(files: dict[str, str]) -> dict[str, str]:
+    return {p: hashlib.sha256(t.encode("utf-8")).hexdigest() for p, t in files.items()}
+
+
+def _resolve_patches(out: RepairPatchOutput, files: dict[str, str]) -> RepairOutput:
+    """Turn patches into whole-file changes; a conflict rejects the output (nothing written)."""
+    changes = list(out.changes)
+    for patch in out.patches:
+        if patch.path not in files:
+            raise OutputRejected(f"cannot patch {patch.path!r}: file does not exist")
+        try:
+            text = workspace.apply_edits(
+                patch.path,
+                files[patch.path],
+                patch.base_sha256,
+                [(e.search, e.replace) for e in patch.edits],
+            )
+        except workspace.PatchConflict as exc:
+            raise OutputRejected(str(exc)) from None
+        changes.append(FileChange(path=patch.path, content=text, action="modify"))
+    return RepairOutput(root_cause=out.root_cause, explanation=out.explanation, changes=changes)
+
+
 def run(
     ctx: AgentContext,
     failure_report: dict[str, Any],
@@ -130,6 +174,8 @@ def run(
     targeted_context: bool = True,
     test_guard: bool = True,
     history_retrieval: bool = True,
+    memory_expiry: bool = False,
+    patch_edits: bool = False,
 ) -> Iteration:
     """Apply a repair and return the new (not yet executed) iteration."""
     db, task, current = ctx.db, ctx.task, ctx.iteration
@@ -169,7 +215,9 @@ def run(
         f"- attempt: {h.root_cause[:200]} -> outcome: {h.outcome}" for h in reversed(previous)
     )
     similar = (
-        _similar_fixes(db, task, fingerprint, failure_class) if memory and history_retrieval else []
+        _similar_fixes(db, task, fingerprint, failure_class, expiry=memory_expiry)
+        if memory and history_retrieval
+        else []
     )
     worked = "\n".join(
         f"- cause: {h.root_cause[:200]} -> fix: {h.proposed_fix[:200]}" for h in similar
@@ -181,11 +229,27 @@ def run(
         else ""
     )
 
+    if patch_edits:  # pin edits to the exact file version they were written for
+        listing = "\n".join(f"{p}: {h}" for p, h in sorted(_file_hashes(files).items()))
+        context += f"\nFile hashes (sha256), for patches:\n{listing}"
+
+    def finish(out: _Strict) -> RepairOutput:
+        if isinstance(out, RepairPatchOutput):
+            return _resolve_patches(out, files)
+        if not isinstance(out, RepairOutput):
+            raise TypeError(f"unexpected repair output type {type(out).__name__}")
+        return out
+
+    base_validate = _validator(base, set(files), profile, files if test_guard else None)
+
+    def validate_any(out: _Strict) -> None:
+        base_validate(finish(out))  # also rejects conflicting patches
+
     started, tokens_before = time.perf_counter(), ctx.tracker.used
-    output = call_agent(
+    raw = call_agent(
         ctx,
         agent_name=NAME,
-        system=SYSTEM,
+        system=SYSTEM + (SYSTEM_PATCH_ADDENDUM if patch_edits else ""),
         user=(
             f"{strategy}"
             f"Failure report:\n{wrap_untrusted(report_text)}\n"
@@ -194,10 +258,11 @@ def run(
             f"{hints}"
             f"Project files:\n{wrap_untrusted(context)}"
         ),
-        response_model=RepairOutput,
+        response_model=RepairPatchOutput if patch_edits else RepairOutput,
         input_summary=f"repair iteration {current.iteration_number}: {report_text[:200]}",
-        validate=_validator(base, set(files), profile, files if test_guard else None),
+        validate=validate_any,
     )
+    output = finish(raw)
 
     new_iter = existing_iter or Iteration(
         task_id=task.id, iteration_number=next_number, status="running"

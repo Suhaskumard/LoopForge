@@ -79,6 +79,7 @@ def create(
         source_type=data.source_type,
         source_ref=data.git_url,
         created_by=principal.user.id,
+        learn_from_task=data.learn_from_task,
     )
     audit_service.record(
         db, org_id=principal.org_id, actor_id=principal.user.id, action="task.create",

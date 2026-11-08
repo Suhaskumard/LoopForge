@@ -21,6 +21,13 @@ class LoopConfig:
     targeted_context: bool = True  # P2 sends every file in full again instead of relevant ones
     test_guard: bool = True  # P3 removes the test-weakening check (the test-count guard stays)
     history_retrieval: bool = True  # P4 falls back to "last 3 attempts" instead of similar failures
+    # Phase 16 (ADR-0023): OFF by default - none of these is measured on a real model yet, so none
+    # may change production behaviour. Q1-Q5 turn exactly one on; P5 turns all on.
+    affected_tests_first: bool = False  # Q1 runs affected tests before the full suite
+    patch_edits: bool = False  # Q2 lets Repair send search/replace edits instead of whole files
+    changed_line_coverage: bool = False  # Q3 reports how much changed code tests execute
+    test_mutation_check: bool = False  # Q4 checks the tests notice small deliberate code changes
+    memory_expiry: bool = False  # Q5 ignores retained repairs older than MEMORY_TTL_DAYS
 
 
 E3 = LoopConfig()
@@ -46,3 +53,15 @@ PRESETS: dict[str, LoopConfig] = {
     "P3": replace(E3, name="P3", test_guard=False),
     "P4": replace(E3, name="P4", history_retrieval=False),
 }
+
+# Phase 16: Q1-Q5 = E3 + ONE new switch on (the ablation of each); P5 = E3 + all of them on.
+PHASE16_SWITCHES = (
+    "affected_tests_first",
+    "patch_edits",
+    "changed_line_coverage",
+    "test_mutation_check",
+    "memory_expiry",
+)
+for _i, _switch in enumerate(PHASE16_SWITCHES, start=1):
+    PRESETS[f"Q{_i}"] = replace(E3, name=f"Q{_i}", **{_switch: True})
+PRESETS["P5"] = replace(E3, name="P5", **dict.fromkeys(PHASE16_SWITCHES, True))

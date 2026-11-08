@@ -41,6 +41,9 @@ _ALLOWED: dict[tuple[str, ...], set[str]] = {
         "--coverageDirectory",
     },
     ("eslint",): {"--format", "--no-warn-ignored"},
+    # Go profile (Phase 16): test and vet only; no go run/get/mod/build (nothing fetches or links).
+    ("go", "test"): {"-json", "-count", "-coverprofile", "-run"},
+    ("go", "vet"): set(),
 }
 _ALLOWED_P_VALUES = {"no:cacheprovider"}
 _ROOTS = (CONTAINER_WORKSPACE, CONTAINER_OUT)

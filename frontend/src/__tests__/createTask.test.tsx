@@ -75,4 +75,23 @@ describe("task creation with languages and repositories", () => {
     const task = post.mock.calls.find((c) => c[0] === "/tasks")![1] as Record<string, unknown>;
     expect(task).toMatchObject({ source_type: "git", git_url: "https://github.com/a/b" });
   });
+
+  it("can opt a task out of being learned from, and offers Go", async () => {
+    const { post } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Language"), "go");
+    await userEvent.click(screen.getByLabelText(/Let LoopForge reuse what it learns/));
+    await userEvent.click(screen.getByRole("button", { name: /Create and start/ }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/tasks/t1/start"));
+    expect(post).toHaveBeenCalledWith("/projects", { name: "employee_management", language: "go" });
+    const task = post.mock.calls.find((c) => c[0] === "/tasks")![1] as Record<string, unknown>;
+    expect(task.learn_from_task).toBe(false);
+  });
+
+  it("leaves learn_from_task unset by default", async () => {
+    const { post } = setup();
+    await userEvent.click(screen.getByRole("button", { name: /Create and start/ }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/tasks/t1/start"));
+    const task = post.mock.calls.find((c) => c[0] === "/tasks")![1] as Record<string, unknown>;
+    expect(task.learn_from_task).toBeUndefined();
+  });
 });

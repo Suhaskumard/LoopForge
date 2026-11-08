@@ -45,7 +45,7 @@ export interface Template {
   id: string;
   name: string;
   description: string;
-  language: "python" | "javascript";
+  language: "python" | "javascript" | "go";
   requirement: string;
   acceptance_criteria: string[];
 }

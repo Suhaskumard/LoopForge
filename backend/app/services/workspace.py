@@ -74,6 +74,43 @@ def _atomic_write(target: Path, content: str) -> None:
         raise
 
 
+class PatchConflict(WorkspaceError):
+    """A patch does not apply cleanly to the file as it is now. Nothing was changed."""
+
+
+def apply_edits(path: str, current: str, base_sha256: str, edits: list[tuple[str, str]]) -> str:
+    """Apply exact search/replace edits to `current` and return the new text (Phase 16).
+
+    Refuses (PatchConflict) if the file is not the version the edits were written against, if a
+    `search` text is missing or occurs more than once (ambiguous), or if edits overlap. Edits are
+    matched against the ORIGINAL text, so one edit cannot accidentally match another's output.
+    """
+    actual = hashlib.sha256(current.encode("utf-8")).hexdigest()
+    if actual != base_sha256:
+        raise PatchConflict(f"{path}: the file changed since the edits were written (hash differs)")
+    spans: list[tuple[int, int, str]] = []
+    for search, replace in edits:
+        count = current.count(search)
+        if count != 1:
+            raise PatchConflict(
+                f"{path}: search text {search[:60]!r} "
+                + ("was not found" if count == 0 else f"occurs {count} times; it must be unique")
+            )
+        start = current.index(search)
+        spans.append((start, start + len(search), replace))
+    spans.sort()
+    for (_, end, _), (start, _, _) in zip(spans, spans[1:], strict=False):
+        if start < end:
+            raise PatchConflict(f"{path}: two edits overlap")
+    out, cursor = [], 0
+    for start, end, replace in spans:
+        out.append(current[cursor:start])
+        out.append(replace)
+        cursor = end
+    out.append(current[cursor:])
+    return "".join(out)
+
+
 def write_changes(
     db: Session,
     *,

@@ -10,7 +10,7 @@ import ast
 import posixpath
 import re
 
-from app.agents.repo_map import MAX_SYMBOLS_PER_FILE, _js_symbols, _py_symbols
+from app.agents.repo_map import MAX_SYMBOLS_PER_FILE, symbols_for
 from app.execution.languages import LanguageProfile
 
 _JS_IMPORT = re.compile(r"""(?:from\s+|require\(\s*|import\s*\(\s*)['"](\.{1,2}/[^'"]+)['"]""")
@@ -63,11 +63,20 @@ def _js_imports(path: str, source: str, files: dict[str, str]) -> set[str]:
     return found
 
 
+def _go_imports(path: str, source: str, files: dict[str, str]) -> set[str]:
+    """A Go package is a directory: its other files are what a file depends on."""
+    here = posixpath.dirname(path)
+    return {p for p in files if p != path and p.endswith(".go") and posixpath.dirname(p) == here}
+
+
+_IMPORT_FINDERS = {"python": _py_imports, "javascript": _js_imports, "go": _go_imports}
+
+
 def _outline(path: str, text: str, profile: LanguageProfile) -> str:
     if posixpath.splitext(path)[1] not in profile.source_extensions:
         shown = "(not a source file)"  # manifests, configs: nothing to extract
     else:
-        symbols = _py_symbols(text) if profile.name == "python" else _js_symbols(text)
+        symbols = symbols_for(profile, text)
         shown = ", ".join(symbols[:MAX_SYMBOLS_PER_FILE]) or "(no top-level symbols)"
     return f"--- {path} (outline only: {len(text)} chars; symbols: {shown})"
 
@@ -82,7 +91,7 @@ def select_context(
     else:
         full = set(named)
         for path in sorted(named):
-            finder = _py_imports if profile.name == "python" else _js_imports
+            finder = _IMPORT_FINDERS.get(profile.name, _js_imports)
             full |= finder(path, files[path], files)
     parts, total = [], 0
     for rel in sorted(files, key=lambda p: (p not in named, p not in full, p)):

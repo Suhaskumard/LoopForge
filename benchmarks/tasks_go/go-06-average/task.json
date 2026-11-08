@@ -1,0 +1,17 @@
+{
+  "id": "go-06-average",
+  "category": "go",
+  "language": "go",
+  "difficulty": "easy",
+  "requirement": "Create a small Go module using only the standard library. Use exactly this go.mod:\nmodule example.com/task\n\ngo 1.22\n\nPut the implementation in `lib/average.go` (package `lib`) and your own tests in `lib/average_test.go` (package `lib`, `go test`). No third-party modules.\n\nSPEC: Implement `func Average(xs []float64) (float64, error)`. Return the arithmetic mean of xs. An empty slice returns a non-nil error.",
+  "acceptance_criteria": [
+    "func Average(xs []float64) (float64, error): Return the arithmetic mean of xs. An empty slice returns a non-nil error."
+  ],
+  "source": "none",
+  "module": "lib/average.go",
+  "signature": "func Average(xs []float64) (float64, error)",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "notes": "hidden tests run in a separate, independent step; the agents' own tests do not count"
+  }
+}

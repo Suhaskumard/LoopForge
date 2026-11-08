@@ -18,6 +18,10 @@ _ENVIRONMENT = frozenset({"Timeout", "MemoryError", "OSError", "PermissionError"
 _SYNTHETIC_ENVIRONMENT = ("<dependencies>", "<execution>")
 _JS_SYNTAX = re.compile(r"SyntaxError|Unexpected token|Unexpected identifier", re.I)
 _JS_IMPORT = re.compile(r"Cannot find module|Module not found|ERR_MODULE_NOT_FOUND", re.I)
+_GO_SYNTAX = re.compile(r"syntax error|expected '", re.I)
+_GO_IMPORT = re.compile(
+    r"cannot find package|no required module provides|imported and not used", re.I
+)
 _PATHS = re.compile(r"([\w./\\-]+\.(?:py|mjs|cjs|jsx?|tsx?))")
 
 STRATEGIES: dict[str, str] = {
@@ -56,9 +60,15 @@ def _one(failure: dict[str, Any], profile: LanguageProfile) -> FailureClass:
     text = f"{failure.get('message', '')}\n{failure.get('traceback', '')}"
     if nodeid in _SYNTHETIC_ENVIRONMENT or error_type in _ENVIRONMENT:
         return "environment"
-    if error_type in _SYNTAX or (profile.name == "javascript" and _JS_SYNTAX.search(text)):
+    if error_type in _SYNTAX or (
+        (profile.name == "javascript" and _JS_SYNTAX.search(text))
+        or (profile.name == "go" and _GO_SYNTAX.search(text))
+    ):
         return "syntax"
-    if error_type in _IMPORT or (profile.name == "javascript" and _JS_IMPORT.search(text)):
+    if error_type in _IMPORT or (
+        (profile.name == "javascript" and _JS_IMPORT.search(text))
+        or (profile.name == "go" and _GO_IMPORT.search(text))
+    ):
         return "import"
     paths = _PATHS.findall(str(failure.get("traceback", "")))
     if (
