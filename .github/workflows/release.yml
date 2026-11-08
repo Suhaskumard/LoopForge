@@ -55,7 +55,7 @@ jobs:
           pip install cyclonedx-bom==4.6.1
           cyclonedx-py requirements backend/requirements-runtime.txt --of JSON -o sbom-backend.json
           cosign attest --yes --type cyclonedx --predicate sbom-backend.json "${IMAGE}@${{ steps.build.outputs.digest }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom-backend
           path: sbom-backend.json
