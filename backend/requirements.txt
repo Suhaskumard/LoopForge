@@ -4,9 +4,9 @@
 pytest==8.3.4
 pytest-cov==6.0.0
 pytest-json-report==1.5.0
-hypothesis==6.122.3
+hypothesis==6.170.14
 coverage==7.17.2
-ruff==0.8.4
+ruff==0.17.3
 mypy==1.13.0
 bandit==1.9.4
-markdown==3.7  # docs site build (scripts/build_docs.py); development only
+markdown==3.11.2  # docs site build (scripts/build_docs.py); development only
