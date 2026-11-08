@@ -5,7 +5,7 @@
 #
 # The base is the backend service's own build (compose `additional_contexts: backendimage: service:backend`),
 # so this file cannot drift from backend/Dockerfile.
-FROM docker:27-cli AS dockercli
+FROM docker:28-cli AS dockercli
 
 FROM backendimage
 USER root
