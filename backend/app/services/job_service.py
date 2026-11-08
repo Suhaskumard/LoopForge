@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database.models import Job, RunLease, Task
+from app.database.models import Job, Project, RunLease, Task
 from app.services import lease_service, run_service
 from app.services.task_service import TaskStatus
 from app.utils.metrics import JOBS_FINISHED
@@ -30,6 +30,41 @@ def _pending(db: Session, task_id: uuid.UUID) -> Job | None:
     return db.scalars(
         select(Job).where(Job.task_id == task_id, Job.status.in_(("queued", "running")))
     ).first()
+
+
+class QueueFull(Exception):
+    def __init__(self, scope: str, depth: int, limit: int) -> None:
+        super().__init__(
+            f"the job queue is full ({scope}: {depth} waiting, limit {limit}); retry shortly"
+        )
+        self.scope, self.depth, self.limit = scope, depth, limit
+
+
+def check_capacity(db: Session, org_id: uuid.UUID) -> None:
+    """Raise QueueFull when the queued backlog (global, then this org's) is at its cap."""
+    from sqlalchemy import func
+
+    if settings.run_mode != "queue":
+        return
+    if settings.max_queued_jobs > 0:
+        depth = int(
+            db.scalar(select(func.count()).select_from(Job).where(Job.status == "queued")) or 0
+        )
+        if depth >= settings.max_queued_jobs:
+            raise QueueFull("global", depth, settings.max_queued_jobs)
+    if settings.max_queued_jobs_per_org > 0:
+        depth = int(
+            db.scalar(
+                select(func.count())
+                .select_from(Job)
+                .join(Task, Job.task_id == Task.id)
+                .join(Project, Task.project_id == Project.id)
+                .where(Job.status == "queued", Project.org_id == org_id)
+            )
+            or 0
+        )
+        if depth >= settings.max_queued_jobs_per_org:
+            raise QueueFull("org", depth, settings.max_queued_jobs_per_org)
 
 
 def enqueue(db: Session, task_id: uuid.UUID, kind: str, request_id: str | None = None) -> Job:

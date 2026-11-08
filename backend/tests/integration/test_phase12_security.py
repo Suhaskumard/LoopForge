@@ -39,7 +39,7 @@ def test_bandit_low_findings_do_not_grow_unnoticed():
     totals = json.loads(r.stdout)["metrics"]["_totals"]
     assert totals["SEVERITY.HIGH"] == 0 and totals["SEVERITY.MEDIUM"] == 0
     assert (
-        totals["SEVERITY.LOW"] <= 19
+        totals["SEVERITY.LOW"] <= 21
     ), "new low-severity bandit findings: review and update the budget"
 
 

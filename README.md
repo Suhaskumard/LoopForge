@@ -20,6 +20,10 @@ make demo-final                            # clean-environment rehearsal in a fr
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 
+## Phase 17 - trust at scale (built and tested here; external review NOT done)
+- **Key ring** (`KEYRING_JSON`, `kid` on tokens, `python -m app.keys_cli rotate`), encrypted and rotatable webhook secrets, **SSO group/domain -> role** mapping, **SCIM 2.0** (per-org tokens, Users + role Groups), **TOTP MFA** (login step-up, recovery codes, org `require_mfa`), configurable **sandbox runtime** (`SANDBOX_RUNTIME=runsc|kata`, fails closed), queue **back-pressure** (429 + `Retry-After`), **SLOs** with burn-rate alerts (`docs/slo.md`), a **measured DR drill** (`scripts/dr_drill.py`: RTO 15 s / RPO 3 s on one container) and a PostgreSQL load profile. ADR-0024; `make gate17` (needs Docker).
+- **Not done:** no external penetration test (`docs/pentest/` is the package for one), gVisor/Kata not installed here so unmeasured, no KMS adapter, no MFA screen in the web UI yet, and the signed-release workflow (`release.yml`) has never run.
+
 ## Phase 16 - a smarter, broader loop (mechanisms only; nothing measured on a real model)
 - Five default-off switches with ablation presets (`--config Q1..Q5,P5`): affected-tests-first, patch edits with conflict handling, changed-line coverage, a mutation-style test check, memory expiry. A Go language adapter (`--suite go`, 10 tasks) and a held-out task split. Tasks can opt out of being learned from. ADR-0023; `make gate16`.
 - **The Go tasks and image have not been compiled or built here**: run `python benchmarks/validate_go.py --require-go` where Go is installed.

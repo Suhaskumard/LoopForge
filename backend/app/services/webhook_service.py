@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database.models import WebhookDelivery, WebhookEndpoint
 from app.utils.redact import redact
+from app.utils.security import decrypt_secret, encrypt_secret
 
 log = logging.getLogger("loopforge.webhooks")
 
@@ -70,16 +71,16 @@ def verify_signature(
     now: float | None = None,
 ) -> bool:
     tolerance = settings.webhook_signature_tolerance_seconds if tolerance is None else tolerance
-    parts = dict(p.split("=", 1) for p in header.split(",") if "=" in p)
+    pairs = [p.split("=", 1) for p in header.split(",") if "=" in p]
     try:
-        ts = int(parts["t"])
-        supplied = parts["v1"]
-    except (KeyError, ValueError):
+        ts = int(next(v for k, v in pairs if k == "t"))
+    except (StopIteration, ValueError):
         return False
-    if abs((time.time() if now is None else now) - ts) > tolerance:
+    supplied = [v for k, v in pairs if k == "v1"]  # several while a secret rotation overlaps
+    if not supplied or abs((time.time() if now is None else now) - ts) > tolerance:
         return False
     expected = sign(secret, body, ts).split("v1=", 1)[1]
-    return hmac.compare_digest(expected, supplied)
+    return any([hmac.compare_digest(expected, s) for s in supplied])
 
 
 # ---- target validation -------------------------------------------------------------------------
@@ -112,13 +113,44 @@ def create_endpoint(
     unknown = set(events) - set(EVENTS)
     if unknown:
         raise WebhookUrlError(f"unknown event(s): {', '.join(sorted(unknown))}")
+    plain = new_secret()
     ep = WebhookEndpoint(
-        org_id=org_id, url=url, secret="whsec_" + secrets.token_urlsafe(32), events=events,
-        format=fmt,
-    )  # fmt: skip
+        org_id=org_id, url=url, secret=encrypt_secret(plain), events=events, format=fmt
+    )
     db.add(ep)
     db.commit()
+    ep.plain_secret = plain  # type: ignore[attr-defined]  # shown once, never stored in the clear
     return ep
+
+
+def new_secret() -> str:
+    return "whsec_" + secrets.token_urlsafe(32)
+
+
+def _plain(stored: str) -> str:
+    """Stored secrets are encrypted (Phase 17); a pre-17 plaintext value is still accepted."""
+    return decrypt_secret(stored) if stored.startswith("v2:") else stored
+
+
+def rotate_secret(db: Session, ep: WebhookEndpoint) -> str:
+    """Issue a new signing secret. The old one keeps signing alongside it for the overlap window."""
+    plain = new_secret()
+    ep.previous_secret = ep.secret
+    ep.secret = encrypt_secret(plain)
+    ep.rotated_at = _now()
+    db.commit()
+    return plain
+
+
+def signature_header(ep: WebhookEndpoint, body: bytes) -> str:
+    """`t=..,v1=<current>[,v1=<previous>]`; the previous signature is added only in the overlap."""
+    header = sign(_plain(ep.secret), body)
+    if ep.previous_secret and ep.rotated_at:
+        overlap = timedelta(hours=settings.webhook_rotation_overlap_hours)
+        if _now() - ep.rotated_at < overlap:
+            ts = int(header.split(",")[0][2:])
+            header = f"{header},{sign(_plain(ep.previous_secret), body, ts).split(',', 1)[1]}"
+    return header
 
 
 def emit(db: Session, org_id: uuid.UUID, event: str, data: dict[str, Any]) -> int:
@@ -187,7 +219,7 @@ def deliver(
                 content=body,
                 headers={
                     "Content-Type": "application/json",
-                    SIGNATURE_HEADER: sign(ep.secret, body),
+                    SIGNATURE_HEADER: signature_header(ep, body),
                     "X-LoopForge-Event": delivery.event,
                     "X-LoopForge-Delivery": str(delivery.id),
                 },

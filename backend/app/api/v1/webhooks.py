@@ -7,9 +7,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import Principal, require_org_role
+from app.config import settings
 from app.database.models import WebhookDelivery, WebhookEndpoint
 from app.database.session import get_db
-from app.schemas.integrations import DeliveryOut, WebhookCreate, WebhookCreated, WebhookOut
+from app.schemas.integrations import (
+    DeliveryOut,
+    WebhookCreate,
+    WebhookCreated,
+    WebhookOut,
+    WebhookRotated,
+)
 from app.services import audit_service, webhook_service
 
 router = APIRouter(prefix="/orgs/{org_id}/webhooks", tags=["webhooks"])
@@ -57,7 +64,7 @@ def create_webhook(
         detail={"url": ep.url},
         request=request,
     )
-    return WebhookCreated(**WebhookOut.model_validate(ep).model_dump(), secret=ep.secret)
+    return WebhookCreated(**WebhookOut.model_validate(ep).model_dump(), secret=ep.plain_secret)  # type: ignore[attr-defined]
 
 
 @router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -96,6 +103,27 @@ def test_webhook(
     db.add(delivery)
     db.commit()
     return webhook_service.deliver(db, delivery)
+
+
+@router.post("/{webhook_id}/rotate", response_model=WebhookRotated)
+def rotate_webhook_secret(
+    webhook_id: uuid.UUID,
+    request: Request,
+    p: Principal = Depends(admin),
+    db: Session = Depends(get_db),
+) -> WebhookRotated:
+    ep = _endpoint(db, p, webhook_id)
+    plain = webhook_service.rotate_secret(db, ep)
+    audit_service.record(
+        db,
+        org_id=p.org_id,
+        actor_id=p.user.id,
+        action="webhook.rotate_secret",
+        target_type="webhook",
+        target_id=ep.id,
+        request=request,
+    )
+    return WebhookRotated(secret=plain, overlap_hours=settings.webhook_rotation_overlap_hours)
 
 
 @router.get("/{webhook_id}/deliveries", response_model=list[DeliveryOut])

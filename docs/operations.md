@@ -26,7 +26,8 @@ and `task_id`. The API stores the request id on the job, and the worker logs wit
 `ENVIRONMENT=production` (refuses the default JWT secret, the fake LLM and the fake sandbox, and any `MAIL_BACKEND` other than `smtp`), `RUN_MODE=queue`,
 `TRUSTED_PROXY_COUNT`, `METRICS_ENABLED`/`METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`,
 `DB_POOL_RECYCLE_SECONDS`, `DB_POOL_PRE_PING` (default on: a connection killed by a DB failover is replaced instead of
-failing the request), `LEASE_TTL_SECONDS`, `MAX_TOKEN_BUDGET`. See `.env.example`.
+failing the request), `LEASE_TTL_SECONDS`, `MAX_TOKEN_BUDGET`. Phase 17 adds: production **requires** `SECRETS_KEY` or `KEYRING_JSON` (and `SECRETS_KEY` must differ from `JWT_SECRET`), and
+`SANDBOX_REQUIRE_HARDENED_RUNTIME=true` refuses plain `runc`. See `.env.example`.
 
 ## Deploy
 ```bash
@@ -102,6 +103,49 @@ loop; a task interrupted by the outage resumes from its checkpoint. **(PostgreSQ
 ## Cost and quotas
 Per-organization monthly quotas are enforced server-side (ADR-0017); `loopforge_tokens_used_month` is the total across
 organizations. Token counts are estimates from agent runs, not billing data: reconcile with your provider's invoice.
+
+## SLOs and error budgets
+The targets, the burn-rate alert table and the evidence so far are in `docs/slo.md`. When a `LoopForgeAvailabilityBudget*` or
+`LoopForgeLatencyBudgetFastBurn` alert fires:
+1. Look at the error ratio panel on the Grafana dashboard and `loopforge_http_requests_total` by `route`: one route or all?
+2. Check dependencies in order: database (`/health/ready`), the model provider (`loopforge_llm_calls_total{outcome="failed"}`), then workers.
+3. A fast burn (page) means the budget is gone in about two days: stop risky deploys and roll back the last change first, diagnose second.
+4. Record the incident and the budget it spent; the monthly SLO review uses that list.
+
+## Queue back-pressure
+`MAX_QUEUED_JOBS` (global) and `MAX_QUEUED_JOBS_PER_ORG` make `POST /tasks/{id}/start` answer **429 + `Retry-After`**
+(`BACKPRESSURE_RETRY_AFTER_SECONDS`, default 30) while that many jobs are already waiting. Queue mode only; 0 = unlimited.
+The refused task stays `PENDING`; the user simply starts it again. When `LoopForgeQueueBackpressure` fires: look at
+`loopforge_jobs_queued` and `loopforge_jobs_oldest_queued_age_seconds`, scale workers (KEDA does this on a cluster), and only then
+consider raising the cap. A per-org cap isolates one noisy tenant from the rest; the audit log (`queue.backpressure`) shows who was refused.
+
+## Key rotation
+Secrets (stored git tokens, webhook signing secrets, TOTP seeds) are encrypted under a named key, and access tokens carry the key id
+(`kid`). `KEYRING_JSON={"active":"k2","keys":{"k1":"<>=32 chars>","k2":"<>=32 chars>"}}`. The implicit key `legacy` (the pre-Phase-17
+`SECRETS_KEY`/`JWT_SECRET`) stays valid, so turning the ring on breaks nothing. To rotate:
+1. Add the new key and make it `active`; deploy. New writes and new tokens use it; old ciphertext and unexpired tokens still verify.
+2. `python -m app.keys_cli status` shows how many values sit under each key. `python -m app.keys_cli rotate --dry-run`, then `rotate`,
+   re-encrypts everything under the active key (idempotent; values whose key is missing are **reported, never destroyed**; exit 1).
+3. When `status` shows nothing under the old key, **and** the longest token lifetime (`JWT_EXPIRE_MINUTES`) has passed, remove the old key
+   from the ring on the next deploy. A value whose key is gone raises a clear error instead of silently reading as "no token".
+Webhook secrets rotate separately and without downtime: `POST /orgs/{org}/webhooks/{id}/rotate` returns the new secret once and signs with
+**both** secrets for `WEBHOOK_ROTATION_OVERLAP_HOURS` (default 24), so receivers can switch at their own pace; the header then carries two `v1=` values.
+Local keys come from the environment: put them in your secret store. A KMS adapter would implement `KeyProvider` (`app/utils/keyring.py`); none ships.
+
+## Disaster recovery drill
+`python scripts/dr_drill.py` (Docker + Git Bash): migrates a throwaway PostgreSQL 16, writes continuously, takes a real backup with
+`backup.sh`, kills the database with `docker kill`, provisions a replacement, restores with `restore.sh`, migrates and checks the service.
+It prints **measured** `rto_seconds` and `rpo_seconds` plus integrity checks, and fails on a broken restore (`--max-rto`, `--max-rpo` add thresholds).
+The latest result is `docs/dr_drill_result.json`. Run it after any change to backups or the database platform and at least quarterly.
+RPO is your backup interval, not a property of the scripts: schedule backups to match the loss you can accept.
+
+## Identity: SSO groups, SCIM, MFA
+* **SSO group -> role**: `OIDC_GROUPS_CLAIM`, `OIDC_GROUP_ROLE_MAP_JSON`, `OIDC_DOMAIN_ORG_MAP_JSON` (see `app/services/sso_mapping.py`). Applied at every
+  SSO login; only `source='sso'` memberships are touched; the last admin is never removed or demoted (the skip is audited).
+* **SCIM**: an org admin creates a SCIM token (`POST /orgs/{org}/scim-tokens`, shown once) and gives the IdP `https://<host>/api/v1/scim/v2` plus
+  that bearer token. Users and the four role groups are supported; deleting or deactivating a user removes their membership of *that* org only.
+* **MFA**: users enrol under `/auth/mfa`; an org admin can set `require_mfa`. Password logins then need the current code (`mfa_code` form field) or
+  a recovery code. Accounts without a password (SSO/SCIM) and API tokens are exempt from the org policy; their identity provider owns authentication.
 
 ## Incident checklist
 1. `GET /health/ready` (database) and `/metrics`; check the dashboard panels for requests, queue age, leases.

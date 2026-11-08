@@ -43,6 +43,16 @@ def _envelope(
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    from app.services.scim_service import ScimError
+
+    @app.exception_handler(ScimError)
+    async def _scim(_: Request, exc: ScimError) -> JSONResponse:
+        # SCIM clients expect the RFC 7644 error body, not the LoopForge envelope
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status == 401 else None
+        return JSONResponse(
+            exc.body(), status_code=exc.status, media_type="application/scim+json", headers=headers
+        )
+
     @app.exception_handler(StarletteHTTPException)
     async def _http(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         headers = getattr(exc, "headers", None)

@@ -77,6 +77,11 @@ class WebhookCreated(WebhookOut):
     secret: str  # shown exactly once
 
 
+class WebhookRotated(BaseModel):
+    secret: str  # the new signing secret, shown exactly once
+    overlap_hours: int  # until then deliveries are signed with the old secret as well
+
+
 class DeliveryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID

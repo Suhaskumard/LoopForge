@@ -42,6 +42,7 @@ from app.services import (
     audit_service,
     invite_service,
     mail_service,
+    mfa_service,
     org_service,
     quota_service,
     retention_service,
@@ -101,11 +102,15 @@ def update(
 ) -> Organization:
     org = _org(db, p)
     changes = data.model_dump(exclude_unset=True)
-    for required in ("name", "redact_pii"):
+    for required in ("name", "redact_pii", "require_mfa"):
         if required in changes and changes[required] is None:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, f"{required} cannot be cleared"
             )
+    if changes.get("require_mfa") and p.user.password_hash and not mfa_service.enabled(p.user):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "enable MFA on your own account before requiring it"
+        )
     before = {k: getattr(org, k) for k in changes}
     for key, value in changes.items():
         setattr(org, key, value)

@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Literal, Self
 
 from pydantic import model_validator
@@ -53,9 +54,16 @@ class Settings(BaseSettings):
     oidc_redirect_uri: str = "http://localhost:8000/api/v1/auth/sso/callback"
     oidc_scopes: str = "openid email profile"
     oidc_allowed_domains: str = ""  # comma list; empty = any verified email domain
+    # Phase 17: map IdP groups / email domains to organization roles (see services/sso_mapping.py)
+    oidc_groups_claim: str = "groups"
+    oidc_group_role_map_json: str = ""
+    oidc_domain_org_map_json: str = ""
     sso_frontend_url: str = "http://localhost:5173/login"  # where the browser lands after SSO
     # Phase 11: integrations. SECRETS_KEY encrypts stored git tokens (falls back to JWT_SECRET).
     secrets_key: str = ""
+    # Phase 17: key ring for rotation (see utils/keyring.py). Empty = only the legacy keys.
+    keyring_json: str = ""
+    webhook_rotation_overlap_hours: int = 24  # old secret keeps signing this long after rotation
     github_api_base: str = "https://api.github.com"
     github_timeout_seconds: float = 20.0
     webhook_timeout_seconds: float = 10.0
@@ -71,6 +79,11 @@ class Settings(BaseSettings):
     workspace_root: str = "./workspaces"
     sandbox_backend: Literal["docker", "fake"] = "docker"
     sandbox_image: str = "loopforge-sandbox"
+    # Phase 17: OCI runtime for sandbox containers. "runc" is Docker's default; "runsc" (gVisor) or
+    # "kata" add a kernel boundary but must be installed on the host - a missing runtime FAILS
+    # CLOSED (the run errors), it never falls back to runc. See ADR-0024.
+    sandbox_runtime: str = "runc"
+    sandbox_require_hardened_runtime: bool = False  # production guard: refuse plain runc
     # A worker that itself runs in a container talks to the HOST's Docker daemon, which resolves
     # bind-mount sources on the host. Set this to the host path that is mounted at WORKSPACE_ROOT
     # inside the worker (e.g. /srv/loopforge/workspaces). Empty = same paths on both sides.
@@ -104,6 +117,11 @@ class Settings(BaseSettings):
     repo_git_allowed_hosts: str = ""  # comma list; empty = any public https host
     # Phase 7: scale-out. inline = FastAPI background task (default); queue = jobs table + worker.
     run_mode: Literal["inline", "queue"] = "inline"
+    # Phase 17: back-pressure. In queue mode a start is refused with 429 + Retry-After while this
+    # many jobs already wait (0 = unlimited): protects workers and the database from a stampede.
+    max_queued_jobs: int = 0
+    max_queued_jobs_per_org: int = 0
+    backpressure_retry_after_seconds: int = 30
     lease_ttl_seconds: float = 30.0
     worker_poll_seconds: float = 1.0
     worker_recover_seconds: float = 10.0  # how often a worker scans for orphaned jobs/tasks
@@ -133,6 +151,27 @@ class Settings(BaseSettings):
         weak_secret = len(self.jwt_secret) < 32 or self.jwt_secret == DEFAULT_JWT_SECRET
         if self.environment == "production" and weak_secret:
             raise ValueError("JWT_SECRET must be set to a random value (>=32 chars) in production")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,30}", self.sandbox_runtime):
+            raise ValueError("SANDBOX_RUNTIME must be a runtime name such as runc, runsc or kata")
+        if (
+            self.environment == "production"
+            and self.sandbox_require_hardened_runtime
+            and self.sandbox_runtime == "runc"
+        ):
+            raise ValueError("SANDBOX_REQUIRE_HARDENED_RUNTIME needs SANDBOX_RUNTIME=runsc or kata")
+        if self.oidc_group_role_map_json.strip() or self.oidc_domain_org_map_json.strip():
+            from app.services.sso_mapping import validate_config
+
+            validate_config(self.oidc_group_role_map_json, self.oidc_domain_org_map_json)
+        if self.keyring_json.strip():
+            from app.utils.keyring import parse_keyring
+
+            parse_keyring(self.keyring_json)
+        if self.environment == "production":
+            if not self.secrets_key and not self.keyring_json.strip():
+                raise ValueError("SECRETS_KEY or KEYRING_JSON is required in production")
+            if self.secrets_key and self.secrets_key == self.jwt_secret:
+                raise ValueError("SECRETS_KEY must differ from JWT_SECRET")
         if self.environment == "production" and self.llm_provider == "fake":
             raise ValueError("LLM_PROVIDER=fake is not allowed in production")
         if self.environment == "production" and self.sandbox_backend == "fake":

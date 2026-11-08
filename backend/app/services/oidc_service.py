@@ -29,7 +29,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database.models import User
-from app.services import org_service
+from app.services import org_service, sso_mapping
+from app.utils.security import sign_claims, verify_claims
 
 STATE_COOKIE = "lf_sso"
 STATE_TTL_SECONDS = 600
@@ -84,7 +85,7 @@ class LoginStart:
 
 
 def _sign(payload: dict[str, Any]) -> str:
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return sign_claims(payload)
 
 
 def start_login(http: httpx.Client | None = None) -> LoginStart:
@@ -117,7 +118,7 @@ def start_login(http: httpx.Client | None = None) -> LoginStart:
 
 def _read_cookie(cookie: str | None) -> dict[str, str]:
     try:
-        data = jwt.decode(cookie or "", settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        data = verify_claims(cookie or "")
     except jwt.PyJWTError:
         raise SSOError("login session expired; start again") from None
     return {k: str(data[k]) for k in ("s", "n", "v")}
@@ -162,6 +163,21 @@ def complete_login(
     cookie: str | None,
     http: httpx.Client | None = None,
 ) -> User:
+    user, claims = _login_user(db, code=code, state=state, cookie=cookie, http=http)
+    if not user.active:  # deprovisioned by SCIM: an IdP login cannot bring the account back
+        raise SSOError("this account is disabled")
+    sso_mapping.apply(db, user, claims)
+    return user
+
+
+def _login_user(
+    db: Session,
+    *,
+    code: str,
+    state: str,
+    cookie: str | None,
+    http: httpx.Client | None,
+) -> tuple[User, dict[str, Any]]:
     if not enabled():
         raise SSOError("SSO is not configured")
     saved = _read_cookie(cookie)
@@ -193,7 +209,7 @@ def complete_login(
     issuer, sub = settings.oidc_issuer.rstrip("/"), str(claims["sub"])
     user = db.scalars(select(User).where(User.oidc_issuer == issuer, User.oidc_sub == sub)).first()
     if user is not None:
-        return user
+        return user, claims
     existing = db.scalars(select(User).where(User.email == email)).first()
     if existing is not None:
         # Phase 15: link only when the LoopForge account's address was itself verified (a mailed
@@ -201,7 +217,7 @@ def complete_login(
         if existing.email_verified_at is not None and existing.oidc_sub is None:
             existing.oidc_issuer, existing.oidc_sub = issuer, sub
             db.commit()
-            return existing
+            return existing, claims
         raise SSOError(
             "an account with this email already exists; sign in with your password instead"
         )
@@ -213,4 +229,4 @@ def complete_login(
     db.add(user)
     db.commit()
     org_service.create_personal_org(db, user)
-    return user
+    return user, claims

@@ -1,0 +1,19 @@
+{
+  "users": 20,
+  "requests": 780,
+  "seconds": 8.56,
+  "requests_per_second": 91.1,
+  "latency_seconds": {
+    "p50": 0.1537,
+    "p95": 0.4889,
+    "max": 1.7695,
+    "mean": 0.2099
+  },
+  "statuses": {
+    "200": 620,
+    "201": 100,
+    "404": 60
+  },
+  "server_errors": 0,
+  "problems": []
+}

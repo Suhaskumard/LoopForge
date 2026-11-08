@@ -77,3 +77,72 @@ groups:
         annotations:
           summary: Model tokens this month exceeded 5M across all organizations (adjust to your budget)
           runbook: docs/operations.md#cost-and-quotas
+
+  # ---- Phase 17: SLO burn-rate alerts (targets and budgets: docs/slo.md) -------------------------
+  # Multi-window, multi-burn-rate (Google SRE workbook): a short window confirms the burn is still
+  # happening, a long window shows it is significant. Budget = 1 - target. NOT yet exercised against
+  # real traffic: thresholds follow the formulas, the windows are a starting point.
+  - name: loopforge-slo
+    rules:
+      - alert: LoopForgeAvailabilityBudgetFastBurn
+        # target 99.5% non-5xx -> budget 0.005; 14.4x burn = 0.072. Exhausts a 30-day budget in ~2 days.
+        expr: |
+          (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[1h]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[1h])), 0.001) > 0.072
+          ) and (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[5m]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[5m])), 0.001) > 0.072
+          )
+        labels: {severity: page, slo: availability}
+        annotations:
+          summary: Availability error budget is burning 14x too fast (1h and 5m windows)
+          runbook: docs/operations.md#slos-and-error-budgets
+      - alert: LoopForgeAvailabilityBudgetSlowBurn
+        # 6x burn = 0.03 over 6h and 30m. Exhausts the budget in ~5 days.
+        expr: |
+          (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[6h]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[6h])), 0.001) > 0.03
+          ) and (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[30m]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[30m])), 0.001) > 0.03
+          )
+        labels: {severity: page, slo: availability}
+        annotations:
+          summary: Availability error budget is burning 6x too fast (6h and 30m windows)
+          runbook: docs/operations.md#slos-and-error-budgets
+      - alert: LoopForgeAvailabilityBudgetTicket
+        # 1x burn over 3d: on course to spend the whole budget; open a ticket, do not page.
+        expr: |
+          (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[3d]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[3d])), 0.001) > 0.005
+          ) and (
+            sum(rate(loopforge_http_requests_total{status_class="5xx"}[6h]))
+              / clamp_min(sum(rate(loopforge_http_requests_total[6h])), 0.001) > 0.005
+          )
+        labels: {severity: warn, slo: availability}
+        annotations:
+          summary: Availability error budget is being spent at the sustainable-limit rate or faster
+          runbook: docs/operations.md#slos-and-error-budgets
+      - alert: LoopForgeLatencyBudgetFastBurn
+        # target 99% of requests under 2.5 s -> budget 0.01; 14.4x burn = 0.144 slower than 2.5 s.
+        expr: |
+          (
+            1 - sum(rate(loopforge_http_request_duration_seconds_bucket{le="2.5"}[1h]))
+                / clamp_min(sum(rate(loopforge_http_request_duration_seconds_count[1h])), 0.001) > 0.144
+          ) and (
+            1 - sum(rate(loopforge_http_request_duration_seconds_bucket{le="2.5"}[5m]))
+                / clamp_min(sum(rate(loopforge_http_request_duration_seconds_count[5m])), 0.001) > 0.144
+          )
+        labels: {severity: warn, slo: latency}
+        annotations:
+          summary: Latency error budget is burning 14x too fast (requests slower than 2.5 s)
+          runbook: docs/operations.md#slos-and-error-budgets
+      - alert: LoopForgeQueueBackpressure
+        expr: increase(loopforge_backpressure_total[10m]) > 0
+        labels: {severity: warn, slo: run_start}
+        annotations:
+          summary: Task starts are being refused because the job queue is full (add workers or raise the cap)
+          runbook: docs/operations.md#queue-back-pressure

@@ -16,12 +16,14 @@ from app.api.v1 import (
     approvals,
     auth,
     guide,
+    mfa,
     notifications,
     orgs,
     projects,
     publish,
     reports,
     runs,
+    scim,
     sso,
     tasks,
     tokens,
@@ -36,6 +38,7 @@ configure_logging()
 
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
+api_v1.include_router(mfa.router)
 api_v1.include_router(orgs.router)
 api_v1.include_router(orgs.invites_router)
 api_v1.include_router(notifications.router)
@@ -52,6 +55,8 @@ api_v1.include_router(reports.router)
 api_v1.include_router(publish.router)
 api_v1.include_router(tokens.router)
 api_v1.include_router(webhooks.router)
+api_v1.include_router(scim.router)
+api_v1.include_router(scim.admin_router)
 
 log = logging.getLogger("loopforge.startup")
 

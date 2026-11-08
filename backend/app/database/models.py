@@ -15,6 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     event,
+    false,
     true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -46,6 +47,12 @@ class User(Base):
     oidc_sub: Mapped[str | None] = mapped_column(String, nullable=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(nullable=True)  # Phase 15
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)  # Phase 15 preference
+    # Phase 17: SCIM-managed lifecycle and TOTP second factor
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    totp_secret_enc: Mapped[str | None] = mapped_column(String, nullable=True)  # keyring-encrypted
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(nullable=True)  # None = not enrolled
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)  # replay guard
+    recovery_codes: Mapped[list[Any]] = mapped_column(JsonType, default=list)  # sha256 hashes
     created_at: Mapped[datetime] = mapped_column(default=_now)
     __table_args__ = (UniqueConstraint("oidc_issuer", "oidc_sub", name="uq_users_oidc"),)
     projects: Mapped[list["Project"]] = relationship(
@@ -70,6 +77,9 @@ class Organization(Base):
     max_tasks_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = keep
     redact_pii: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_mfa: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )  # Ph. 17
     created_at: Mapped[datetime] = mapped_column(default=_now)
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="org", cascade="all, delete-orphan"
@@ -88,6 +98,8 @@ class Membership(Base):
     role: Mapped[str] = mapped_column(String, default="developer")
     token_quota_month: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Phase 15
     max_tasks_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Phase 17: who manages this membership. Only 'sso' / 'scim' rows are changed by the IdP.
+    source: Mapped[str] = mapped_column(String, default="manual", server_default="manual")
     created_at: Mapped[datetime] = mapped_column(default=_now)
     org: Mapped[Organization] = relationship(back_populates="memberships")
     user: Mapped[User] = relationship(back_populates="memberships")
@@ -486,6 +498,38 @@ class PublishRequest(Base):
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 
+class ScimToken(Base):
+    """Bearer credential for an identity provider's SCIM client (Phase 17). Bound to one org."""
+
+    __tablename__ = "scim_tokens"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    prefix: Mapped[str] = mapped_column(String)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class ScimIdentity(Base):
+    """A user as provisioned into ONE org by that org's identity provider (Phase 17).
+
+    `active` is per organization: deprovisioning removes the user's membership of this org only,
+    never their account or other organizations. The row stays so the IdP can still GET the user.
+    """
+
+    __tablename__ = "scim_identities"
+    __table_args__ = (UniqueConstraint("org_id", "user_id", name="uq_scim_identity"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
 class ApiToken(Base):
     """Scoped automation credential. Only the SHA-256 of the secret is stored."""
 
@@ -512,7 +556,9 @@ class WebhookEndpoint(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     url: Mapped[str] = mapped_column(String)
-    secret: Mapped[str] = mapped_column(String)  # signing key (shown once at creation)
+    secret: Mapped[str] = mapped_column(String)  # signing key, encrypted at rest (shown once)
+    previous_secret: Mapped[str | None] = mapped_column(String, nullable=True)  # rotation overlap
+    rotated_at: Mapped[datetime | None] = mapped_column(nullable=True)
     events: Mapped[list[Any]] = mapped_column(JsonType, default=list)  # [] = all events
     format: Mapped[str] = mapped_column(String, default="json")
     active: Mapped[bool] = mapped_column(Boolean, default=True)

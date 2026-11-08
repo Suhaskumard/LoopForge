@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.dependencies import Principal, get_developer, get_llm, get_sandbox, get_viewer
 from app.api.etag import check_if_match, set_etag
+from app.config import settings
 from app.database.models import (
     AgentRun,
     Artifact,
@@ -46,6 +47,7 @@ from app.schemas.run import (
 from app.schemas.task import TaskOut
 from app.services import (
     audit_service,
+    job_service,
     notification_service,
     quota_service,
     run_service,
@@ -54,6 +56,7 @@ from app.services import (
 )
 from app.services.llm_client import LLMClient
 from app.services.workspace import WorkspaceError
+from app.utils.metrics import BACKPRESSURE
 
 router = APIRouter(prefix="/tasks", tags=["runs"])
 iterations_router = APIRouter(prefix="/iterations", tags=["iterations"])
@@ -99,6 +102,20 @@ def start(
             target_type="task", target_id=task.id, detail={"reason": str(exc)}, request=request,
         )  # fmt: skip
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from None
+    try:
+        job_service.check_capacity(db, principal.org_id)
+    except job_service.QueueFull as exc:
+        BACKPRESSURE.inc(scope=exc.scope)
+        audit_service.record(
+            db, org_id=principal.org_id, actor_id=principal.user.id, action="queue.backpressure",
+            target_type="task", target_id=task.id, detail={"scope": exc.scope, "depth": exc.depth},
+            request=request,
+        )  # fmt: skip
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            str(exc),
+            headers={"Retry-After": str(settings.backpressure_retry_after_seconds)},
+        ) from None
     try:
         task = run_service.prepare_start(db, task)
     except run_service.NotStartable as exc:

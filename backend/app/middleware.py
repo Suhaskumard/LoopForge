@@ -12,6 +12,19 @@ from app.utils.metrics import HTTP_DURATION, HTTP_REQUESTS
 log = logging.getLogger("loopforge.http")
 
 
+def _route_template(request: Request) -> str:
+    """Full route template. Newer FastAPI keeps included routers lazy, so `route.path` omits the
+    include prefix (`/tasks`); rebuild it from the real path by turning each path parameter back
+    into its `{name}` placeholder."""
+    route = request.scope.get("route")
+    if route is None:
+        return "unmatched"
+    path: str = request.scope.get("path", route.path)
+    for name, value in (request.scope.get("path_params") or {}).items():
+        path = path.replace(str(value), "{" + name + "}", 1)
+    return path
+
+
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Attach a request id, emit an access log line, add basic security headers."""
 
@@ -24,7 +37,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             elapsed = time.perf_counter() - start
             ms = elapsed * 1000
             # the route *template* keeps label cardinality bounded (never raw paths or ids)
-            route = getattr(request.scope.get("route"), "path", None) or "unmatched"
+            route = _route_template(request)
             HTTP_REQUESTS.inc(
                 method=request.method, route=route, status_class=f"{response.status_code // 100}xx"
             )

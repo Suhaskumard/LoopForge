@@ -103,7 +103,7 @@ def rotate(db: Session, raw_token: str) -> tuple[User, str]:
     if row.expires_at <= _now():
         raise InvalidRefreshToken
     user = db.get(User, row.user_id)
-    if user is None:
+    if user is None or not user.active:
         raise InvalidRefreshToken
     row.revoked_at = _now()
     db.commit()

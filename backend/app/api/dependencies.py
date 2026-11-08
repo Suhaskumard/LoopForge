@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database.models import User
 from app.database.session import get_db
 from app.execution.sandbox import Sandbox, get_sandbox_backend
-from app.services import api_token_service, org_service
+from app.services import api_token_service, mfa_service, org_service
 from app.services.llm_client import LLMClient, LLMError, get_llm_client
 from app.utils.security import decode_access_token
 
@@ -27,7 +27,7 @@ def get_current_user(
     if api_token_service.is_api_token(token):  # Phase 11: scoped automation token
         row = api_token_service.authenticate(db, token)
         owner = db.get(User, row.user_id) if row is not None else None
-        if row is None or owner is None:
+        if row is None or owner is None or not owner.active:
             raise unauthorized
         request.state.api_token = row
         return owner
@@ -38,9 +38,25 @@ def get_current_user(
         user = db.get(User, uuid.UUID(str(claims["sub"])))
     except ValueError:
         raise unauthorized from None
-    if user is None or claims.get("tv") != user.token_version:
+    if user is None or not user.active or claims.get("tv") != user.token_version:
         raise unauthorized
     return user
+
+
+def _enforce_mfa(db: Session, user: User, org_id: uuid.UUID, request: Request) -> None:
+    """An org can require a second factor. Passwordless (SSO-only) accounts are exempt: their
+    identity provider owns authentication. API tokens are non-interactive and also exempt."""
+    if (
+        getattr(request.state, "api_token", None) is None
+        and user.password_hash
+        and user.totp_enabled_at is None
+        and mfa_service.org_requires_mfa(db, org_id)
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This organization requires MFA; enable it under account security",
+            headers={"X-MFA-Enrolment-Required": "true"},
+        )
 
 
 def _capped(role: str, request: Request) -> str:
@@ -85,6 +101,7 @@ def get_principal(
     ctx = org_service.resolve(db, user.id, requested)
     if ctx is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of that organization")
+    _enforce_mfa(db, user, ctx.org_id, request)
     return Principal(user, ctx.org_id, _capped(ctx.role, request))
 
 
@@ -119,6 +136,7 @@ def require_org_role(minimum: str) -> Callable[..., Principal]:
         )
         if ctx is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+        _enforce_mfa(db, user, ctx.org_id, request)
         role = _capped(ctx.role, request)
         if org_service.ROLE_RANK[role] < org_service.ROLE_RANK[minimum]:
             raise HTTPException(status.HTTP_403_FORBIDDEN, f"Requires the {minimum} role")

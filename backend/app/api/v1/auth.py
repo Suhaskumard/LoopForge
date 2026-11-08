@@ -6,6 +6,7 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Form,
     Header,
     HTTPException,
     Request,
@@ -30,7 +31,14 @@ from app.schemas.user import (
     UserCreate,
     UserOut,
 )
-from app.services import audit_service, auth_service, email_token_service, mail_service, org_service
+from app.services import (
+    audit_service,
+    auth_service,
+    email_token_service,
+    mail_service,
+    mfa_service,
+    org_service,
+)
 from app.utils.client_ip import client_ip
 from app.utils.security import create_access_token, hash_password, verify_password
 
@@ -91,6 +99,7 @@ def register(
 def login(
     request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
+    mfa_code: str | None = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Token:
     email = form.username.lower()
@@ -106,6 +115,7 @@ def login(
     if (
         user is None
         or not user.password_hash
+        or not user.active
         or not verify_password(form.password, user.password_hash)
     ):
         auth_service.record_login_failure(db, key)  # SSO-only users have no password to match
@@ -118,11 +128,30 @@ def login(
         )
         _audit_auth(db, request, email, "auth.login_failed", reason=reason)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+    method = "password"
+    if mfa_service.enabled(user):
+        # step-up: the password was right, so a missing code is a prompt, a wrong code a failure
+        if not mfa_code:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "MFA code required",
+                headers={"X-MFA-Required": "true", "WWW-Authenticate": "Bearer"},
+            )
+        used = mfa_service.verify_second_factor(db, user, mfa_code)
+        if used is None:
+            auth_service.record_login_failure(db, key)
+            _audit_auth(db, request, email, "auth.login_failed", reason="bad_mfa_code")
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "Invalid MFA code",
+                headers={"X-MFA-Required": "true", "WWW-Authenticate": "Bearer"},
+            )
+        method = f"password+{used}"
     auth_service.clear_login_failures(db, key)
     ctx = org_service.resolve(db, user.id, None)
     audit_service.record(
         db, org_id=ctx.org_id if ctx else None, actor_id=user.id, action="auth.login",
-        target_type="user", target_id=user.id, detail={"method": "password"}, request=request,
+        target_type="user", target_id=user.id, detail={"method": method}, request=request,
     )  # fmt: skip
     return _token_pair(
         user,

@@ -46,7 +46,7 @@ Method: ran the scanners that exist locally, fixed what they found, wrote down w
 | # | Finding / control | Result | Evidence |
 |---|---|---|---|
 | 12.1 | **Dependency vulnerabilities (frontend)**: `npm audit` reported 3 HIGH advisories (open redirect, XSS via open redirect) in `react-router-dom` 6.28.0 / `@remix-run/router` | **Fixed**: `react-router-dom` 6.30.6 (same major). Two MODERATE advisories remain (open redirect via backslash in `<Link>`/`useNavigate`; SSR-only deserialisation) and need a breaking jump to v7. LoopForge navigates only to fixed internal paths and has no SSR, so the exposure is low, but it is **not** closed | `scripts/security_scan.sh`, `test_frontend_does_not_pin_the_react_router_versions_with_high_advisories` |
-| 12.2 | **Static analysis**: bandit over `backend/app` | 0 HIGH, 0 MEDIUM. Two MEDIUM findings were resolved (metrics server bound to all interfaces by default -> now `127.0.0.1` unless `WORKER_METRICS_HOST` says otherwise; a false positive on the sandbox's *in-container* `/tmp` tmpfs). 19 LOW remain, accepted: `assert` used for type narrowing after a lookup that was just validated (13), `subprocess` with fixed argv and no shell in the sandbox and repo import (5), the `'change-me'` default that the production validator rejects (1) | `test_bandit_finds_nothing_at_medium_or_high_severity`, `test_bandit_low_findings_do_not_grow_unnoticed` (budget 19) |
+| 12.2 | **Static analysis**: bandit over `backend/app` | 0 HIGH, 0 MEDIUM. Two MEDIUM findings were resolved (metrics server bound to all interfaces by default -> now `127.0.0.1` unless `WORKER_METRICS_HOST` says otherwise; a false positive on the sandbox's *in-container* `/tmp` tmpfs). 21 LOW remain, accepted: `assert` used for type narrowing after a lookup that was just validated (13), `subprocess` with fixed argv and no shell in the sandbox and repo import (7; Phase 17 added the `docker info` runtime query), the `'change-me'` default that the production validator rejects (1) | `test_bandit_finds_nothing_at_medium_or_high_severity`, `test_bandit_low_findings_do_not_grow_unnoticed` (budget 21) |
 | 12.3 | **Python dependency vulnerabilities**: pip-audit on `requirements-runtime.txt`; **SBOMs** (CycloneDX); **image scan** (Trivy, HIGH/CRITICAL) | **(CI only)** - not run here, so no claim about the current state of the Python dependencies | `supply-chain` job; `test_ci_runs_the_security_and_resilience_checks` |
 | 12.4 | **Production image shipped test/lint/type tools** (pytest, ruff, mypy, bandit, hypothesis) | **Fixed**: the image installs `requirements-runtime.txt` only; a test proves every third-party import in `app/` is covered by it | `test_every_third_party_import_in_app_is_covered_by_the_runtime_requirements` |
 | 12.5 | **Migration race** (every replica ran `alembic upgrade head` on start) could corrupt or fail a rolling deploy | **Fixed**: one-shot `migrate` service, PostgreSQL advisory lock (untested on PostgreSQL here) | `test_phase12_reliability.py` |
@@ -77,9 +77,22 @@ PID limits, `nofile` ulimit, the workspace bind-mounted **read-only**, and one w
 - A container escape through a kernel or runtime vulnerability is **not** prevented by any of these flags. The
   mitigation is operational: dedicated hosts for workers, patched Docker, and evaluating gVisor/Firecracker.
 
+## Phase 17 additions (trust at scale)
+Threat model refresh for the surfaces added since Phase 6 (STRIDE; evidence is an executable test).
+| # | Threat | Control | Evidence |
+|---|---|---|---|
+| 17.1 | One leaked symmetric key exposes every stored secret and forges tokens (I, S) | Key ring with `kid`, separate encryption key required in production, rotation CLI, missing key is a loud error | `tests/unit/test_phase17_keyring.py`, `tests/integration/test_phase17_secrets_rotation.py` |
+| 17.2 | Webhook secret read from the database or never rotated (I) | Encrypted at rest, rotation with dual-signature overlap | `test_the_signing_secret_is_not_stored_in_the_clear`, `test_rotation_signs_with_both_secrets_during_the_overlap_then_only_the_new` |
+| 17.3 | A tenant's IdP grants itself access to another tenant (E) | SCIM token bound to one org; deprovisioning is per org | `test_unknown_users_are_404_and_other_orgs_users_are_invisible` |
+| 17.4 | SSO/SCIM removes or demotes the last admin, locking an org out (D) | Last-admin guard in both paths, audited | `test_the_last_admin_is_never_demoted_or_removed_by_sso`, `test_the_last_admin_cannot_be_deprovisioned_or_demoted` |
+| 17.5 | Stolen password alone gives access (S) | TOTP step-up, replay refused, hashed single-use recovery codes, rate limited, org `require_mfa` | `tests/integration/test_phase17_mfa.py` |
+| 17.6 | Container escape from a shared kernel (E) | Optional gVisor/Kata runtime, fail closed, production guard (isolation **not measured here**) | `tests/unit/test_phase17_sandbox_runtime.py` |
+| 17.7 | A burst of starts overwhelms workers and the database (D) | Global and per-org back-pressure with 429 + `Retry-After` | `tests/integration/test_phase17_backpressure.py` |
+| 17.8 | Loss of the database host (D) | Backups, DR drill with measured RTO/RPO | `scripts/dr_drill.py`, `docs/dr_drill_result.json` |
+
 ## Residual risks (not solved)
-- **Containers are not a hard boundary.** Docker with the controls in security_model is defence in depth; gVisor or
-  Firecracker were not evaluated. Do not run hostile workloads on a shared host.
+- **Containers are not a hard boundary.** Docker with the controls in security_model is defence in depth; Phase 17 added a
+  `SANDBOX_RUNTIME` option for gVisor/Kata but neither is installed here, so their isolation and cost are **unmeasured**; Firecracker was not evaluated. Do not run hostile workloads on a shared host.
 - **Redaction is pattern-based.** It catches common token shapes and `key=value` forms; an unusual secret format
   passes through. The primary control is not giving agents secrets at all.
 - **Prompts go to a third party.** Whatever is not redacted is sent to the LLM provider.

@@ -1,0 +1,26 @@
+{
+  "what": "single-node PostgreSQL 16 container on the machine that ran the drill (NOT a production topology)",
+  "host": "Windows-11-10.0.26300-SP0",
+  "writes_per_second": 50.0,
+  "backup_seconds": 1.04,
+  "rto_seconds": 15.42,
+  "rto_breakdown_seconds": {
+    "provision_database": 3.84,
+    "restore": 1.58,
+    "migrate_verify_ready": 10.0
+  },
+  "rpo_seconds": 3.43,
+  "rows_acknowledged": 120,
+  "rows_restored": 14,
+  "rows_lost": 106,
+  "rows_acknowledged_before_backup_finished": 27,
+  "seconds_between_backup_and_failure": 3.0,
+  "checks": {
+    "restored_rows_are_a_gap_free_prefix": true,
+    "nothing_invented": true,
+    "backup_contained_the_early_writes": true,
+    "audit_log_still_append_only": true,
+    "service_ready_after_restore": true,
+    "migrated_to_head": true
+  }
+}

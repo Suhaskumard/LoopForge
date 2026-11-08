@@ -21,6 +21,7 @@ from app.database.models import (
 )
 from app.services import audit_service, github_service, report_service, webhook_service, workspace
 from app.services.github_service import GitHubClient, GitHubError
+from app.utils.keyring import KeyUnavailable
 from app.utils.redact import scan_secrets
 from app.utils.security import decrypt_secret
 
@@ -86,7 +87,12 @@ def _token(db: Session, org_id: uuid.UUID) -> str | None:
             OrgIntegration.org_id == org_id, OrgIntegration.provider == "github"
         )
     ).first()
-    return decrypt_secret(row.token_enc) if row else None
+    if not row:
+        return None
+    try:
+        return decrypt_secret(row.token_enc)
+    except KeyUnavailable as exc:
+        raise PublishError(f"stored integration token cannot be decrypted: {exc}") from exc
 
 
 def request_publish(

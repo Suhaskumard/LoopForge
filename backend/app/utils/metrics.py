@@ -227,6 +227,11 @@ JOBS_FINISHED = REGISTRY.counter(
 
 # ---- shared state, refreshed from the database at scrape time --------------------------------
 TASKS = REGISTRY.gauge("loopforge_tasks", "Tasks by status.", ["status"])
+BACKPRESSURE = REGISTRY.counter(
+    "loopforge_backpressure_total",
+    "Task starts refused because the job queue was full.",
+    ["scope"],
+)
 JOBS_QUEUED = REGISTRY.gauge("loopforge_jobs_queued", "Jobs waiting for a worker.")
 JOBS_RUNNING = REGISTRY.gauge("loopforge_jobs_running", "Jobs a worker is processing.")
 JOBS_OLDEST_QUEUED_AGE = REGISTRY.gauge(

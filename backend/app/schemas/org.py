@@ -19,6 +19,7 @@ class OrgUpdate(BaseModel):
     max_tasks_month: int | None = Field(default=None, ge=1)
     retention_days: int | None = Field(default=None, ge=1, le=3650)
     redact_pii: bool | None = None
+    require_mfa: bool | None = None
 
 
 class OrgOut(BaseModel):
@@ -30,6 +31,7 @@ class OrgOut(BaseModel):
     max_tasks_month: int | None
     retention_days: int | None
     redact_pii: bool
+    require_mfa: bool
     created_at: datetime
 
 

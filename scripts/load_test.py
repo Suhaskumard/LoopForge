@@ -141,11 +141,25 @@ def main() -> int:
     ap.add_argument("--users", type=int, default=10)
     ap.add_argument("--tasks", type=int, default=3)
     ap.add_argument("--reads", type=int, default=10)
+    ap.add_argument("--slo-p95", type=float, default=None, help="fail if p95 latency exceeds this (s)")
+    ap.add_argument("--slo-error-rate", type=float, default=None,
+                    help="fail if the fraction of 5xx/transport errors exceeds this (e.g. 0.005)")  # fmt: skip
+    ap.add_argument("--out", default=None, help="also write the JSON result to this file")
     args = ap.parse_args()
     result = run(args.url.rstrip("/"), args.users, args.tasks, args.reads)
     print(json.dumps(result, indent=2))
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
     if result["server_errors"] or result["problems"]:
         print("LOAD TEST: FAIL")
+        return 1
+    rate = result["server_errors"] / max(result["requests"], 1)
+    if args.slo_p95 is not None and result["latency_seconds"]["p95"] > args.slo_p95:
+        print(f"LOAD TEST: FAIL (p95 {result['latency_seconds']['p95']}s > SLO {args.slo_p95}s)")
+        return 1
+    if args.slo_error_rate is not None and rate > args.slo_error_rate:
+        print(f"LOAD TEST: FAIL (error rate {rate:.4f} > SLO {args.slo_error_rate})")
         return 1
     print("LOAD TEST: PASS (no server errors, no cross-user leakage; latency is informational)")
     return 0

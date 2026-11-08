@@ -179,7 +179,7 @@ def c4():
     if summary.report_found and summary.total > 0 and summary.failed == 0:
         return (
             "PASS",
-            f"{summary.passed}/{summary.total} tests ran inside the locked-down container (no network, read-only, non-root, capped)",
+            f"{summary.passed}/{summary.total} tests ran inside the locked-down container (no network, read-only, non-root, capped; runtime={settings.sandbox_runtime})",
         )
     return "FAIL", f"container run: {summary.passed}/{summary.total}, found={summary.report_found}"
 
