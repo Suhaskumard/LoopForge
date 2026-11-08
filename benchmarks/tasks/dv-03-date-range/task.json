@@ -1,0 +1,18 @@
+{
+  "id": "dv-03-date-range",
+  "category": "data_validation",
+  "difficulty": "medium",
+  "requirement": "Create `app/validators.py` with `parse_date_range(start: str, end: str) -> tuple[date, date]` (`datetime.date`). Both arguments are ISO calendar dates `YYYY-MM-DD` (surrounding whitespace is ignored). Raise `ValueError` if either is not a real calendar date (e.g. `2023-02-30`, `2023-13-01`, `23-01-01`, `2023-1-1`) or if `end` is before `start`. `start == end` is allowed. Also provide `days_inclusive(start: str, end: str) -> int` returning the number of days in the range counting both ends (same day -> 1). Leap years must be handled correctly.\nThe project must also contain `app/main.py` defining a FastAPI `app` (entry point `app.main:app`) (no endpoints required) and `app/__init__.py`. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Only real ISO calendar dates are accepted",
+    "end before start is rejected; equal dates allowed",
+    "Inclusive day count is correct across leap years"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

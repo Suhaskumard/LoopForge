@@ -6,6 +6,7 @@ FAILED (or ESCALATED when a hard budget stopped it) and records an audit event. 
 moves the task to COMPLETED / ESCALATED / CANCELLED when the Decision Engine says so.
 """
 
+import json
 import logging
 import threading
 import time
@@ -16,16 +17,19 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.agents import documenter
 from app.agents.base import AgentContext
 from app.config import settings
 from app.database.models import AuditEvent, Iteration, Task
 from app.execution.sandbox import Sandbox
 from app.orchestrator.checkpoint import get_checkpointer
 from app.orchestrator.graph import build_graph
+from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
-from app.services import task_service
+from app.services import report_service, task_service
 from app.services.llm_client import LLMClient
 from app.services.task_service import TaskStatus
+from app.utils.redact import redact
 from app.utils.token_tracker import TokenTracker
 
 log = logging.getLogger("loopforge.run")
@@ -61,7 +65,7 @@ def prepare_retry(db: Session, task: Task) -> Task:
     return task_service.transition(db, task, TaskStatus.PENDING)
 
 
-def _initial_state(task: Task, iteration: Iteration) -> LoopForgeState:
+def _initial_state(task: Task, iteration: Iteration, config: LoopConfig = E3) -> LoopForgeState:
     return LoopForgeState(
         task_id=str(task.id),
         user_requirement=task.requirement,
@@ -72,7 +76,7 @@ def _initial_state(task: Task, iteration: Iteration) -> LoopForgeState:
         failure_analysis=None,
         failure_fingerprints=[],
         iteration=iteration.iteration_number,
-        max_iterations=task.max_iterations,
+        max_iterations=config.max_iterations or task.max_iterations,
         tokens_used=0,
         started_at=time.time(),
         execution_history=[],
@@ -99,7 +103,7 @@ def _abort(db: Session, task: Task, *, escalate: bool, reason: str) -> None:
     target = TaskStatus.ESCALATED if escalate else TaskStatus.FAILED
     if task_service.can_transition(TaskStatus(task.status), target):
         task_service.transition(db, task, target)
-    _audit(db, task, "run_failed", {"reason": reason[:1000], "escalated": escalate})
+    _audit(db, task, "run_failed", {"reason": redact(reason)[:1000], "escalated": escalate})
 
 
 def _latest_iteration(db: Session, task: Task) -> Iteration:
@@ -142,16 +146,20 @@ def _drive(
     thread_id: str,
     graph_input: LoopForgeState | None,
     tokens_used: int,
+    config: LoopConfig = E3,
 ) -> None:
     ctx = AgentContext(
         db=db,
         task=task,
         iteration=_latest_iteration(db, task),
         llm=llm,
-        tracker=TokenTracker(settings.max_token_budget, used=tokens_used),
+        tracker=TokenTracker(
+            min(settings.max_token_budget, task.token_budget or settings.max_token_budget),
+            used=tokens_used,
+        ),
     )
     try:
-        final: dict[str, Any] = build_graph(ctx, sandbox).invoke(
+        final: dict[str, Any] = build_graph(ctx, sandbox, config=config).invoke(
             graph_input, config={"configurable": {"thread_id": thread_id}}
         )
     except Exception as exc:  # a bug or infrastructure failure must not strand the task
@@ -163,6 +171,10 @@ def _drive(
         it.feedback = {**it.feedback, "error": f"{type(exc).__name__}"}
         db.commit()
         _abort(db, task, escalate=False, reason=f"internal error: {type(exc).__name__}")
+        return
+
+    if final.get("__interrupt__"):  # paused for a human; the checkpoint holds the state
+        _audit(db, task, "run_paused", {"thread_id": thread_id})
         return
 
     it = _latest_iteration(db, task)
@@ -186,8 +198,37 @@ def _drive(
     )
 
 
+def _document(session_factory: sessionmaker[Session], task_id: Any, llm: LLMClient) -> None:
+    """Documentation Agent: only once the task is terminal; a failure here changes nothing."""
+    if not settings.documentation_agent_enabled:
+        return
+    try:
+        with session_factory() as db:
+            task = db.get(Task, task_id)
+            if task is None or task.status not in report_service.TERMINAL:
+                return
+            its = db.scalars(select(Iteration).where(Iteration.task_id == task.id)).all()
+            if not its:
+                return
+            plan = (min(its, key=lambda i: i.iteration_number).feedback or {}).get("plan", {})
+            ctx = AgentContext(
+                db=db,
+                task=task,
+                iteration=max(its, key=lambda i: i.iteration_number),
+                llm=llm,
+                tracker=TokenTracker(settings.max_token_budget, used=total_tokens(db, task)),
+            )
+            documenter.run(ctx, json.dumps(plan))
+    except Exception:  # documentation can never break or change a finished task
+        log.exception("documentation failed for task %s", task_id)
+
+
 def execute_run(
-    session_factory: sessionmaker[Session], task_id: Any, llm: LLMClient, sandbox: Sandbox
+    session_factory: sessionmaker[Session],
+    task_id: Any,
+    llm: LLMClient,
+    sandbox: Sandbox,
+    config: LoopConfig = E3,
 ) -> None:
     """Background body of /start. Opens its own session; never raises."""
     if not _claim(task_id):
@@ -207,7 +248,17 @@ def execute_run(
             db.commit()
             thread_id = f"{task.id}:{uuid.uuid4().hex[:8]}"
             _audit(db, task, "run_started", {"thread_id": thread_id})
-            _drive(db, task, llm, sandbox, thread_id, _initial_state(task, iteration), 0)
+            _drive(
+                db,
+                task,
+                llm,
+                sandbox,
+                thread_id,
+                _initial_state(task, iteration, config),
+                0,
+                config,
+            )
+        _document(session_factory, task_id, llm)
     finally:
         _release(task_id)
 
@@ -232,6 +283,7 @@ def resume_run(
             thread_id = _thread_id(db, task)
             if thread_id is None:
                 return False
+            db.commit()  # see build_graph: checkpointer setup waits for open transactions
             saver = get_checkpointer(db.get_bind().engine.url)
             saved = saver.get_tuple({"configurable": {"thread_id": thread_id}})
             if saved is None:
@@ -239,7 +291,8 @@ def resume_run(
             tokens = int(saved.checkpoint["channel_values"].get("tokens_used", 0))
             _audit(db, task, "run_resumed", {"thread_id": thread_id})
             _drive(db, task, llm, sandbox, thread_id, None, tokens)
-            return True
+        _document(session_factory, task_id, llm)
+        return True
     finally:
         _release(task_id)
 
@@ -250,6 +303,8 @@ def interrupted_task_ids(db: Session) -> list[uuid.UUID]:
         TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.FAILED,
         TaskStatus.ESCALATED, TaskStatus.CANCELLED,
     )]  # fmt: skip
+    # AWAITING_APPROVAL is deliberately not interrupted work: it waits for a person.
+    active = [s for s in active if s != TaskStatus.AWAITING_APPROVAL.value]
     return list(db.scalars(select(Task.id).where(Task.status.in_(active))))
 
 

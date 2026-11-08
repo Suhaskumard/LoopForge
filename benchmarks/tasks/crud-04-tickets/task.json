@@ -1,0 +1,18 @@
+{
+  "id": "crud-04-tickets",
+  "category": "crud",
+  "difficulty": "medium",
+  "requirement": "Build a FastAPI application whose entry point is `app.main:app` (variable `app` in `app/main.py`) that manages tickets in memory (no database).\n\nA ticket has these fields (all required unless stated otherwise); invalid input must return HTTP 422:\n- `title` (str): at least 3 chars\n- `priority` (int): 1 to 5\n- `status` (literal): one of open, in_progress, closed; defaults to open when omitted\n\nEndpoints:\n- `POST /tickets` -> 201 with the created ticket as JSON, including an integer `id` assigned by the server (1, 2, 3, ...).\n- `GET /tickets` -> 200 list of tickets (supports `skip` and `limit` query parameters, default skip=0, limit=100).\n- `GET /tickets/{id}` -> 200 or 404 if it does not exist.\n- `PUT /tickets/{id}` -> replaces all fields, 200 with the updated ticket, 404 if missing, 422 if invalid.\n- `DELETE /tickets/{id}` -> 204, 404 if missing; afterwards GET returns 404.\n\nAlso define a function `reset()` in `app/main.py` that deletes all stored data and restarts the id counter at 1 (used by the test harness).\nInclude unit tests (pytest) for the endpoints.",
+  "acceptance_criteria": [
+    "All five tickets endpoints exist with the specified status codes",
+    "Invalid input returns 422 and unknown ids return 404",
+    "Unit tests cover create, read, update and delete"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

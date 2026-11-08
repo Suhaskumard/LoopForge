@@ -38,6 +38,9 @@
 | Token theft in the browser | Access token in memory only; refresh token in sessionStorage, rotating, replay revokes the family; single-flight refresh | ADR-0011, `client.test.ts` |
 | Analytics leaking across tenants | Every aggregate is joined through `projects.user_id`; foreign ids 404 | `test_analytics_are_owner_scoped` |
 
+## Phase 6
+Secret redaction, approval gates, budgets and the expanded injection suite are described and evidenced in `docs/security_review.md` (threat table, tests, residual risks).
+
 ## Known limits (honest list)
 - Rate-limit key uses the direct client IP; behind a proxy configure trusted `X-Forwarded-For` handling (Phase 7/10).
 - HS256 shared secret; asymmetric keys / rotation arrive with SSO (Phase 10).

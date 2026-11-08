@@ -1,6 +1,6 @@
 import type { AgentRun, Iteration, LiveEvent } from "../api/types";
 
-export const AGENTS = ["Planner", "Builder", "Verifier", "Reviewer", "Repair"] as const;
+export const AGENTS = ["Planner", "Builder", "Verifier", "Reviewer", "Repair"] as const; // graph nodes; Documentation runs after the verdict and appears in the timeline only
 export type AgentName = (typeof AGENTS)[number];
 
 export type AgentState = "idle" | "running" | "success" | "failed";
@@ -124,6 +124,8 @@ export const EVENT_LABEL: Record<string, string> = {
   tests_completed: "Tests completed",
   iteration_completed: "Iteration verdict",
   retry_scheduled: "Repair scheduled",
+  approval_requested: "Waiting for your approval",
+  approval_decided: "Approval decision",
   escalated: "Escalated to a human",
   task_completed: "Task completed",
   task_cancelled: "Task cancelled",
@@ -139,6 +141,9 @@ export function describe(e: LiveEvent): string {
       return `iteration ${e.iteration}: ${e.tests_passed} passed, ${e.tests_failed} failed`;
     case "iteration_completed":
       return `iteration ${e.iteration}: ${e.status} (${e.tests_passed} passed, ${e.tests_failed} failed)`;
+    case "approval_requested":
+    case "approval_decided":
+      return `${e.kind ?? ""}${e.decision ? ` · ${e.decision}` : ""}`;
     case "retry_scheduled":
       return `iteration ${e.iteration}${e.files?.length ? ` · ${e.files.join(", ")}` : ""}`;
     default:

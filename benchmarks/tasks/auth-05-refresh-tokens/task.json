@@ -1,0 +1,18 @@
+{
+  "id": "auth-05-refresh-tokens",
+  "category": "authentication",
+  "difficulty": "hard",
+  "requirement": "Build a FastAPI JWT service with access and refresh tokens.\nUse PyJWT (`import jwt`) with HS256 and bcrypt (`import bcrypt`) for password hashing.\nCreate `app/config.py` defining `SECRET = \"benchmark-secret-key-0123456789abcdef\"` and `ALGORITHM = \"HS256\"`.\nUsers are stored in memory in a dict `app.store.USERS` keyed by lower-cased email; each value is a dict\nwith at least `email` and `password_hash` (a bcrypt hash, never the plaintext password).\nThe app entry point is `app.main:app`. Include unit tests (pytest).\n\n- `POST /auth/register` JSON `{\"email\", \"password\" (min 8)}` -> 201; duplicate (case-insensitive) -> 409.\n- `POST /auth/login` -> 200 `{\"access_token\", \"refresh_token\", \"token_type\": \"bearer\"}`. Both are JWTs with claims `sub` and `exp` plus a claim `typ` that is `\"access\"` or `\"refresh\"`; the refresh token lives longer than the access token. Bad credentials -> 401.\n- `POST /auth/refresh` JSON `{\"refresh_token\"}` -> 200 `{\"access_token\", \"token_type\": \"bearer\"}`. Anything that is not a valid, unexpired REFRESH token (including an access token) -> 401.\n- `GET /me` with `Authorization: Bearer <access token>` -> 200 `{\"email\"}`. A refresh token used here must be rejected with 401.",
+  "acceptance_criteria": [
+    "Refresh tokens mint new access tokens",
+    "Token types cannot be swapped (access vs refresh)",
+    "Expired and garbage refresh tokens are rejected"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

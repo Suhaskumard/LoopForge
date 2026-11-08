@@ -1,0 +1,18 @@
+{
+  "id": "bug-04-discount",
+  "category": "bug_fixing",
+  "difficulty": "medium",
+  "requirement": "The FastAPI project below (entry point `app.main:app`) has a bug. Fix it so the behaviour described in SPEC holds, keep every existing endpoint/function and its signature, and return the COMPLETE corrected project including its unit tests (add a test that would have caught the bug).\n\nSYMPTOM: A 10% discount on a 200.00 cart returns 190.00 (it subtracts 10) and totals show floating-point noise such as 0.30000000000000004.\n\nSPEC: `apply_discount(price, percent)` takes a PERCENT (0-100) off the price and rounds half-up to 2 decimals (e.g. 19.99 with 15% -> 16.99); percent outside 0..100 raises ValueError (the endpoint then answers 422). `total` sums price*qty exactly and rounds half-up to 2 decimals.\n\nExisting project files:\n\nFile `app/main.py`:\n```python\nfrom fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel\n\nfrom app.pricing import apply_discount, total\n\napp = FastAPI()\n\n\nclass Item(BaseModel):\n    price: float\n    qty: int\n\n\nclass Cart(BaseModel):\n    items: list[Item]\n    discount_percent: float = 0\n\n\n@app.post(\"/checkout\")\ndef checkout(cart: Cart):\n    raw = total([i.model_dump() for i in cart.items])\n    try:\n        final = apply_discount(raw, cart.discount_percent)\n    except ValueError as exc:\n        raise HTTPException(status_code=422, detail=str(exc)) from None\n    return {\"subtotal\": raw, \"total\": final}\n```\n\nFile `app/pricing.py`:\n```python\ndef apply_discount(price, percent):\n    return price - percent\n\n\ndef total(items):\n    return sum(i[\"price\"] * i[\"qty\"] for i in items)\n```\n",
+  "acceptance_criteria": [
+    "Discount is a percentage",
+    "Money values are rounded half-up to two decimals",
+    "Invalid percentages are rejected"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": true
+}

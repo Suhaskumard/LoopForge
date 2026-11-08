@@ -76,6 +76,14 @@ def build_events(
                 tests_passed=data.get("passed", 0),
                 tests_failed=data.get("failed", 0),
             )
+        elif a.event_type in ("approval_requested", "approval_decided"):
+            add(
+                eid,
+                a.event_type,
+                a.created_at,
+                kind=data.get("kind"),
+                decision=data.get("decision"),
+            )
         elif a.event_type == "repair_applied":
             add(
                 eid,

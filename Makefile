@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -62,3 +62,18 @@ demo5:     ## print Phase 5 exit-gate evidence (no API key, Docker or browser ne
 
 ui-demo:   ## API with a scripted loop on :8000 - run `npm run dev` in frontend/ for the dashboard
 	$(PY) scripts/dev_demo_server.py
+
+gate6:     ## everything above + 30 benchmark tasks + acceptance checklist + harness check
+	bash scripts/phase6_gate.sh
+
+bench-validate:  ## prove all 30 benchmark tasks are sound
+	$(PY) benchmarks/validate_tasks.py
+
+bench-harness:   ## synthetic harness check (NOT a measurement); real runs: see docs/evaluation_report.md
+	$(PY) benchmarks/run_benchmarks.py --config E1,E3 --trials 2 --provider oracle --tasks crud-01-employees,dv-01-isbn13 --out /tmp/lf_harness
+
+acceptance:      ## spec 15.1 checklist with evidence
+	$(PY) scripts/acceptance_check.py
+
+demo-final:      ## clean-environment rehearsal (fresh venv from pinned requirements)
+	bash scripts/demo_final.sh

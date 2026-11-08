@@ -1,0 +1,18 @@
+{
+  "id": "bug-05-case-insensitive-email",
+  "category": "bug_fixing",
+  "difficulty": "easy",
+  "requirement": "The FastAPI project below (entry point `app.main:app`) has a bug. Fix it so the behaviour described in SPEC holds, keep every existing endpoint/function and its signature, and return the COMPLETE corrected project including its unit tests (add a test that would have caught the bug).\n\nSYMPTOM: `Ann@Example.com` and `ann@example.com` can both be registered, so one person gets two accounts; lookups are also case-sensitive.\n\nSPEC: Emails are case-insensitive and whitespace around them is ignored: they are stored and returned lower-cased and stripped, a duplicate (ignoring case/whitespace) returns 409, and `GET /users/{email}` finds the user regardless of case.\n\nExisting project files:\n\nFile `app/main.py`:\n```python\nfrom fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel\n\napp = FastAPI()\nUSERS: dict[str, dict] = {}\n\n\nclass NewUser(BaseModel):\n    email: str\n    name: str\n\n\n@app.post(\"/users\", status_code=201)\ndef create(u: NewUser):\n    if u.email in USERS:\n        raise HTTPException(status_code=409, detail=\"exists\")\n    USERS[u.email] = {\"email\": u.email, \"name\": u.name}\n    return USERS[u.email]\n\n\n@app.get(\"/users/{email}\")\ndef get(email: str):\n    if email not in USERS:\n        raise HTTPException(status_code=404, detail=\"not found\")\n    return USERS[email]\n```\n",
+  "acceptance_criteria": [
+    "Emails are normalised to lower case",
+    "Duplicate detection ignores case and whitespace",
+    "Lookup is case-insensitive"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": true
+}

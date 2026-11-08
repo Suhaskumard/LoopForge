@@ -8,7 +8,7 @@ bash scripts/phase3_gate.sh
 echo
 echo "== Decision Engine branch coverage (must be 100%) =="
 if [ -x .venv/Scripts/python ]; then PY=.venv/Scripts/python; else PY=${PYTHON:-.venv/bin/python}; fi
-(cd backend && ../$PY -m pytest -q tests/unit/test_decision.py \
+(cd backend && ../$PY -m pytest -q tests/unit/test_decision.py tests/unit/test_decision_cost.py \
   --cov=app.orchestrator.decision --cov-branch --cov-fail-under=100 2>&1 | grep -E "decision.py|TOTAL|passed|failed|Required")
 echo
 echo "== Phase 4 evidence demo =="

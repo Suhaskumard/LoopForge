@@ -44,7 +44,7 @@ from app.schemas.analytics import (
 
 ELIGIBLE = ("COMPLETED", "FAILED", "ESCALATED")
 TERMINAL = ("COMPLETED", "FAILED", "ESCALATED", "CANCELLED")
-AGENT_NAMES = ("Planner", "Builder", "Verifier", "Reviewer", "Repair")
+AGENT_NAMES = ("Planner", "Builder", "Verifier", "Reviewer", "Repair", "Documentation")
 
 
 def _ratio(num: float, den: float) -> float | None:

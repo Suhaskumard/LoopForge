@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     max_attempts_per_failure: int = 2
     resume_on_startup: bool = False
     max_token_budget: int = 30000
+    documentation_agent_enabled: bool = True  # README generation after a terminal state
+    approval_max_repair_files: int = 5  # larger repairs wait for a human
     llm_provider: Literal["openai", "fake"] = "openai"
     llm_max_retries: int = 3
     llm_backoff_base_seconds: float = 1.0

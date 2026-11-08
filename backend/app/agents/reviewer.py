@@ -122,6 +122,34 @@ def run(
     }
 
 
+def run_tests_only(
+    ctx: AgentContext, plan: ProjectPlan, tests: TestSummary, quality: QualityReport
+) -> dict[str, Any]:
+    """Ablation A1: no independent reviewer. Acceptance rests on tests and tool findings alone,
+    and every criterion is taken as met when the suite is green (nobody checks it)."""
+    requirements = list(
+        ctx.db.scalars(select(Requirement).where(Requirement.task_id == ctx.task.id))
+    )
+    covered = {r.req_id for r in requirements} if tests.ok else set()
+    unverified = _mark_requirements(ctx, requirements, plan, covered, tests_ok=tests.ok)
+    return {
+        "critical_issues": 0,
+        "critical_issue_details": [],
+        "unapproved_high_severity": len(quality.bandit_high) + int(quality.security_scan_failed),
+        "unverified_mandatory": sum(
+            1 for r in requirements if r.priority in MANDATORY and r.req_id in unverified
+        ),
+        "acceptance_criteria": [
+            {"criterion": c, "met": tests.ok, "evidence": "tests only (reviewer ablated)"}
+            for c in ctx.task.acceptance_criteria
+        ],
+        "requirement_coverage": [],
+        "maintainability_notes": [],
+        "quality_score": 1.0 if tests.ok else 0.0,
+        "llm_consulted": False,
+    }
+
+
 def _mark_requirements(
     ctx: AgentContext,
     requirements: list[Requirement],

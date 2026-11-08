@@ -14,6 +14,9 @@ export function CreateTask() {
   const [requirement, setRequirement] = useState(DEMO_REQUIREMENT);
   const [criteria, setCriteria] = useState("");
   const [maxIterations, setMaxIterations] = useState(5);
+  const [tokenBudget, setTokenBudget] = useState("");
+  const [maxCost, setMaxCost] = useState("");
+  const [planApproval, setPlanApproval] = useState(false);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -28,6 +31,9 @@ export function CreateTask() {
         requirement,
         max_iterations: maxIterations,
         acceptance_criteria: criteria.split("\n").map((c) => c.trim()).filter(Boolean),
+        token_budget: tokenBudget ? Number(tokenBudget) : undefined,
+        max_cost: maxCost ? Number(maxCost) : undefined,
+        require_plan_approval: planApproval,
       });
       await api.post(`/tasks/${task.id}/start`);
       navigate(`/tasks/${task.id}`);
@@ -66,9 +72,37 @@ export function CreateTask() {
             Acceptance criteria <span className="muted small">(one per line, optional — the Planner adds its own)</span>
             <textarea value={criteria} onChange={(e) => setCriteria(e.target.value)} rows={4} />
           </label>
+          <div className="row">
+            <label>
+              Token budget <span className="muted small">(optional, 1000 or more)</span>
+              <input
+                type="number"
+                min={1000}
+                step={1000}
+                value={tokenBudget}
+                placeholder="server default"
+                onChange={(e) => setTokenBudget(e.target.value)}
+              />
+            </label>
+            <label>
+              Cost cap, USD <span className="muted small">(optional, an estimate)</span>
+              <input
+                type="number"
+                min={0.001}
+                step={0.01}
+                value={maxCost}
+                placeholder="none"
+                onChange={(e) => setMaxCost(e.target.value)}
+              />
+            </label>
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={planApproval} onChange={(e) => setPlanApproval(e.target.checked)} />
+            Pause for my approval after planning, before any code is written
+          </label>
           <p className="muted small">
-            The model-token budget is enforced by the server for every run; hitting it escalates the task instead of
-            spending more.
+            Budgets are enforced by the server: reaching one escalates the task instead of spending more. A repair
+            that touches many files always waits for your approval.
           </p>
           {error && <p className="error" role="alert">{error}</p>}
           <button className="primary" disabled={busy}>{busy ? "Starting…" : "Create and start"}</button>

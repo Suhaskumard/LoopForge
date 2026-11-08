@@ -1,0 +1,18 @@
+{
+  "id": "int-03-library-loans",
+  "category": "integration",
+  "difficulty": "medium",
+  "requirement": "Build a library lending API.\n- `POST /books` JSON `{\"title\": str (non-empty)}` -> 201 `{\"id\": int (1,2,...), \"title\", \"available\": true}`.\n- `POST /members` JSON `{\"name\": str (non-empty)}` -> 201 `{\"id\": int (1,2,...), \"name\"}`.\n- `POST /loans` JSON `{\"book_id\": int, \"member_id\": int}` -> 201 `{\"id\": int (1,2,...), \"book_id\", \"member_id\", \"returned\": false}`; the book becomes unavailable. Unknown book or member -> 404; a book that is already on loan -> 409; a member who already has 3 unreturned loans -> 409.\n- `POST /loans/{id}/return` -> 200 with `\"returned\": true` and the book is available again; returning twice -> 409; unknown loan -> 404.\n- `GET /books/{id}` -> 200 or 404. `GET /members/{id}/loans` -> 200 list of that member's UNRETURNED loans (404 for unknown member).\n\nDefine `reset()` in `app/main.py` that clears ALL in-memory state and restarts every id counter at 1 (used by the test harness). Entry point is `app.main:app`. No database. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "A book can be lent to one member at a time",
+    "Members are limited to three active loans",
+    "Returning makes the book available again"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

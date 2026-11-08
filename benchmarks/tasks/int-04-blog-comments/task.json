@@ -1,0 +1,18 @@
+{
+  "id": "int-04-blog-comments",
+  "category": "integration",
+  "difficulty": "medium",
+  "requirement": "Build a blog API with posts and comments.\n- `POST /posts` JSON `{\"title\": str (non-empty), \"body\": str}` -> 201 `{\"id\": int (1,2,...), \"title\", \"body\", \"comment_count\": 0}`.\n- `GET /posts` -> 200 list of posts in creation order, each with its current `comment_count`. `GET /posts/{id}` -> 200 or 404.\n- `POST /posts/{id}/comments` JSON `{\"author\": str (non-empty), \"text\": str (1-500 chars)}` -> 201 `{\"id\": int, \"post_id\", \"author\", \"text\"}`; comment ids are global (1,2,3,... across posts); unknown post -> 404; invalid -> 422.\n- `GET /posts/{id}/comments` -> 200 list in creation order (404 for unknown post).\n- `DELETE /comments/{id}` -> 204 (404 if unknown) and the post's `comment_count` drops.\n- `DELETE /posts/{id}` -> 204 (404 if unknown); its comments are deleted too, so `DELETE /comments/{id}` for them is then 404.\n\nDefine `reset()` in `app/main.py` that clears ALL in-memory state and restarts every id counter at 1 (used by the test harness). Entry point is `app.main:app`. No database. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Comments belong to posts and are counted",
+    "Deleting a post cascades to its comments",
+    "Comment ids are global"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

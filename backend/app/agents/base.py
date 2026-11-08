@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import AgentRun, AuditEvent, Iteration, Task
 from app.services.llm_client import LLMClient, LLMError, LLMOutputError, LLMTimeout
+from app.utils.redact import redact
 from app.utils.token_tracker import TokenBudgetExceeded, TokenTracker
 
 log = logging.getLogger("loopforge.agents")
@@ -53,8 +54,10 @@ class OutputRejected(ValueError):
 
 def wrap_untrusted(text: str) -> str:
     """Neutralise delimiter spoofing, then fence the text as data."""
-    cleaned = text.replace(UNTRUSTED_CLOSE, "[/untrusted_input]").replace(
-        UNTRUSTED_OPEN, "[untrusted_input]"
+    cleaned = (
+        redact(text)
+        .replace(UNTRUSTED_CLOSE, "[/untrusted_input]")
+        .replace(UNTRUSTED_OPEN, "[untrusted_input]")
     )
     return f"{UNTRUSTED_OPEN}\n{cleaned}\n{UNTRUSTED_CLOSE}"
 
@@ -69,7 +72,8 @@ class AgentContext:
 
 
 def _audit(ctx: AgentContext, event_type: str, data: dict[str, object]) -> None:
-    ctx.db.add(AuditEvent(task_id=ctx.task.id, event_type=event_type, event_data=data))
+    safe = {k: redact(v) if isinstance(v, str) else v for k, v in data.items()}
+    ctx.db.add(AuditEvent(task_id=ctx.task.id, event_type=event_type, event_data=safe))
     ctx.db.commit()
 
 
@@ -88,7 +92,7 @@ def call_agent(
         id=uuid.uuid4(),
         iteration_id=ctx.iteration.id,
         agent_name=agent_name,
-        input_summary=input_summary[:500],
+        input_summary=redact(input_summary)[:500],
         status="running",
     )
     ctx.db.add(run)
@@ -161,7 +165,7 @@ def call_agent(
         ctx.db.commit()
         return result
     run.status = status if not escalate else "failed"
-    run.error_message = (failure or "unknown failure")[:1000]
+    run.error_message = redact(failure or "unknown failure")[:1000]
     ctx.db.commit()
     log.warning("agent %s failed: %s", agent_name, run.error_message)
     raise AgentFailure(f"{agent_name} failed: {run.error_message}", escalate=escalate)

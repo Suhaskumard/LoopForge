@@ -1,0 +1,18 @@
+{
+  "id": "auth-03-password-policy",
+  "category": "authentication",
+  "difficulty": "medium",
+  "requirement": "Build a FastAPI registration/login service with a password policy.\nUse PyJWT (`import jwt`) with HS256 and bcrypt (`import bcrypt`) for password hashing.\nCreate `app/config.py` defining `SECRET = \"benchmark-secret-key-0123456789abcdef\"` and `ALGORITHM = \"HS256\"`.\nUsers are stored in memory in a dict `app.store.USERS` keyed by lower-cased email; each value is a dict\nwith at least `email` and `password_hash` (a bcrypt hash, never the plaintext password).\nThe app entry point is `app.main:app`. Include unit tests (pytest).\n\n- `POST /auth/register` JSON `{\"email\", \"password\"}`. A password must have: at least 10 characters, an uppercase letter, a lowercase letter and a digit. If any rule is broken respond 422 with JSON body `{\"detail\": {\"violations\": [<codes>]}}` listing EVERY broken rule using the codes `too_short`, `no_upper`, `no_lower`, `no_digit`. Valid -> 201 `{\"email\": <lower-cased>}`; duplicate email (case-insensitive) -> 409.\n- `POST /auth/login` JSON `{\"email\", \"password\"}` -> 200 `{\"access_token\", \"token_type\": \"bearer\"}` or 401.",
+  "acceptance_criteria": [
+    "Every broken password rule is reported by code",
+    "Valid passwords register and can log in",
+    "Passwords are stored as bcrypt hashes"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

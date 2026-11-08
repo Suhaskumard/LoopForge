@@ -2,7 +2,7 @@
 
 Autonomous, feedback-driven AI software-engineering platform: natural-language requirement → plan → generated Python → sandboxed tests → independent review → deterministic retry/accept/escalate, until measurable acceptance criteria are met.
 
-**Status:** Phases 1–5 complete (foundation, agents, sandbox, feedback loop, dashboard + analytics). Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise).
+**Status:** Phases 1–6 built (foundation, agents, sandbox, feedback loop, dashboard + analytics, hardening + evaluation harness). **No benchmark result has been measured yet** (needs an API key): see `docs/evaluation_report.md`. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise).
 
 ## Quick start
 ```bash
@@ -14,6 +14,9 @@ make demo2                                 # Phase 2 exit-gate evidence, no API 
 WITH_PG=1 make gate                        # ...and the suite on Postgres (docker compose up -d db first)
 ```
 make gate5                                 # everything above + frontend checks + KPI-vs-DB demo
+make gate6                                 # everything + 30 benchmark tasks + spec 15.1 acceptance checklist + harness check
+make acceptance                            # the 15.1 checklist with evidence (PASS / SKIP / FAIL)
+make demo-final                            # clean-environment rehearsal in a fresh virtualenv
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
 

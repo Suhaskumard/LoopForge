@@ -1,0 +1,18 @@
+{
+  "id": "bug-01-pagination",
+  "category": "bug_fixing",
+  "difficulty": "easy",
+  "requirement": "The FastAPI project below (entry point `app.main:app`) has a bug. Fix it so the behaviour described in SPEC holds, keep every existing endpoint/function and its signature, and return the COMPLETE corrected project including its unit tests (add a test that would have caught the bug).\n\nSYMPTOM: `GET /items?page=1&size=10` returns items 11-20 instead of the first ten, and page 3 of 23 items is empty.\n\nSPEC: Pages are 1-based: page=1 returns items 1..size, page=2 the next `size` items, and so on. A page past the end returns an empty list. `total` is always the full item count.\n\nExisting project files:\n\nFile `app/main.py`:\n```python\nfrom fastapi import FastAPI, Query\n\napp = FastAPI()\nITEMS = [f\"item-{i}\" for i in range(1, 24)]\n\n\ndef paginate(items, page, size):\n    start = page * size\n    return items[start : start + size]\n\n\n@app.get(\"/items\")\ndef list_items(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50)):\n    data = paginate(ITEMS, page, size)\n    return {\"page\": page, \"size\": size, \"total\": len(ITEMS), \"items\": data}\n```\n",
+  "acceptance_criteria": [
+    "Page 1 returns the first page",
+    "Pages are 1-based",
+    "Out-of-range pages return an empty list"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": true
+}

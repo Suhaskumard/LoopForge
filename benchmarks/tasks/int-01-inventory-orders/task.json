@@ -1,0 +1,18 @@
+{
+  "id": "int-01-inventory-orders",
+  "category": "integration",
+  "difficulty": "medium",
+  "requirement": "Build an inventory and ordering API.\n- `POST /products` JSON `{\"sku\": str (unique, non-empty), \"name\": str, \"price\": float > 0, \"stock\": int >= 0}` -> 201 echoing the product; duplicate sku -> 409; invalid -> 422.\n- `GET /products/{sku}` -> 200 or 404.\n- `POST /orders` JSON `{\"sku\": str, \"qty\": int >= 1}` -> 201 `{\"id\": int (1,2,...), \"sku\", \"qty\", \"total\": price*qty rounded to 2 decimals, \"status\": \"placed\"}` and reduces the product's stock by qty. Unknown sku -> 404; qty above stock -> 409 and the stock must stay unchanged.\n- `GET /orders/{id}` -> 200 or 404.\n- `POST /orders/{id}/cancel` -> 200 with status \"cancelled\" and the stock is restored; cancelling an already cancelled order -> 409.\n\nDefine `reset()` in `app/main.py` that clears ALL in-memory state and restarts every id counter at 1 (used by the test harness). Entry point is `app.main:app`. No database. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Orders reduce stock and cancelling restores it",
+    "Insufficient stock is refused without side effects",
+    "Totals are computed from the product price"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

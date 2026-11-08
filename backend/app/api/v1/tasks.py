@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.api.etag import check_if_match, set_etag
+from app.config import settings
 from app.database.models import AuditEvent, Task, User
 from app.database.session import get_db
 from app.schemas.task import AuditEventOut, TaskCreate, TaskOut
@@ -26,8 +27,20 @@ def create(
     project = project_service.get_project(db, user.id, data.project_id)
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    if data.token_budget is not None and data.token_budget > settings.max_token_budget:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"token_budget may not exceed the server limit ({settings.max_token_budget})",
+        )
     return task_service.create_task(
-        db, project, data.requirement, data.max_iterations, data.acceptance_criteria
+        db,
+        project,
+        data.requirement,
+        data.max_iterations,
+        data.acceptance_criteria,
+        token_budget=data.token_budget,
+        max_cost=data.max_cost,
+        require_plan_approval=data.require_plan_approval,
     )
 
 

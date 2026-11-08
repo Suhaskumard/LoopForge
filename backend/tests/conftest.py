@@ -22,6 +22,8 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 def _isolated_workspace(tmp_path, monkeypatch):
     """Every test writes generated code under its own temp directory."""
     monkeypatch.setattr(settings, "workspace_root", str(tmp_path / "workspaces"))
+    # Exact-sequence LLM fixtures would otherwise be consumed by the Documentation Agent.
+    monkeypatch.setattr(settings, "documentation_agent_enabled", False)
 
 
 def build_client(

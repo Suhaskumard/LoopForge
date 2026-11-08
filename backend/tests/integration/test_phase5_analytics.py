@@ -202,7 +202,7 @@ def test_agent_analytics_and_status(client):
     h, _, _ = run_repaired(client)
     rows = client.get(f"{API}/analytics/agents", headers=h).json()
     by = {r["agent"]: r for r in rows}
-    assert set(by) == {"Planner", "Builder", "Verifier", "Reviewer", "Repair"}
+    assert set(by) == {"Planner", "Builder", "Verifier", "Reviewer", "Repair", "Documentation"}
     assert by["Planner"]["runs"] == 1 and by["Planner"]["success_rate"] == 100.0
     assert by["Repair"]["runs"] >= 1
     st = client.get(f"{API}/agents/planner/status", headers=h)

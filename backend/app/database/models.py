@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     Float,
     ForeignKey,
@@ -65,7 +66,8 @@ class Task(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('PENDING','PLANNING','GENERATING','EXECUTING','TESTING',"
-            "'REVIEWING','REPAIRING','COMPLETED','FAILED','ESCALATED','CANCELLED')",
+            "'REVIEWING','REPAIRING','AWAITING_APPROVAL','COMPLETED','FAILED','ESCALATED',"
+            "'CANCELLED')",
             name="ck_tasks_status",
         ),
         CheckConstraint("max_iterations >= 1", name="ck_tasks_max_iterations"),
@@ -77,6 +79,10 @@ class Task(Base):
     max_iterations: Mapped[int] = mapped_column(Integer, default=5)
     current_iteration: Mapped[int] = mapped_column(Integer, default=0)
     acceptance_criteria: Mapped[list[Any]] = mapped_column(JsonType, default=list)
+    # Phase 6: per-task budgets (None = server default) and opt-in human review of the plan.
+    token_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    require_plan_approval: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {"version_id_col": version}
     created_at: Mapped[datetime] = mapped_column(default=_now)
@@ -228,3 +234,27 @@ class LoginAttempt(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     key: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class ApprovalRequest(Base):
+    """A human decision the loop is waiting for (spec 13.2 "human approval gate").
+
+    kind: `plan` (task opted in to plan review) | `large_repair` (a repair touching many files).
+    `resume_status` is the task status to return to once approved.
+    """
+
+    __tablename__ = "approval_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending','approved','rejected')", name="ck_approval_status"),
+        CheckConstraint("kind IN ('plan','large_repair')", name="ck_approval_kind"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), index=True)
+    kind: Mapped[str] = mapped_column(String)
+    iteration_number: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    detail: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    resume_status: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    decided_at: Mapped[datetime | None] = mapped_column(nullable=True)

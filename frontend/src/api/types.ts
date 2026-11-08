@@ -8,6 +8,7 @@ export type TaskStatus =
   | "TESTING"
   | "REVIEWING"
   | "REPAIRING"
+  | "AWAITING_APPROVAL"
   | "COMPLETED"
   | "FAILED"
   | "ESCALATED"
@@ -36,6 +37,9 @@ export interface Task {
   max_iterations: number;
   current_iteration: number;
   acceptance_criteria: string[];
+  token_budget: number | null;
+  max_cost: number | null;
+  require_plan_approval: boolean;
   version: number;
   created_at: string;
 }
@@ -216,4 +220,56 @@ export interface LiveEvent {
   tokens?: number;
   duration_seconds?: number;
   files?: string[];
+  kind?: string;
+  decision?: string;
+}
+
+export interface Approval {
+  id: string;
+  kind: "plan" | "large_repair";
+  iteration_number: number;
+  status: "pending" | "approved" | "rejected";
+  summary: string;
+  detail: { files?: string[] };
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface FinalReport {
+  task_id: string;
+  requirement: string;
+  status: string;
+  outcome: string;
+  escalation_reason: string | null;
+  iterations: {
+    number: number;
+    status: string;
+    tests_total: number;
+    tests_passed: number;
+    tests_failed: number;
+    coverage: number | null;
+    quality_score: number | null;
+    decision: string | null;
+    repair_root_cause: string | null;
+    repair_files: string[];
+  }[];
+  requirements: {
+    req_id: string;
+    description: string;
+    req_type: string;
+    priority: string;
+    implemented_in: string[];
+    tested_in: string[];
+    verification_status: string;
+    evidence: string | null;
+  }[];
+  acceptance_criteria: { criterion: string; met: boolean; evidence: string }[];
+  tests: { total: number; passed: number; failed: number; coverage: number | null };
+  quality: { score: number | null; lint_findings: number; high_security_findings: number; critical_issues: number };
+  files: { path: string; sha256: string }[];
+  total_tokens: number;
+  estimated_cost: number;
+  approvals: { kind: string; status: string; summary: string; iteration: number }[];
+  readme_generated: boolean;
+  generated_at: string;
 }

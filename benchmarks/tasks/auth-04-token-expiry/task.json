@@ -1,0 +1,18 @@
+{
+  "id": "auth-04-token-expiry",
+  "category": "authentication",
+  "difficulty": "hard",
+  "requirement": "Build a FastAPI JWT service whose access tokens expire.\nUse PyJWT (`import jwt`) with HS256 and bcrypt (`import bcrypt`) for password hashing.\nCreate `app/config.py` defining `SECRET = \"benchmark-secret-key-0123456789abcdef\"` and `ALGORITHM = \"HS256\"`.\nUsers are stored in memory in a dict `app.store.USERS` keyed by lower-cased email; each value is a dict\nwith at least `email` and `password_hash` (a bcrypt hash, never the plaintext password).\nThe app entry point is `app.main:app`. Include unit tests (pytest).\n\n- `POST /auth/register` JSON `{\"email\", \"password\" (min 8)}` -> 201 `{\"email\"}` (lower-cased); duplicate -> 409.\n- `POST /auth/login` -> 200 `{\"access_token\", \"token_type\": \"bearer\", \"expires_in\": 600}`. The JWT contains `sub` (lower-cased email), `iat` and `exp` where `exp - iat == 600` seconds. Bad credentials -> 401.\n- `GET /me` with a bearer token -> 200 `{\"email\"}`. Return 401 for: no token, malformed token, wrong signature, EXPIRED token, a token with no `exp` claim, an unsigned (`alg: none`) token, and a token whose user no longer exists.",
+  "acceptance_criteria": [
+    "Tokens expire after 600 seconds and expired tokens are rejected",
+    "Tokens without exp or with alg none are rejected",
+    "Tokens of deleted users are rejected"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

@@ -1,9 +1,11 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-m 'not slow'"
 markers = [
   "live: hits the real OpenAI API (needs OPENAI_API_KEY and OPENAI_MODEL)",
   "docker: needs a running Docker daemon and the loopforge-sandbox image",
+  "slow: minutes-long checks that the gate runs explicitly (e.g. validating all 30 benchmark tasks)",
 ]
 
 [tool.ruff]

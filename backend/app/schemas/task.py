@@ -10,6 +10,10 @@ class TaskCreate(BaseModel):
     requirement: str = Field(min_length=1)
     max_iterations: int = Field(default=5, ge=1, le=20)
     acceptance_criteria: list[str] = []
+    # Optional per-task budgets; the server's limits are the ceiling (checked in the endpoint).
+    token_budget: int | None = Field(default=None, ge=1000)
+    max_cost: float | None = Field(default=None, gt=0)
+    require_plan_approval: bool = False
 
 
 class TaskOut(BaseModel):
@@ -21,6 +25,9 @@ class TaskOut(BaseModel):
     max_iterations: int
     current_iteration: int
     acceptance_criteria: list[str]
+    token_budget: int | None = None
+    max_cost: float | None = None
+    require_plan_approval: bool = False
     version: int
     created_at: datetime
 

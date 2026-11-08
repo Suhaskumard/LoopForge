@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.api import ws
 from app.api.errors import install_error_handlers
-from app.api.v1 import agents, analytics, auth, projects, runs, tasks
+from app.api.v1 import agents, analytics, approvals, auth, projects, reports, runs, tasks
 from app.config import settings
 from app.database import session
 from app.middleware import RequestContextMiddleware
@@ -26,6 +26,8 @@ api_v1.include_router(runs.router)
 api_v1.include_router(runs.iterations_router)
 api_v1.include_router(agents.router)
 api_v1.include_router(analytics.router)
+api_v1.include_router(approvals.router)
+api_v1.include_router(reports.router)
 
 log = logging.getLogger("loopforge.startup")
 

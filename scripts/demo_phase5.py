@@ -16,6 +16,7 @@ os.environ.update(
         "LLM_PROVIDER": "fake",
         "SANDBOX_BACKEND": "fake",
         "ENVIRONMENT": "development",
+        "DOCUMENTATION_AGENT_ENABLED": "false",  # these demos queue an exact LLM sequence
     }
 )
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))

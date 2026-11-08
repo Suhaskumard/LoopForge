@@ -1,0 +1,17 @@
+{
+  "id": "dv-04-phone",
+  "category": "data_validation",
+  "difficulty": "hard",
+  "requirement": "Create `app/validators.py` with `normalize_phone(raw: str, default_country_code: str = \"1\") -> str` returning an E.164 string like `+14155552671`, or raising `ValueError`. Rules: ignore spaces, dots, dashes and parentheses; a number starting with `+` is international: it must be followed by 8 to 14 digits and the first digit may not be 0; a number starting with `00` is treated like `+` (the `00` removed); otherwise it is national: a leading single `0` trunk digit is dropped and `default_country_code` is prepended, and the national part must be exactly 10 digits when the default country code is `1` (and 6 to 12 digits for any other default). Any letter or other character (besides the ignorable separators and a leading `+`) raises ValueError, as does an empty string.\nThe project must also contain `app/main.py` defining a FastAPI `app` (entry point `app.main:app`) (no endpoints required) and `app/__init__.py`. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "International, 00-prefixed and national numbers normalise to E.164",
+    "Invalid characters, lengths and leading zeros raise ValueError"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

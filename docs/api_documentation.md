@@ -12,7 +12,7 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /auth/me | Bearer | current user |
 | POST/GET | /projects | Bearer | `GET ?limit=1..200&offset=` |
 | GET/PUT/DELETE | /projects/{id} | Bearer | `GET`/`PUT` return `ETag`; `PUT` honours `If-Match` (412) |
-| POST/GET | /tasks | Bearer | `POST {project_id, requirement, max_iterations?, acceptance_criteria?}` |
+| POST/GET | /tasks | Bearer | `POST {project_id, requirement, max_iterations?, acceptance_criteria?, token_budget? (>=1000, <= server cap), max_cost? (estimated USD), require_plan_approval?}` |
 | GET | /tasks/{id} | Bearer | returns `ETag` |
 | POST | /tasks/{id}/status | Bearer | Phase-1 stand-in; invalid transition → 409; `If-Match` supported |
 | GET | /tasks/{id}/events | Bearer | audit trail |
@@ -40,6 +40,11 @@ Interactive docs: `GET /docs` (Swagger) · `GET /openapi.json`.
 | GET | /analytics/agents | Bearer | per-agent runs, success rate, average duration, tokens |
 | GET | /agents/{name}/status | Bearer | last run and counters for one agent |
 | WS | /ws/tasks/{id}?token=<access JWT> | token | live events: `task_started agent_started agent_completed sandbox_started tests_completed iteration_completed retry_scheduled escalated task_completed task_cancelled` (+ `task_failed`). History is replayed on connect; closes after the terminal event. Close codes: 4401 bad token, 4404 unknown/foreign task, 4429 too many sockets |
+| GET | /tasks/{id}/report | Bearer | final report built from stored records: outcome, escalation reason, iteration history, traceability (requirement -> files -> tests -> status), acceptance criteria, tests, quality, tokens/estimated cost, approvals |
+| GET | /tasks/{id}/report.md | Bearer | the same as Markdown (+ the generated project README when the Documentation Agent wrote one) |
+| GET | /tasks/{id}/approvals | Bearer | approval requests (`plan`, `large_repair`) with status |
+| POST | /tasks/{id}/approvals/{aid}/approve | Bearer | release a paused run (resumes from its checkpoint). 409 if not pending |
+| POST | /tasks/{id}/approvals/{aid}/reject | Bearer | reject -> task ESCALATED. 409 if not pending |
 | GET | /agents | Bearer | the six agents, which are implemented, and what each may not do |
 | GET | /health · /health/ready | – | liveness · DB readiness (503 if down) |
 

@@ -32,6 +32,13 @@ PENDING ─start→ PLANNING ─Planner (LLM → ProjectPlan)→ GENERATING ─B
 - `services/event_stream.py` + `api/ws.py` stream spec §8.2 events from database rows (ADR-0010).
 - `frontend/`: seven screens (Command Center, Task Creation, Live Workflow with React Flow, Code Workspace with diff of any two iterations, Evaluation Center, Loop Analytics, Final Report). `make ui-demo` + `npm run dev` runs it with a scripted loop, no API key or Docker.
 
+## Phase 6 - hardening, evaluation, release
+- `agents/documenter.py` + `services/report_service.py`: the final report is deterministic from stored records; the Documentation Agent (after a terminal state only) adds a README and can never change a verdict.
+- Budgets: per-task `token_budget` / `max_cost` tighten (never loosen) the server limits; the Decision Engine escalates on the cost cap.
+- Human approval: `plan_gate` / `repair_gate` graph nodes use LangGraph `interrupt()`; status `AWAITING_APPROVAL` (ADR-0013).
+- `utils/redact.py` scrubs secrets from prompts, summaries, audit events and stored logs.
+- `orchestrator/loop_config.py`: E1-E3 and A1-A4 are switches on the one production loop. `benchmarks/` holds 30 tasks with hidden tests, `run_benchmarks.py` and `analyze.py` (ADR-0012).
+
 ## Key design rules (from the spec)
 1. Evidence over assertion · 2. Maker ≠ checker · 3. Deterministic control (no LLM in the loop controller) · 4. Revalidate everything · 5. Bounded by default · 6. Isolation first · 7. Full traceability · 8. Loop before interface.
 

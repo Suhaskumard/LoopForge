@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Task } from "../api/types";
 import { isTerminal } from "../api/types";
+import { Approvals } from "../components/Approvals";
 import { TaskTabs } from "../components/Layout";
 import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
 import { useAsync, useTaskEvents } from "../hooks";
@@ -96,6 +97,9 @@ export function LiveWorkflow() {
         </div>
       </header>
       <TaskTabs id={id} />
+      {t?.status === "AWAITING_APPROVAL" && (
+        <Approvals taskId={id} signal={live.timeline.length} onDecided={() => { task.reload(); reconnect(); }} />
+      )}
       {task.error && <ErrorBox error={task.error} />}
       {actionError && <p className="error" role="alert">{actionError}</p>}
       {!t && task.loading && <Loading />}

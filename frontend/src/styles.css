@@ -152,4 +152,9 @@ label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; c
 .checks .met span { color: var(--ok); } .checks .unmet span { color: var(--bad); }
 .history { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
 .chart { width: 100%; }
+.banner { border: 1px solid var(--warn); background: var(--warn-bg); border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1rem; display: grid; gap: .6rem; }
+.approval { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+label.check { flex-direction: row; align-items: center; gap: .5rem; color: var(--text); }
+label.check input { width: auto; }
 details { margin-bottom: .5rem; } summary { cursor: pointer; }
+.banner.ok { border-color: var(--ok); background: var(--ok-bg); }

@@ -1,0 +1,17 @@
+{
+  "id": "dv-02-luhn",
+  "category": "data_validation",
+  "difficulty": "medium",
+  "requirement": "Create `app/validators.py` with `luhn_valid(number: str) -> bool` for payment card numbers. Spaces and dashes are ignored. After cleaning, the number must be 12 to 19 digits long and satisfy the Luhn checksum (from the right, double every second digit, subtract 9 from results above 9, total divisible by 10). Anything else returns False; it must never raise. Also provide `mask_card(number: str) -> str` returning only the last 4 digits prefixed by asterisks to the original cleaned length (e.g. `************1111`), and raising `ValueError` if the number is not Luhn-valid.\nThe project must also contain `app/main.py` defining a FastAPI `app` (entry point `app.main:app`) (no endpoints required) and `app/__init__.py`. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Luhn checksum and length rules are enforced",
+    "Masking reveals only the last four digits and rejects invalid numbers"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

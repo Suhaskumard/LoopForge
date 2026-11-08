@@ -1,0 +1,19 @@
+{
+  "id": "crud-02-books",
+  "category": "crud",
+  "difficulty": "easy",
+  "requirement": "Build a FastAPI application whose entry point is `app.main:app` (variable `app` in `app/main.py`) that manages books in memory (no database).\n\nA book has these fields (all required unless stated otherwise); invalid input must return HTTP 422:\n- `title` (str): 1-200 chars\n- `isbn` (str): exactly 13 digits\n- `price` (float): greater than 0\n- `stock` (int): 0 or more\n\nEndpoints:\n- `POST /books` -> 201 with the created book as JSON, including an integer `id` assigned by the server (1, 2, 3, ...).\n- `GET /books` -> 200 list of books (supports `skip` and `limit` query parameters, default skip=0, limit=100).\n- `GET /books/{id}` -> 200 or 404 if it does not exist.\n- `PUT /books/{id}` -> replaces all fields, 200 with the updated book, 404 if missing, 422 if invalid.\n- `DELETE /books/{id}` -> 204, 404 if missing; afterwards GET returns 404.\n- `isbn` must be unique: creating a duplicate returns 409 (updating a book to another's `isbn` also returns 409; keeping its own is fine).\n\nAlso define a function `reset()` in `app/main.py` that deletes all stored data and restarts the id counter at 1 (used by the test harness).\nInclude unit tests (pytest) for the endpoints.",
+  "acceptance_criteria": [
+    "All five books endpoints exist with the specified status codes",
+    "Invalid input returns 422 and unknown ids return 404",
+    "Unit tests cover create, read, update and delete",
+    "Duplicate isbn returns 409"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

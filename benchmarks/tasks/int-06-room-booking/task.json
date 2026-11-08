@@ -1,0 +1,18 @@
+{
+  "id": "int-06-room-booking",
+  "category": "integration",
+  "difficulty": "hard",
+  "requirement": "Build a meeting-room booking API.\n- `POST /rooms` JSON `{\"name\": str (non-empty, unique), \"capacity\": int >= 1}` -> 201 `{\"id\": int (1,2,...), \"name\", \"capacity\"}`; duplicate name -> 409.\n- `POST /bookings` JSON `{\"room_id\": int, \"start\": \"YYYY-MM-DDTHH:MM\", \"end\": \"YYYY-MM-DDTHH:MM\", \"attendees\": int >= 1}` -> 201 `{\"id\": int (1,2,...), \"room_id\", \"start\", \"end\", \"attendees\", \"status\": \"confirmed\"}` (start/end echoed as given). Rules: unknown room -> 404; start/end not valid datetimes in that exact format, or `end <= start` -> 422; attendees above the room capacity -> 422; a CONFIRMED booking of the same room that overlaps in time -> 409. Intervals are half-open: a booking that ends exactly when another starts does NOT overlap.\n- `DELETE /bookings/{id}` -> 200 with `\"status\": \"cancelled\"`; cancelled bookings no longer block the time slot; cancelling twice or an unknown id -> 404.\n- `GET /rooms/{id}/bookings` -> 200 the room's CONFIRMED bookings sorted by `start` (404 for unknown room).\n\nDefine `reset()` in `app/main.py` that clears ALL in-memory state and restarts every id counter at 1 (used by the test harness). Entry point is `app.main:app`. No database. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Overlapping bookings are rejected, adjacent ones allowed",
+    "Cancelled bookings free the slot",
+    "Capacity and datetime validation"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

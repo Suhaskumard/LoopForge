@@ -22,6 +22,8 @@ class Limits:
     max_tokens: int
     max_task_seconds: float
     max_attempts_per_failure: int = 2
+    max_cost: float | None = None  # estimated spend ceiling (tokens x rate); None = no cost cap
+    cost_per_1k_tokens: float = 0.0
 
 
 def failure_fingerprint(tests: dict[str, Any], review: dict[str, Any] | None = None) -> str:
@@ -71,6 +73,11 @@ def evaluate_iteration(state: dict[str, Any], limits: Limits, now: float | None 
         return Decision.ESCALATE
 
     if state["tokens_used"] >= limits.max_tokens:
+        return Decision.ESCALATE
+
+    if limits.max_cost is not None and (
+        state["tokens_used"] / 1000 * limits.cost_per_1k_tokens >= limits.max_cost
+    ):
         return Decision.ESCALATE
 
     clock = time.time() if now is None else now

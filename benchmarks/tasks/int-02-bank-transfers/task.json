@@ -1,0 +1,18 @@
+{
+  "id": "int-02-bank-transfers",
+  "category": "integration",
+  "difficulty": "hard",
+  "requirement": "Build a small banking API.\n- `POST /accounts` JSON `{\"owner\": str (non-empty), \"balance\": float >= 0}` -> 201 `{\"id\": int (1,2,...), \"owner\", \"balance\"}`.\n- `GET /accounts/{id}` -> 200 or 404.\n- `POST /transfers` JSON `{\"from_id\": int, \"to_id\": int, \"amount\": float > 0}` -> 201 `{\"id\": int (1,2,...), \"from_id\", \"to_id\", \"amount\"}`; moves money atomically. Unknown account -> 404; `from_id == to_id` -> 422; amount <= 0 -> 422; amount greater than the source balance -> 409 and NO balance changes.\n- `GET /accounts/{id}/history` -> 200 list of the transfers involving that account (as sender or receiver) in creation order, each with an extra field `direction` that is `\"out\"` or `\"in\"` relative to that account.\nTotal money in the system is conserved by every operation. Balances are rounded to 2 decimals.\n\nDefine `reset()` in `app/main.py` that clears ALL in-memory state and restarts every id counter at 1 (used by the test harness). Entry point is `app.main:app`. No database. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Transfers are atomic and conserve money",
+    "Overdrafts are refused without side effects",
+    "History reports direction per account"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

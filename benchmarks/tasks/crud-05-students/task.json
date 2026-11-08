@@ -1,0 +1,19 @@
+{
+  "id": "crud-05-students",
+  "category": "crud",
+  "difficulty": "easy",
+  "requirement": "Build a FastAPI application whose entry point is `app.main:app` (variable `app` in `app/main.py`) that manages students in memory (no database).\n\nA student has these fields (all required unless stated otherwise); invalid input must return HTTP 422:\n- `name` (str): non-empty\n- `grade` (int): 0 to 100\n- `email` (str): valid email shape\n\nEndpoints:\n- `POST /students` -> 201 with the created student as JSON, including an integer `id` assigned by the server (1, 2, 3, ...).\n- `GET /students` -> 200 list of students (supports `skip` and `limit` query parameters, default skip=0, limit=100).\n- `GET /students/{id}` -> 200 or 404 if it does not exist.\n- `PUT /students/{id}` -> replaces all fields, 200 with the updated student, 404 if missing, 422 if invalid.\n- `DELETE /students/{id}` -> 204, 404 if missing; afterwards GET returns 404.\n- `email` must be unique: creating a duplicate returns 409 (updating a student to another's `email` also returns 409; keeping its own is fine).\n\nAlso define a function `reset()` in `app/main.py` that deletes all stored data and restarts the id counter at 1 (used by the test harness).\nInclude unit tests (pytest) for the endpoints.",
+  "acceptance_criteria": [
+    "All five students endpoints exist with the specified status codes",
+    "Invalid input returns 422 and unknown ids return 404",
+    "Unit tests cover create, read, update and delete",
+    "Duplicate email returns 409"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

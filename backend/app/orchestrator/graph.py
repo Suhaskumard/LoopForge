@@ -14,12 +14,19 @@ from dataclasses import asdict
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 from sqlalchemy import select
 
 from app.agents import coder, planner, repair, reviewer, verifier
 from app.agents.base import AgentContext, AgentFailure
 from app.config import settings
-from app.database.models import AuditEvent, Iteration, RepairHistory, TestResult
+from app.database.models import (
+    ApprovalRequest,
+    AuditEvent,
+    Iteration,
+    RepairHistory,
+    TestResult,
+)
 from app.evaluation.classifier import (
     build_failure_report,
     classify_execution,
@@ -32,21 +39,31 @@ from app.execution.runner import CommandNotAllowed
 from app.execution.sandbox import Sandbox, SandboxError
 from app.orchestrator.checkpoint import get_checkpointer
 from app.orchestrator.decision import Decision, Limits, evaluate_iteration, failure_fingerprint
+from app.orchestrator.loop_config import E3, LoopConfig
 from app.orchestrator.state import LoopForgeState
 from app.schemas.plan import ProjectPlan
 from app.services import task_service, workspace
 from app.services.task_service import TaskStatus
+from app.utils.redact import redact
 
 
 def _history(state: LoopForgeState, node: str, ok: bool, **extra: Any) -> list[dict[str, Any]]:
     return [*state["execution_history"], {"node": node, "ok": ok, **extra}]
 
 
-def limits_from_settings() -> Limits:
+def limits_from_settings(task: Any = None, config: LoopConfig = E3) -> Limits:
+    """Server limits, tightened (never loosened) by the task's own budgets."""
+    budget = settings.max_token_budget
+    if task is not None and task.token_budget:
+        budget = min(budget, task.token_budget)
     return Limits(
-        max_tokens=settings.max_token_budget,
+        max_tokens=budget,
         max_task_seconds=settings.max_task_duration_seconds,
-        max_attempts_per_failure=settings.max_attempts_per_failure,
+        max_attempts_per_failure=(
+            settings.max_attempts_per_failure if config.adaptive_retry else 10**9
+        ),
+        max_cost=getattr(task, "max_cost", None),
+        cost_per_1k_tokens=settings.cost_per_1k_tokens,
     )
 
 
@@ -79,8 +96,13 @@ def _summary_from_row(row: TestResult) -> TestSummary:
     )
 
 
-def build_graph(ctx: AgentContext, sandbox: Sandbox, limits: Limits | None = None) -> Any:
-    limits = limits or limits_from_settings()
+def build_graph(
+    ctx: AgentContext,
+    sandbox: Sandbox,
+    limits: Limits | None = None,
+    config: LoopConfig = E3,
+) -> Any:
+    limits = limits or limits_from_settings(ctx.task, config)
     db, task = ctx.db, ctx.task
 
     # ---- helpers ------------------------------------------------------------------------
@@ -223,7 +245,12 @@ def build_graph(ctx: AgentContext, sandbox: Sandbox, limits: Limits | None = Non
                     workspace.out_dir(task.id, it.iteration_number),
                     settings.max_execution_seconds,
                 )
-                review = reviewer.run(ctx, plan, summary, qrep)
+                if config.reviewer_enabled:
+                    review = reviewer.run(ctx, plan, summary, qrep)
+                else:
+                    review = reviewer.run_tests_only(ctx, plan, summary, qrep)
+                if not config.requirement_verification:
+                    review = {**review, "unverified_mandatory": 0}  # ablation A3
                 quality = qrep.as_dict()
                 it.feedback = {**it.feedback, "review": review, "quality": quality}
                 it.quality_score = float(review["quality_score"])
@@ -304,7 +331,9 @@ def build_graph(ctx: AgentContext, sandbox: Sandbox, limits: Limits | None = Non
         try:
             move(TaskStatus.REPAIRING, only_from={TaskStatus.REVIEWING})
             report = _failure_report(state)
-            new_it = repair.run(ctx, report, state["failure_fingerprints"][-1])
+            new_it = repair.run(
+                ctx, report, state["failure_fingerprints"][-1], memory=config.memory_enabled
+            )
         except AgentFailure as exc:
             return fail(state, "repair", exc, escalate=exc.escalate)
         ctx.iteration = new_it
@@ -327,6 +356,69 @@ def build_graph(ctx: AgentContext, sandbox: Sandbox, limits: Limits | None = Non
                 state, "repair", True, to_iteration=new_it.iteration_number
             ),
         }
+
+    # ---- human approval gates (spec 13.2) --------------------------------------------------
+    def gate(kind: str, number: int, summary: str, detail: dict[str, Any]) -> bool:
+        """True when the loop may continue. A pending request pauses the run (LangGraph interrupt):
+        the checkpoint keeps the state, the task waits in AWAITING_APPROVAL, and approving resumes
+        from this node. Idempotent - a request is created once per (task, kind, iteration)."""
+        req = db.scalars(
+            select(ApprovalRequest).where(
+                ApprovalRequest.task_id == task.id,
+                ApprovalRequest.kind == kind,
+                ApprovalRequest.iteration_number == number,
+            )
+        ).first()
+        if req is None:
+            req = ApprovalRequest(
+                task_id=task.id,
+                kind=kind,
+                iteration_number=number,
+                summary=redact(summary)[:1000],
+                detail=detail,
+                resume_status=task.status,
+            )
+            db.add(req)
+            db.commit()
+            audit("approval_requested", {"kind": kind, "iteration": number, "id": str(req.id)})
+        db.refresh(req)
+        if req.status == "pending":
+            if task.status != TaskStatus.AWAITING_APPROVAL.value:
+                task_service.transition(db, task, TaskStatus.AWAITING_APPROVAL)
+            interrupt({"approval_id": str(req.id), "kind": kind})
+            db.refresh(req)
+        return req.status == "approved"
+
+    def plan_gate_node(state: LoopForgeState) -> dict[str, Any]:
+        if not (config.approvals_enabled and task.require_plan_approval):
+            return {}
+        plan = state["project_plan"]
+        ok = gate(
+            "plan",
+            state["iteration"],
+            f"Review the plan for {plan.get('project_name', 'the project')}",
+            {"files": [f["path"] for f in plan.get("files", [])]},
+        )
+        if not ok:
+            return fail(state, "plan_gate", RuntimeError("plan rejected by a human"), escalate=True)
+        return {"execution_history": _history(state, "plan_gate", True)}
+
+    def repair_gate_node(state: LoopForgeState) -> dict[str, Any]:
+        it = bind(state["iteration"])
+        files = it.feedback.get("repair", {}).get("files_modified", [])
+        if not config.approvals_enabled or len(files) <= settings.approval_max_repair_files:
+            return {}
+        ok = gate(
+            "large_repair",
+            it.iteration_number,
+            f"Repair modifies {len(files)} files (limit {settings.approval_max_repair_files})",
+            {"files": files},
+        )
+        if not ok:
+            return fail(
+                state, "repair_gate", RuntimeError("repair rejected by a human"), escalate=True
+            )
+        return {"execution_history": _history(state, "repair_gate", True)}
 
     # ---- helpers needing state ----------------------------------------------------------
     def _failure_report(state: LoopForgeState) -> dict[str, Any]:
@@ -372,20 +464,29 @@ def build_graph(ctx: AgentContext, sandbox: Sandbox, limits: Limits | None = Non
     graph = StateGraph(LoopForgeState)
     for name, fn in (
         ("planner", planner_node),
+        ("plan_gate", plan_gate_node),
         ("builder", builder_node),
         ("executor", executor_node),
         ("review", review_node),
         ("decide", decide_node),
         ("repair", repair_node),
+        ("repair_gate", repair_gate_node),
     ):
         graph.add_node(name, fn)
     graph.add_edge(START, "planner")
-    graph.add_conditional_edges("planner", go("builder"), {"builder": "builder", END: END})
+    graph.add_conditional_edges("planner", go("plan_gate"), {"plan_gate": "plan_gate", END: END})
+    graph.add_conditional_edges("plan_gate", go("builder"), {"builder": "builder", END: END})
     graph.add_conditional_edges("builder", go("executor"), {"executor": "executor", END: END})
     graph.add_conditional_edges("executor", go("review"), {"review": "review", END: END})
     graph.add_conditional_edges("review", go("decide"), {"decide": "decide", END: END})
     graph.add_conditional_edges("decide", after_decide, {"repair": "repair", END: END})
-    graph.add_conditional_edges("repair", go("executor"), {"executor": "executor", END: END})
+    graph.add_conditional_edges(
+        "repair", go("repair_gate"), {"repair_gate": "repair_gate", END: END}
+    )
+    graph.add_conditional_edges("repair_gate", go("executor"), {"executor": "executor", END: END})
+    # First use of the Postgres checkpointer runs CREATE INDEX CONCURRENTLY, which waits for every
+    # open transaction - including this session's own read transaction. End it first.
+    db.commit()
     return graph.compile(checkpointer=get_checkpointer(db.get_bind().engine.url))
 
 

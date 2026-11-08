@@ -88,12 +88,19 @@ def start(
 def get_plan(
     task_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> PlanOut:
+    """The validated plan. Repair iterations carry no plan of their own, so this is the plan of
+    the most recent iteration that has one (the plan the whole task is working to)."""
     task = _task(db, user, task_id)
-    iteration = _latest_iteration(db, task)
-    plan: dict[str, Any] | None = iteration.feedback.get("plan") if iteration else None
-    if iteration is None or plan is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No plan yet")
-    return PlanOut(iteration=iteration.iteration_number, plan=plan)
+    iterations = db.scalars(
+        select(Iteration)
+        .where(Iteration.task_id == task.id)
+        .order_by(Iteration.iteration_number.desc())
+    )
+    for iteration in iterations:
+        plan: dict[str, Any] | None = iteration.feedback.get("plan")
+        if plan is not None:
+            return PlanOut(iteration=iteration.iteration_number, plan=plan)
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "No plan yet")
 
 
 @router.get("/{task_id}/requirements", response_model=list[RequirementOut])

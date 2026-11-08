@@ -1,0 +1,18 @@
+{
+  "id": "dv-06-money",
+  "category": "data_validation",
+  "difficulty": "hard",
+  "requirement": "Create `app/validators.py` with `parse_money(text: str) -> decimal.Decimal`. Accepts an optional leading `$`, optional thousands separators (commas) and an optional fractional part with at most 2 digits: `$1,234.50`, `1234.5`, `0.99`, `1,000`. Returns an exact `Decimal` quantized to 2 decimal places (`Decimal('1234.50')`). Reject with `ValueError`: negative amounts, more than 2 decimal places, misplaced commas (`1,23`, `12,34,567`, `,100`), an empty string, letters, a bare `$`, and amounts above 1,000,000,000.00. Also provide `format_money(amount: Decimal) -> str` returning `$1,234.50` style text (always 2 decimals, commas every three digits).\nThe project must also contain `app/main.py` defining a FastAPI `app` (entry point `app.main:app`) (no endpoints required) and `app/__init__.py`. Include unit tests (pytest).",
+  "acceptance_criteria": [
+    "Valid amounts parse to exact two-decimal Decimals",
+    "Malformed, negative, over-precise and oversized amounts raise ValueError",
+    "format_money round-trips with parse_money"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": false
+}

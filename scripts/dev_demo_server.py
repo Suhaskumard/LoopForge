@@ -45,6 +45,7 @@ from app.demo.employee_management import (  # noqa: E402
 from app.execution.fake_sandbox import ScriptedSandbox  # noqa: E402
 from app.execution.sandbox import ExecResult  # noqa: E402
 from app.main import app  # noqa: E402
+from app.schemas.report import ReadmeOutput  # noqa: E402
 from app.services.llm_client import FakeLLMClient, LLMResult  # noqa: E402
 
 DELAY = float(os.environ.get("DEMO_DELAY", "1.5"))
@@ -63,7 +64,12 @@ class SlowSandbox(ScriptedSandbox):
 
 
 def fresh_llm() -> FakeLLMClient:
-    return SlowLLM().queue(demo_plan(), defective_builder_output(), repair_output(), review_output())
+    readme = ReadmeOutput(
+        content="# Employee API\n\nRun `uvicorn app.main:app`; run the tests with `pytest`.\n"
+    )
+    return SlowLLM().queue(
+        demo_plan(), defective_builder_output(), repair_output(), review_output(), readme
+    )
 
 
 def fresh_sandbox() -> ScriptedSandbox:

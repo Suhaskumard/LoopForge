@@ -69,7 +69,13 @@ def _validator(base: Any, existing: set[str]) -> Any:
     return validate
 
 
-def run(ctx: AgentContext, failure_report: dict[str, Any], fingerprint: str) -> Iteration:
+def run(
+    ctx: AgentContext,
+    failure_report: dict[str, Any],
+    fingerprint: str,
+    *,
+    memory: bool = True,
+) -> Iteration:
     """Apply a repair and return the new (not yet executed) iteration."""
     db, task, current = ctx.db, ctx.task, ctx.iteration
     next_number = current.iteration_number + 1
@@ -91,6 +97,8 @@ def run(ctx: AgentContext, failure_report: dict[str, Any], fingerprint: str) -> 
             .order_by(RepairHistory.created_at.desc())
             .limit(3)
         )
+        if memory  # ablation A2 withholds earlier attempts
+        else []
     )
     history = "\n".join(
         f"- attempt: {h.root_cause[:200]} -> outcome: {h.outcome}" for h in reversed(previous)

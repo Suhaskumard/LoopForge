@@ -15,6 +15,7 @@ class TaskStatus(str, Enum):
     TESTING = "TESTING"
     REVIEWING = "REVIEWING"
     REPAIRING = "REPAIRING"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     ESCALATED = "ESCALATED"
@@ -32,11 +33,13 @@ _ABORTS = {TaskStatus.FAILED, TaskStatus.ESCALATED, TaskStatus.CANCELLED}
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.PENDING: {TaskStatus.PLANNING, TaskStatus.CANCELLED},
     TaskStatus.PLANNING: {TaskStatus.GENERATING} | _ABORTS,
-    TaskStatus.GENERATING: {TaskStatus.EXECUTING} | _ABORTS,
+    TaskStatus.GENERATING: {TaskStatus.EXECUTING, TaskStatus.AWAITING_APPROVAL} | _ABORTS,
     TaskStatus.EXECUTING: {TaskStatus.TESTING} | _ABORTS,
     TaskStatus.TESTING: {TaskStatus.REVIEWING, TaskStatus.REPAIRING} | _ABORTS,
     TaskStatus.REVIEWING: {TaskStatus.REPAIRING, TaskStatus.COMPLETED} | _ABORTS,
-    TaskStatus.REPAIRING: {TaskStatus.EXECUTING} | _ABORTS,
+    TaskStatus.REPAIRING: {TaskStatus.EXECUTING, TaskStatus.AWAITING_APPROVAL} | _ABORTS,
+    # Paused for a human decision; resumes where it left off (GENERATING or REPAIRING).
+    TaskStatus.AWAITING_APPROVAL: {TaskStatus.GENERATING, TaskStatus.REPAIRING} | _ABORTS,
     TaskStatus.COMPLETED: set(),
     TaskStatus.FAILED: {TaskStatus.PENDING},
     TaskStatus.ESCALATED: {TaskStatus.PENDING},
@@ -58,12 +61,19 @@ def create_task(
     requirement: str,
     max_iterations: int,
     acceptance_criteria: list[str],
+    *,
+    token_budget: int | None = None,
+    max_cost: float | None = None,
+    require_plan_approval: bool = False,
 ) -> Task:
     task = Task(
         project_id=project.id,
         requirement=requirement,
         max_iterations=max_iterations,
         acceptance_criteria=acceptance_criteria,
+        token_budget=token_budget,
+        max_cost=max_cost,
+        require_plan_approval=require_plan_approval,
         status=TaskStatus.PENDING.value,
     )
     db.add(task)

@@ -1,114 +1,147 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { FileEntry, Iteration, IterationDetail, Task, TaskAnalytics } from "../api/types";
+import type { FinalReport } from "../api/types";
 import { TaskTabs } from "../components/Layout";
 import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
-import { money, score, seconds } from "../lib/format";
+import { money, pct, score } from "../lib/format";
 
-/** Screen 7 — Final Report: outcome, iteration history, summaries and downloadable artifacts. */
+async function save(blob: Blob, name: string): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Screen 7 — Final Report. Everything shown comes from stored execution records (GET /report). */
 export function Report() {
   const { id = "" } = useParams();
-  const task = useAsync(() => api.get<Task>(`/tasks/${id}`), [id]);
-  const its = useAsync(() => api.get<Iteration[]>(`/tasks/${id}/iterations`), [id]);
-  const files = useAsync(() => api.get<FileEntry[]>(`/tasks/${id}/files`), [id]);
-  const stats = useAsync(() => api.get<TaskAnalytics>(`/analytics/tasks/${id}`), [id]);
-  const last = its.data?.[its.data.length - 1];
-  const detail = useAsync(
-    () => (last ? api.get<IterationDetail>(`/iterations/${last.id}`) : Promise.resolve(undefined)),
-    [last?.id],
-  );
+  const report = useAsync(() => api.get<FinalReport>(`/tasks/${id}/report`), [id]);
   const [dlError, setDlError] = useState<string>();
+  const r = report.data;
 
-  const download = async () => {
+  const download = async (path: string, name: string) => {
     setDlError(undefined);
     try {
-      const blob = await api.blob(`/tasks/${id}/download`);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `task-${id}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await save(await api.blob(path), name);
     } catch (e) {
       setDlError(e instanceof Error ? e.message : "Download failed");
     }
   };
 
-  const t = task.data;
-  const review = detail.data?.review;
-  const tests = detail.data?.test_results[detail.data.test_results.length - 1];
-
+  const unmet = r?.acceptance_criteria.filter((c) => !c.met).length ?? 0;
   return (
     <>
       <header className="page-head">
         <div>
           <h1>Final Report</h1>
-          {t && <p className="muted clip">{t.requirement}</p>}
+          {r && <p className="muted clip">{r.requirement}</p>}
         </div>
-        {t && <StatusBadge status={t.status} />}
+        {r && <StatusBadge status={r.status} />}
       </header>
       <TaskTabs id={id} />
-      {task.error && <ErrorBox error={task.error} />}
-      {!t && task.loading && <Loading />}
+      {report.error && <ErrorBox error={report.error} />}
+      {!r && report.loading && <Loading />}
 
-      {t && (
-        <div className="kpis">
-          <Kpi label="Final status" value={t.status} />
-          <Kpi label="Iterations" value={`${its.data?.length ?? 0} / ${t.max_iterations}`} />
-          <Kpi label="Tests" value={tests ? `${tests.passed} / ${tests.total_tests} passed` : "—"} />
-          <Kpi label="Quality" value={score(last?.quality_score)} />
-          <Kpi label="Execution time" value={seconds(stats.data?.execution_seconds)} />
-          <Kpi label="Estimated cost" value={money(stats.data?.estimated_cost)} hint="tokens × rate" />
-        </div>
-      )}
+      {r && (
+        <>
+          <section className={`banner ${r.status === "COMPLETED" ? "ok" : ""}`} data-testid="outcome">
+            <strong>{r.outcome}</strong>
+            {r.escalation_reason && <span>Reason: {r.escalation_reason}</span>}
+          </section>
 
-      <div className="grid2">
-        <Card title="Iteration history">
-          {its.data && its.data.length === 0 && <Empty>No iterations ran.</Empty>}
-          <ol className="history" data-testid="history">
-            {its.data?.map((i) => (
-              <li key={i.id}>
-                <div><strong>v{i.number}</strong> <StatusBadge status={i.status} /></div>
-                <div className="muted small">
-                  {i.tests.total_tests !== undefined ? `${i.tests.passed}/${i.tests.total_tests} tests passed` : "no tests recorded"}
-                  {i.decision ? ` · decision: ${i.decision.action}` : ""}
-                </div>
-                {i.repair?.root_cause && <div className="small">Repair: {i.repair.root_cause}</div>}
-              </li>
-            ))}
-          </ol>
-        </Card>
+          <div className="kpis">
+            <Kpi label="Tests passed" value={`${r.tests.passed} / ${r.tests.total}`} hint={`coverage ${pct(r.tests.coverage, 0)}`} />
+            <Kpi label="Iterations" value={String(r.iterations.length)} />
+            <Kpi label="Quality" value={score(r.quality.score)} hint={`${r.quality.lint_findings} lint · ${r.quality.high_security_findings} high security`} />
+            <Kpi label="Tokens" value={r.total_tokens.toLocaleString()} />
+            <Kpi label="Estimated cost" value={money(r.estimated_cost)} hint="tokens × rate" />
+          </div>
 
-        <Card title="Review summary">
-          {!review ? <Empty>No review recorded.</Empty> : (
-            <>
-              <p>
-                {review.acceptance_criteria.filter((c) => c.met).length} of {review.acceptance_criteria.length} acceptance
-                criteria met; {review.requirement_coverage.filter((r) => r.covered).length} of{" "}
-                {review.requirement_coverage.length} requirements covered.
-              </p>
-              {review.critical_issues.length > 0 && <ul>{review.critical_issues.map((c) => <li key={c}>{c}</li>)}</ul>}
-              {review.maintainability_notes.length > 0 && (
-                <ul className="small">{review.maintainability_notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          <div className="grid2">
+            <Card title="Iteration history">
+              {r.iterations.length === 0 && <Empty>No iterations ran.</Empty>}
+              <ol className="history" data-testid="history">
+                {r.iterations.map((i) => (
+                  <li key={i.number}>
+                    <div><strong>v{i.number}</strong> <StatusBadge status={i.status} /></div>
+                    <div className="muted small">
+                      {i.tests_passed}/{i.tests_total} tests passed{i.decision ? ` · decision: ${i.decision}` : ""}
+                    </div>
+                    {i.repair_root_cause && (
+                      <div className="small">Repair: {i.repair_root_cause} ({i.repair_files.join(", ")})</div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </Card>
+
+            <Card title={`Acceptance criteria${r.acceptance_criteria.length ? ` · ${r.acceptance_criteria.length - unmet}/${r.acceptance_criteria.length} met` : ""}`}>
+              {r.acceptance_criteria.length === 0 ? <Empty>No review was recorded.</Empty> : (
+                <ul className="checks">
+                  {r.acceptance_criteria.map((c) => (
+                    <li key={c.criterion} className={c.met ? "met" : "unmet"}>
+                      <span aria-hidden>{c.met ? "✔" : "✘"}</span> {c.criterion}
+                      <div className="muted small">{c.evidence}</div>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </>
-          )}
-        </Card>
-      </div>
+            </Card>
+          </div>
 
-      <Card title="Generated files" actions={<button className="primary" onClick={() => void download()} disabled={!files.data?.length}>Download .zip</button>}>
-        {dlError && <p className="error" role="alert">{dlError}</p>}
-        {files.data && files.data.length === 0 && <Empty>No files were generated.</Empty>}
-        <table className="table">
-          <tbody>
-            {files.data?.map((f) => (
-              <tr key={f.path}><td><code>{f.path}</code></td><td className="muted small">sha256 {f.sha256.slice(0, 12)}…</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+          <Card title="Requirement traceability">
+            {r.requirements.length === 0 ? <Empty>No requirements recorded.</Empty> : (
+              <table className="table" data-testid="trace">
+                <thead><tr><th>ID</th><th>Requirement</th><th>Implemented in</th><th>Tested in</th><th>Status</th></tr></thead>
+                <tbody>
+                  {r.requirements.map((q) => (
+                    <tr key={q.req_id}>
+                      <td><code>{q.req_id}</code></td>
+                      <td>{q.description}</td>
+                      <td className="small">{q.implemented_in.join(", ") || "—"}</td>
+                      <td className="small">{q.tested_in.join(", ") || "—"}</td>
+                      <td><StatusBadge status={q.verification_status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+
+          {r.approvals.length > 0 && (
+            <Card title="Human approvals">
+              <ul>{r.approvals.map((a, i) => <li key={i}>{a.kind} (iteration {a.iteration}): <StatusBadge status={a.status} /></li>)}</ul>
+            </Card>
+          )}
+
+          <Card
+            title="Artifacts"
+            actions={
+              <div className="row">
+                <button onClick={() => void download(`/tasks/${id}/report.md`, `report-${id}.md`)}>Report (.md)</button>
+                <button className="primary" disabled={r.files.length === 0} onClick={() => void download(`/tasks/${id}/download`, `task-${id}.zip`)}>
+                  Code (.zip)
+                </button>
+              </div>
+            }
+          >
+            {dlError && <p className="error" role="alert">{dlError}</p>}
+            {r.files.length === 0 && <Empty>No files were generated.</Empty>}
+            <table className="table">
+              <tbody>
+                {r.files.map((f) => (
+                  <tr key={f.path}><td><code>{f.path}</code></td><td className="muted small">sha256 {f.sha256.slice(0, 12)}…</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {r.readme_generated && <p className="muted small">A README for the generated project is included in the .md report.</p>}
+          </Card>
+        </>
+      )}
     </>
   );
 }

@@ -1,0 +1,18 @@
+{
+  "id": "bug-06-delete-noop",
+  "category": "bug_fixing",
+  "difficulty": "easy",
+  "requirement": "The FastAPI project below (entry point `app.main:app`) has a bug. Fix it so the behaviour described in SPEC holds, keep every existing endpoint/function and its signature, and return the COMPLETE corrected project including its unit tests (add a test that would have caught the bug).\n\nSYMPTOM: `DELETE /notes/1` returns 204 but the note is still listed afterwards.\n\nSPEC: Deleting a note removes it for good: afterwards it is gone from `GET /notes`, a second delete returns 404, and ids of remaining notes are unchanged. New notes get `max(id)+1` (so ids are not reused while a higher id exists).\n\nExisting project files:\n\nFile `app/main.py`:\n```python\nfrom fastapi import FastAPI, HTTPException, Response\n\napp = FastAPI()\nNOTES: dict[int, dict] = {1: {\"id\": 1, \"text\": \"first\"}, 2: {\"id\": 2, \"text\": \"second\"}}\n\n\n@app.get(\"/notes\")\ndef list_notes():\n    return list(NOTES.values())\n\n\n@app.delete(\"/notes/{note_id}\", status_code=204)\ndef delete_note(note_id: int):\n    notes = dict(NOTES)\n    if note_id not in notes:\n        raise HTTPException(status_code=404, detail=\"not found\")\n    notes.pop(note_id)\n    return Response(status_code=204)\n\n\n@app.post(\"/notes\", status_code=201)\ndef add_note(note: dict):\n    note_id = max(NOTES, default=0) + 1\n    NOTES[note_id] = {\"id\": note_id, \"text\": str(note.get(\"text\", \"\"))}\n    return NOTES[note_id]\n```\n",
+  "acceptance_criteria": [
+    "Deleted notes disappear from the list",
+    "Deleting twice returns 404",
+    "Id assignment is unchanged"
+  ],
+  "entrypoint": "app.main:app",
+  "rubric": {
+    "primary": "all hidden tests pass (hidden_pass_rate == 1.0)",
+    "partial": "hidden_pass_rate is the fraction of hidden tests passed; reported separately",
+    "notes": "hidden tests are executed in a separate, independent step; the agents' own tests do not count"
+  },
+  "has_seed": true
+}

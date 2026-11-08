@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database.models import Artifact
 from app.schemas.plan import FileChange, validate_relative_path
+from app.utils.redact import redact
 
 
 class WorkspaceError(Exception):
@@ -132,15 +133,17 @@ def write_log(
     iteration_number: int,
     name: str,
     content: str,
+    artifact_type: str = "log",
 ) -> Artifact:
-    """Store execution output as a `log` artifact (spec 3.6)."""
+    """Store execution output as a `log` artifact (spec 3.6); `doc` for generated docs."""
+    content = redact(content)  # logs may echo environment values from generated code
     base = log_dir(task_id, iteration_number)
     base.mkdir(parents=True, exist_ok=True)
     target = resolve_safe(base, name)
     _atomic_write(target, content)
     artifact = Artifact(
         iteration_id=iteration_id,
-        artifact_type="log",
+        artifact_type=artifact_type,
         file_name=name,
         storage_path=str(target),
         file_hash=hashlib.sha256(content.encode("utf-8")).hexdigest(),

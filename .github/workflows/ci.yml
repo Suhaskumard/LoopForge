@@ -36,6 +36,12 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
         run: alembic upgrade head && alembic downgrade base
+      - name: Benchmark tasks are sound (30, hidden tests)
+        working-directory: .
+        run: python benchmarks/validate_tasks.py
+      - name: Acceptance checklist (spec 15.1)
+        working-directory: .
+        run: python scripts/acceptance_check.py
       - name: Image builds
         working-directory: .
         run: docker build -t loopforge-backend backend

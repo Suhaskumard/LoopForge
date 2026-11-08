@@ -50,7 +50,7 @@ AGENTS = [
     AgentInfo(
         name="Documentation",
         role="Final documentation",
-        implemented=False,
+        implemented=True,
         phase=6,
         may_not="Run before a terminal state",
     ),
