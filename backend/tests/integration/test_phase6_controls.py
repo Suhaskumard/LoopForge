@@ -215,7 +215,9 @@ def test_a4_blind_retry_ignores_repeated_identical_failures(client):
 
 
 def test_presets_cover_the_spec_configurations():
-    assert set(PRESETS) == {"E1", "E2", "E3", "A1", "A2", "A3", "A4"}
+    spec = {"E1", "E2", "E3", "A1", "A2", "A3", "A4"}
+    assert spec <= set(PRESETS)  # Phase 9 adds the P0-P4 ablation presets on top
+    assert set(PRESETS) - spec == {"P0", "P1", "P2", "P3", "P4"}
     assert PRESETS["E1"].max_iterations == 1 and PRESETS["E2"].max_iterations == 2
     assert PRESETS["E3"].max_iterations is None
 

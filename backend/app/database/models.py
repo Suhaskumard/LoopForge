@@ -132,6 +132,9 @@ class AgentRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     iteration_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("iterations.id"), index=True)
     agent_name: Mapped[str] = mapped_column(String)
+    model: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # Phase 9: which model served it
     input_summary: Mapped[str] = mapped_column(Text, default="")
     output_summary: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String, default="success")
@@ -208,6 +211,8 @@ class RepairHistory(Base):
     )
     original_failure: Mapped[str] = mapped_column(Text, default="")
     failure_category: Mapped[str] = mapped_column(String, default="")
+    failure_class: Mapped[str] = mapped_column(String, default="")  # Phase 9: syntax/import/...
+    fingerprint: Mapped[str | None] = mapped_column(String, nullable=True, index=True)  # Phase 9
     root_cause: Mapped[str] = mapped_column(Text, default="")
     proposed_fix: Mapped[str] = mapped_column(Text, default="")
     files_modified: Mapped[list[Any]] = mapped_column(JsonType, default=list)

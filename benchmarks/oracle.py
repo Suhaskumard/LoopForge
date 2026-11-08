@@ -120,7 +120,9 @@ class OracleLLM:
         )
 
     # -- LLMClient protocol -----------------------------------------------------------------
-    def complete_json(self, *, system: str, user: str, response_model: type[T]) -> LLMResult[T]:
+    def complete_json(
+        self, *, system: str, user: str, response_model: type[T], model: str | None = None
+    ) -> LLMResult[T]:
         name = response_model.__name__
         self.calls.append(name)
         answers: dict[str, Any] = {

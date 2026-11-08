@@ -42,7 +42,9 @@ class LLMResult(Generic[T]):
 
 
 class LLMClient(Protocol):
-    def complete_json(self, *, system: str, user: str, response_model: type[T]) -> LLMResult[T]: ...
+    def complete_json(
+        self, *, system: str, user: str, response_model: type[T], model: str | None = None
+    ) -> LLMResult[T]: ...
 
 
 def parse_output(raw: str | None, response_model: type[T]) -> T:
@@ -92,10 +94,12 @@ class OpenAIClient:
             min(settings.llm_backoff_base_seconds * (2**attempt), settings.llm_backoff_max_seconds)
         )
 
-    def complete_json(self, *, system: str, user: str, response_model: type[T]) -> LLMResult[T]:
+    def complete_json(
+        self, *, system: str, user: str, response_model: type[T], model: str | None = None
+    ) -> LLMResult[T]:
         schema = response_model.model_json_schema()
         kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -152,6 +156,7 @@ class FakeCall:
     system: str
     user: str
     response_model: str
+    model: str | None = None  # which model the caller asked for (Phase 9 routing)
 
 
 @dataclass
@@ -165,8 +170,10 @@ class FakeLLMClient:
         self.responses.extend(items)
         return self
 
-    def complete_json(self, *, system: str, user: str, response_model: type[T]) -> LLMResult[T]:
-        self.calls.append(FakeCall(system, user, response_model.__name__))
+    def complete_json(
+        self, *, system: str, user: str, response_model: type[T], model: str | None = None
+    ) -> LLMResult[T]:
+        self.calls.append(FakeCall(system, user, response_model.__name__, model))
         if not self.responses:
             raise LLMError("FakeLLMClient: no canned response queued")
         item = self.responses.popleft()

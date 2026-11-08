@@ -334,7 +334,14 @@ def build_graph(
             move(TaskStatus.REPAIRING, only_from={TaskStatus.REVIEWING})
             report = _failure_report(state)
             new_it = repair.run(
-                ctx, report, state["failure_fingerprints"][-1], memory=config.memory_enabled
+                ctx,
+                report,
+                state["failure_fingerprints"][-1],
+                memory=config.memory_enabled,
+                failure_routing=config.failure_routing,
+                targeted_context=config.targeted_context,
+                test_guard=config.test_guard,
+                history_retrieval=config.history_retrieval,
             )
         except AgentFailure as exc:
             return fail(state, "repair", exc, escalate=exc.escalate)

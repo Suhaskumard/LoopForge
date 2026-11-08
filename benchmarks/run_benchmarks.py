@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT.parent / "backend"))
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default="E3", help="comma list of E1,E2,E3,A1,A2,A3,A4")
+    ap.add_argument("--config", default="E3", help="comma list of E1,E2,E3,A1..A4,P0..P4")
     ap.add_argument("--trials", type=int, default=1, help="repeated trials per task (>=3 for statistics)")
     ap.add_argument("--tasks", default="", help="comma list of task ids (default: all)")
     ap.add_argument("--category", default="", help="only tasks of this category")

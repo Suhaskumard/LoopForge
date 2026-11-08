@@ -18,11 +18,11 @@ users 1─N refresh_tokens          login_attempts (standalone, keyed by "ip|ema
 | projects | owner `user_id`, `language`, `version` (optimistic lock) |
 | tasks | `status` CHECK-constrained to the 12 lifecycle states (adds `AWAITING_APPROVAL`), optional `token_budget` / `max_cost`, `require_plan_approval`, `max_iterations ≥ 1`, `acceptance_criteria` JSONB, `version` |
 | iterations | UNIQUE (`task_id`, `iteration_number`) |
-| agent_runs | one row per agent call: status `running|success|failed|timeout`, tokens, duration, `started_at` (chronological order), error, **summaries only (never full prompts)** |
+| agent_runs | one row per agent call: **`model` (Phase 9, nullable: model that served it)**, status `running|success|failed|timeout`, tokens, duration, `started_at` (chronological order), error, **summaries only (never full prompts)** |
 | test_results · artifacts | execution evidence (spec §7.2); Phase 2 writes `artifacts` rows (`source`, sha256) for every generated file |
 | audit_events | `task_created`, `status_changed {from,to}`, … |
 | requirements | Addendum 16.1 traceability: `req_id` (UNIQUE per task), type, priority, impl/test mapping, verification_status, evidence_ref |
-| repair_history | Addendum 16.2: failure, category, root cause, fix, files, tests, outcome, regression status, tokens, duration |
+| repair_history | Addendum 16.2: failure, category, **`failure_class` + indexed `fingerprint` (Phase 9, migration 0005)**, root cause, fix, files, tests, outcome, regression status, tokens, duration |
 | approval_requests | Phase 6 human gate: `kind` plan/large_repair, `status` pending/approved/rejected, `iteration_number`, `detail` (files), `resume_status` |
 | refresh_tokens | SHA-256 `token_hash` (unique), `family_id`, `expires_at`, `revoked_at` |
 | login_attempts | rate-limit log; index (`key`,`created_at`) |

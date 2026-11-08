@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     refresh_expire_days: int = 14
     openai_api_key: str = ""
     openai_model: str = ""
+    # Phase 9 model routing (ADR-0016): empty = use OPENAI_MODEL.
+    # Typical: a cheap model for Planner/Documentation, a stronger one for Repair/Reviewer.
+    model_planner: str = ""
+    model_builder: str = ""
+    model_repair: str = ""
+    model_reviewer: str = ""
+    model_documentation: str = ""
     max_iterations: int = 5
     max_execution_seconds: int = 120
     max_task_duration_seconds: int = 900
@@ -70,6 +77,11 @@ class Settings(BaseSettings):
         if self.environment == "production" and self.sandbox_backend == "fake":
             raise ValueError("SANDBOX_BACKEND=fake is not allowed in production")
         return self
+
+    def model_for(self, agent: str) -> str | None:
+        """Model override for an agent name (Planner, Builder, Repair, Reviewer, Documentation)."""
+        override = getattr(self, f"model_{agent.lower()}", "")
+        return override or None
 
 
 settings = Settings()

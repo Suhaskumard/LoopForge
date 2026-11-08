@@ -18,6 +18,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database.models import AgentRun, AuditEvent, Iteration, Task
 from app.services.llm_client import LLMClient, LLMError, LLMOutputError, LLMTimeout
 from app.utils.redact import redact
@@ -88,10 +89,12 @@ def call_agent(
     validate: Callable[[T], None] | None = None,
 ) -> T:
     """Run one agent call inside an `agent_runs` row and return validated output."""
+    model = settings.model_for(agent_name)  # Phase 9 routing; None = the client's default model
     run = AgentRun(
         id=uuid.uuid4(),
         iteration_id=ctx.iteration.id,
         agent_name=agent_name,
+        model=model or getattr(ctx.llm, "model", None),
         input_summary=redact(input_summary)[:500],
         status="running",
     )
@@ -108,7 +111,10 @@ def call_agent(
     for attempt in range(1, MAX_OUTPUT_ATTEMPTS + 1):
         try:
             llm_result = ctx.llm.complete_json(
-                system=f"{SECURITY_POLICY}\n\n{system}", user=prompt, response_model=response_model
+                system=f"{SECURITY_POLICY}\n\n{system}",
+                user=prompt,
+                response_model=response_model,
+                model=model,
             )
         except LLMOutputError as exc:
             failure = str(exc)

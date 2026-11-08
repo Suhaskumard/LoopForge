@@ -33,7 +33,14 @@ _T975 = [
     2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086,
     2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042,
 ]  # fmt: skip
-ORDER = ["E1", "E2", "E3", "A1", "A2", "A3", "A4"]
+ORDER = ["E1", "E2", "E3", "A1", "A2", "A3", "A4", "P0", "P1", "P2", "P3", "P4"]
+PHASE9_REMOVED = {
+    "P0": "ALL Phase 9 features (Phase 8 behaviour)",
+    "P1": "failure-class repair strategies",
+    "P2": "targeted Repair context",
+    "P3": "test-weakening guard",
+    "P4": "similar-repair retrieval",
+}
 NOT_RUN = "To be measured"
 
 
@@ -196,6 +203,36 @@ def report(manifest: dict, rows: list[dict]) -> str:
             out.append(f"| {c} | {removed[c]} | {s['n']} | {s['tsr']:.1f}% | {fmt(s['tpr'], 1, '%')} | {s['avg_iterations']:.2f} | {fmt(s['cps'], 4)} |")
         else:
             out.append(f"| {c} | {removed[c]} | 0 | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} |")
+    if any(c in sums for c in PHASE9_REMOVED):
+        out += [
+            "",
+            "## Phase 9 ablations (E3 = all Phase 9 features on)",
+            "",
+            "| Config | Removed | Trials | TSR (Wilson 95%) | Avg iterations | Tokens/trial | vs E3 |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        base = sums.get("E3")
+        for c, what in PHASE9_REMOVED.items():
+            if c not in sums:
+                out.append(f"| {c} | {what} | 0 | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} | {NOT_RUN} |")
+                continue
+            r = sums[c]
+            lo, hi = r["tsr_wilson"]
+            if base is None:
+                verdict = "no E3 run to compare with"
+            elif lo <= base["tsr_wilson"][1] and base["tsr_wilson"][0] <= hi:
+                verdict = "TSR difference not distinguishable from noise"
+            else:
+                verdict = "E3 better" if base["tsr"] > r["tsr"] else "E3 WORSE (feature hurts)"
+            out.append(
+                f"| {c} | {what} | {r['n']} | {r['tsr']:.1f}% ({lo:.1f}-{hi:.1f}) | "
+                f"{r['avg_iterations']:.2f} | {r['tokens_mean']:.0f} | {verdict} |"
+            )
+        out += [
+            "",
+            "A feature that is not distinguishable from noise is reported as NOT shown to help; "
+            "with few trials the intervals are wide and that is the expected result.",
+        ]
     out += [
         "",
         "E4-E6 (Addendum 21.2: requirement traceability, adaptive repair, complete enhanced workflow) are not "
