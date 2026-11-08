@@ -39,7 +39,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ github.ref_name }}
           provenance: false     # the attestation step below produces the provenance
-      - uses: sigstore/cosign-installer@v3.7.0
+      - uses: sigstore/cosign-installer@v4.1.3
       - name: Sign the image by digest (keyless)
         run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
       - uses: actions/attest-build-provenance@v2
