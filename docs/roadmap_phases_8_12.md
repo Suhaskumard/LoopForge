@@ -1,6 +1,6 @@
 # Roadmap: Phases 8-12 (draft)
 
-Status: **Phases 8 (ADR-0015), 9 (ADR-0016), 10 (ADR-0017) and 11 (ADR-0018) are built; 12 is a proposal.** Phases 1-11 are in the repo. The README already names the post-MVP
+Status: **Phases 8-12 are built (ADR-0015 to ADR-0019).** The Phase 12 items that need a real model, PostgreSQL, Docker or an outside tester are tooling and runbooks only: see ADR-0019 and `docs/evaluation_report.md` (real results: "To be measured"). The README already names the post-MVP
 direction ("7 scale, 8 languages/repos, 9 advanced intelligence, 10 enterprise"); this draft follows it and adds
 Phases 11-12. Each phase ends with a gate script like `scripts/phaseN_gate.sh` (= previous gate + new checks).
 

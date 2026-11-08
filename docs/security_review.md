@@ -39,6 +39,32 @@ bomb, limits, git option/scheme injection, non-public hosts, secret exclusion) a
 (a leaked key never appears in any recorded prompt). Not covered: DNS rebinding between the address check and the
 clone, and secret formats outside the pattern list.
 
+## Phase 12 additions (operations and supply chain)
+Method: ran the scanners that exist locally, fixed what they found, wrote down what remains. Items marked
+**(CI only)** were written into `.github/workflows/ci.yml` but could not be run in the development environment.
+
+| # | Finding / control | Result | Evidence |
+|---|---|---|---|
+| 12.1 | **Dependency vulnerabilities (frontend)**: `npm audit` reported 3 HIGH advisories (open redirect, XSS via open redirect) in `react-router-dom` 6.28.0 / `@remix-run/router` | **Fixed**: `react-router-dom` 6.30.6 (same major). Two MODERATE advisories remain (open redirect via backslash in `<Link>`/`useNavigate`; SSR-only deserialisation) and need a breaking jump to v7. LoopForge navigates only to fixed internal paths and has no SSR, so the exposure is low, but it is **not** closed | `scripts/security_scan.sh`, `test_frontend_does_not_pin_the_react_router_versions_with_high_advisories` |
+| 12.2 | **Static analysis**: bandit over `backend/app` | 0 HIGH, 0 MEDIUM. Two MEDIUM findings were resolved (metrics server bound to all interfaces by default -> now `127.0.0.1` unless `WORKER_METRICS_HOST` says otherwise; a false positive on the sandbox's *in-container* `/tmp` tmpfs). 19 LOW remain, accepted: `assert` used for type narrowing after a lookup that was just validated (13), `subprocess` with fixed argv and no shell in the sandbox and repo import (5), the `'change-me'` default that the production validator rejects (1) | `test_bandit_finds_nothing_at_medium_or_high_severity`, `test_bandit_low_findings_do_not_grow_unnoticed` (budget 19) |
+| 12.3 | **Python dependency vulnerabilities**: pip-audit on `requirements-runtime.txt`; **SBOMs** (CycloneDX); **image scan** (Trivy, HIGH/CRITICAL) | **(CI only)** - not run here, so no claim about the current state of the Python dependencies | `supply-chain` job; `test_ci_runs_the_security_and_resilience_checks` |
+| 12.4 | **Production image shipped test/lint/type tools** (pytest, ruff, mypy, bandit, hypothesis) | **Fixed**: the image installs `requirements-runtime.txt` only; a test proves every third-party import in `app/` is covered by it | `test_every_third_party_import_in_app_is_covered_by_the_runtime_requirements` |
+| 12.5 | **Migration race** (every replica ran `alembic upgrade head` on start) could corrupt or fail a rolling deploy | **Fixed**: one-shot `migrate` service, PostgreSQL advisory lock (untested on PostgreSQL here) | `test_phase12_reliability.py` |
+| 12.6 | **Metrics exposure**: `/metrics` shows activity levels (no user data, no ids) | Off by default; bearer token when `METRICS_TOKEN` is set; route *templates* only, so ids never become labels. The worker metrics port has **no authentication**: restrict it with network policy | `test_phase12_observability.py` |
+| 12.7 | **Backups hold sensitive data** (password hashes, encrypted integration tokens, audit trail, generated code) | `restore` verifies checksums first and refuses archives with absolute or `..` paths; **encrypt and access-control the backup location yourself** (the scripts do not encrypt). Retention does not reach into backups | `backup_drill.py`, `test_restore_refuses_archives_that_escape_the_target_directory` |
+| 12.8 | **CI privileges**: workflow token could write to the repository | `permissions: contents: read`; third-party actions pinned to versions | `test_ci_actions_are_pinned_to_a_version` |
+
+### Sandbox flag review (analysis, not a proof)
+`build_run_args` (`execution/sandbox.py`) starts each run with: `--network none`, a non-root UID, `--read-only`
+root filesystem, a `noexec,nosuid` tmpfs for `/tmp`, `--cap-drop ALL`, `no-new-privileges`, memory (= swap), CPU and
+PID limits, `nofile` ulimit, the workspace bind-mounted **read-only**, and one writable output directory. Observations:
+- No custom seccomp/AppArmor profile (Docker's default applies), no user-namespace remapping, no gVisor/Firecracker.
+- The writable output directory is world-writable on purpose (the unprivileged sandbox user must write reports into
+  it); generated code can therefore put arbitrary bytes there. The host only *parses* it (pytest JSON report, size and
+  trace length capped), never executes it.
+- A container escape through a kernel or runtime vulnerability is **not** prevented by any of these flags. The
+  mitigation is operational: dedicated hosts for workers, patched Docker, and evaluating gVisor/Firecracker.
+
 ## Residual risks (not solved)
 - **Containers are not a hard boundary.** Docker with the controls in security_model is defence in depth; gVisor or
   Firecracker were not evaluated. Do not run hostile workloads on a shared host.
@@ -47,7 +73,7 @@ clone, and secret formats outside the pattern list.
 - **Prompts go to a third party.** Whatever is not redacted is sent to the LLM provider.
 - **WebSocket token in the URL** can land in proxy logs; 15-minute lifetime limits the damage.
 - **Refresh token in sessionStorage** is readable by any XSS (ADR-0011); mitigated by CSP and no HTML injection, not removed.
-- **No dependency vulnerability scanning**, no SBOM, no signed images.
+- **Dependency scanning is CI-only** (Phase 12): `pip-audit`, `npm audit`, SBOMs and an image scan are configured but have never run on a real CI runner; images are not signed. Two MODERATE `react-router` advisories remain (see 12.1).
 - **Approver model (Phase 10)**: approvals now need the *approver* role and record who decided; there is still no rule preventing the person who started a task from approving it (no separation of duties).
-- **CI has never run on GitHub**, and nothing has been penetration-tested by a third party.
+- **CI has never run on GitHub**, and nothing has been penetration-tested by a third party. Phase 12 added tooling, not an external test.
 - **The real Docker sandbox was not exercised in this environment** unless the acceptance check reports item 4 as PASS.

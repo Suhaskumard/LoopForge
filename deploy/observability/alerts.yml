@@ -1,0 +1,79 @@
+# Prometheus alert rules for LoopForge (Phase 12, ADR-0019).
+# Thresholds are STARTING POINTS, not tuned values: adjust them after you have seen real traffic.
+# Scrape the API (`/metrics`, METRICS_ENABLED=true) and every worker (WORKER_METRICS_PORT) separately.
+# `backend/tests/integration/test_phase12_observability.py` checks that every metric used below exists.
+groups:
+  - name: loopforge-availability
+    rules:
+      - alert: LoopForgeHighErrorRate
+        expr: |
+          sum(rate(loopforge_http_requests_total{status_class="5xx"}[5m]))
+            / clamp_min(sum(rate(loopforge_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: More than 5% of API requests fail with 5xx
+          runbook: docs/operations.md#incident-checklist
+      - alert: LoopForgeSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(loopforge_http_request_duration_seconds_bucket[5m]))) > 2
+        for: 10m
+        labels: {severity: warn}
+        annotations:
+          summary: API p95 latency above 2 seconds
+          runbook: docs/operations.md#incident-checklist
+
+  - name: loopforge-workers
+    rules:
+      - alert: LoopForgeQueueBacklog
+        expr: loopforge_jobs_oldest_queued_age_seconds > 300
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: A job has waited more than 5 minutes for a worker
+          runbook: docs/operations.md#scaling-workers
+      - alert: LoopForgeNoWorkersRunning
+        expr: loopforge_jobs_queued > 0 and loopforge_jobs_running == 0
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: Jobs are queued but no worker is processing any
+          runbook: docs/operations.md#scaling-workers
+      - alert: LoopForgeStalledRuns
+        expr: loopforge_expired_leases > 0
+        for: 5m
+        labels: {severity: warn}
+        annotations:
+          summary: A run stopped renewing its lease (worker died or hung); recovery should resume it
+          runbook: docs/operations.md#worker-crash-recovery
+      - alert: LoopForgeLeaseTakeovers
+        expr: increase(loopforge_lease_takeovers_total[15m]) > 0
+        labels: {severity: info}
+        annotations:
+          summary: A task was taken over from a dead worker (expected after a crash or deploy)
+          runbook: docs/operations.md#worker-crash-recovery
+
+  - name: loopforge-dependencies
+    rules:
+      - alert: LoopForgeModelFailures
+        expr: |
+          sum(rate(loopforge_llm_calls_total{outcome="failed"}[15m]))
+            / clamp_min(sum(rate(loopforge_llm_calls_total[15m])), 0.001) > 0.3
+        for: 15m
+        labels: {severity: warn}
+        annotations:
+          summary: More than 30% of agent calls fail (provider outage, quota, or bad output)
+          runbook: docs/operations.md#incident-checklist
+      - alert: LoopForgeSandboxInfrastructureErrors
+        expr: increase(loopforge_sandbox_runs_total{outcome="infrastructure_error"}[10m]) > 0
+        labels: {severity: page}
+        annotations:
+          summary: The sandbox could not run (Docker daemon or image problem), not a failing test
+          runbook: docs/operations.md#incident-checklist
+      - alert: LoopForgeTokenSpendHigh
+        expr: loopforge_tokens_used_month > 5000000
+        labels: {severity: info}
+        annotations:
+          summary: Model tokens this month exceeded 5M across all organizations (adjust to your budget)
+          runbook: docs/operations.md#cost-and-quotas

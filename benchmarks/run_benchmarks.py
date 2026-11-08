@@ -120,6 +120,7 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
     from app.execution.runner import run_command
     from app.orchestrator.loop_config import PRESETS
     from app.schemas.project import ProjectCreate
+    import provenance
     from app.services import (
         analytics_service,
         org_service,
@@ -160,6 +161,8 @@ def run(args: argparse.Namespace, configs: list[str], tasks: list[dict], out: Pa
                 "cost_per_1k_tokens": settings.cost_per_1k_tokens,
                 "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "tasks": [t["id"] for t in tasks],
+                # what produced these numbers: commit, task set, loop configs, requirements, interpreter
+                "provenance": provenance.collect(TASKS_DIR, PRESETS),
             },
             indent=2,
         ),

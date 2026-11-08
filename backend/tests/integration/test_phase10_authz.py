@@ -23,6 +23,7 @@ _REAL_GENSALT = bcrypt.gensalt  # captured before any test patches it
 MATRIX: dict[tuple[str, str], str] = {
     ("GET", "/health"): "public",
     ("GET", "/health/ready"): "public",
+    ("GET", "/metrics"): "public",  # 404 unless METRICS_ENABLED; bearer token when configured
     ("GET", "/docs"): "public",
     ("HEAD", "/docs"): "public",
     ("GET", "/docs/oauth2-redirect"): "public",

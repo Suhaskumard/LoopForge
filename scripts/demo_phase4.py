@@ -80,7 +80,9 @@ def make_task(**kw: object) -> str:
     return str(client.post("/api/v1/tasks", json=body, headers=h).json()["id"])
 
 
-def start(script: list, llm_items: list, **kw: object) -> tuple[str, ScriptedSandbox, FakeLLMClient]:
+def start(
+    script: list, llm_items: list, **kw: object
+) -> tuple[str, ScriptedSandbox, FakeLLMClient]:
     sandbox, llm = ScriptedSandbox(script), FakeLLMClient().queue(*llm_items)
     app.dependency_overrides[get_sandbox] = lambda: sandbox
     app.dependency_overrides[get_llm] = lambda: llm
@@ -109,7 +111,10 @@ rep = its(tid)[1]["repair"]
 print(f"   root cause: {rep['root_cause']}")
 diff = client.get(f"/api/v1/iterations/{its(tid)[1]['id']}/diff", headers=h).json()
 print("   diff:", [f["path"] for f in diff["files"]])
-ok("iteration 1 failed, iteration 2 accepted", [i["status"] for i in its(tid)] == ["failed_tests", "accepted"])
+ok(
+    "iteration 1 failed, iteration 2 accepted",
+    [i["status"] for i in its(tid)] == ["failed_tests", "accepted"],
+)
 ok("task COMPLETED autonomously", status(tid) == "COMPLETED")
 
 print("\n=== 2. Every repair is followed by a full test re-run before acceptance ===")
@@ -117,10 +122,14 @@ ev = client.get(f"/api/v1/tasks/{tid}/events", headers=h).json()
 types = [e["event_type"] for e in ev]
 after_repair = types[types.index("repair_applied") :]
 print("   events after repair:", [t for t in after_repair if t != "status_changed"])
-ok("pytest ran once per iteration, on that iteration's own workspace",
-   [w.name for w in sandbox.workspaces] == ["iter_1", "iter_2"])
-ok("tests_executed (iteration 2) happens between the repair and the acceptance",
-   after_repair.index("tests_executed") < after_repair.index("decision"))
+ok(
+    "pytest ran once per iteration, on that iteration's own workspace",
+    [w.name for w in sandbox.workspaces] == ["iter_1", "iter_2"],
+)
+ok(
+    "tests_executed (iteration 2) happens between the repair and the acceptance",
+    after_repair.index("tests_executed") < after_repair.index("decision"),
+)
 
 print("\n=== 3. The loop stops and escalates at the iteration, time and token limit ===")
 tid, sb, _ = start(
@@ -128,10 +137,16 @@ tid, sb, _ = start(
     [PLAN, DEFECT, repair_output()],
     max_iterations=2,
 )
-ok(f"iteration limit: ESCALATED after {len(its(tid))} iterations", status(tid) == "ESCALATED" and sb.pytest_runs == 2)
+ok(
+    f"iteration limit: ESCALATED after {len(its(tid))} iterations",
+    status(tid) == "ESCALATED" and sb.pytest_runs == 2,
+)
 settings.max_task_duration_seconds = 0
 tid, sb, _ = start([failing_update_report()], [PLAN, DEFECT])
-ok("time limit: ESCALATED without starting another iteration", status(tid) == "ESCALATED" and sb.pytest_runs == 1)
+ok(
+    "time limit: ESCALATED without starting another iteration",
+    status(tid) == "ESCALATED" and sb.pytest_runs == 1,
+)
 settings.max_task_duration_seconds = 900
 settings.max_token_budget = 4500
 tid, sb, _ = start(
@@ -142,13 +157,13 @@ ok("token limit: ESCALATED when the budget is spent", status(tid) == "ESCALATED"
 settings.max_token_budget = 30000
 
 print("\n=== 4. Identical repeated failures trigger escalation ===")
-tid, sb, _ = start(
-    [failing_update_report()], [PLAN, DEFECT, repair_output(), repair_output()]
-)
+tid, sb, _ = start([failing_update_report()], [PLAN, DEFECT, repair_output(), repair_output()])
 fps = {i["decision"]["fingerprint"][:10] for i in its(tid)}
 print(f"   {len(its(tid))} iterations, distinct failure fingerprints: {sorted(fps)}")
-ok("same failure 3x -> ESCALATED well before the 5-iteration limit",
-   status(tid) == "ESCALATED" and len(its(tid)) == 3 and len(fps) == 1)
+ok(
+    "same failure 3x -> ESCALATED well before the 5-iteration limit",
+    status(tid) == "ESCALATED" and len(its(tid)) == 3 and len(fps) == 1,
+)
 
 print("\n=== 5. A workflow interrupted mid-iteration resumes from its checkpoint ===")
 sandbox = ScriptedSandbox([failing_update_report(), Crash, passing_report_for_demo()])

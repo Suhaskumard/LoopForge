@@ -81,7 +81,10 @@ root = Path(os.environ["WORKSPACE_ROOT"])
 on_disk = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
 for f in files:
     print(f"   {f['path']:<24} sha256:{f['sha256'][:12]}")
-ok("every planned file was written", {f["path"] for f in files} == {f["path"] for f in plan["files"]})
+ok(
+    "every planned file was written",
+    {f["path"] for f in files} == {f["path"] for f in plan["files"]},
+)
 ok(
     "all files live under <workspace>/<task>/iter_1/ and nowhere else",
     all(p.startswith(f"{tid}/") for p in on_disk)  # Phase 3 adds logs/ and out/ beside iter_1/
@@ -91,8 +94,13 @@ ok(
 print("\n=== 3. Agent runs, tokens, lifecycle ===")
 runs = client.get(f"/api/v1/tasks/{tid}/agent-runs", headers=h).json()
 for a in runs:
-    print(f"   {a['agent_name']:<8} {a['status']:<8} tokens={a['tokens_used']:<6} {a['duration_seconds']:.3f}s")
-ok("token usage recorded in agent_runs", all(a["tokens_used"] > 0 for a in runs if a["agent_name"] != "Verifier"))
+    print(
+        f"   {a['agent_name']:<8} {a['status']:<8} tokens={a['tokens_used']:<6} {a['duration_seconds']:.3f}s"
+    )
+ok(
+    "token usage recorded in agent_runs",
+    all(a["tokens_used"] > 0 for a in runs if a["agent_name"] != "Verifier"),
+)
 status = client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"]
 ok(f"task driven on by the Phase 3/4 loop to COMPLETED (is {status})", status == "COMPLETED")
 
@@ -106,8 +114,14 @@ rejected = [e for e in events if e["event_type"] == "agent_output_rejected"]
 for e in rejected:
     print(f"   rejected attempt {e['event_data']['attempt']}: {e['event_data']['reason'][:90]}")
 ok("both malformed outputs were logged as rejected", len(rejected) == 2)
-ok("task ended FAILED (not accepted)", client.get(f"/api/v1/tasks/{tid2}", headers=h).json()["status"] == "FAILED")
-ok("no requirements/files were persisted", client.get(f"/api/v1/tasks/{tid2}/files", headers=h).json() == [])
+ok(
+    "task ended FAILED (not accepted)",
+    client.get(f"/api/v1/tasks/{tid2}", headers=h).json()["status"] == "FAILED",
+)
+ok(
+    "no requirements/files were persisted",
+    client.get(f"/api/v1/tasks/{tid2}/files", headers=h).json() == [],
+)
 
 print("\n=== 5. Prompt injection cannot escape the workspace ===")
 from app.demo.employee_management import builder_output  # noqa: E402
@@ -117,6 +131,9 @@ out["files"].append({"path": "../../evil.py", "content": "import os", "action": 
 app.dependency_overrides[get_llm] = lambda: FakeLLMClient().queue(demo_plan(), out, out)
 tid3 = new_task(h)
 client.post(f"/api/v1/tasks/{tid3}/start", headers=h)
-ok("escaping path refused, task FAILED", client.get(f"/api/v1/tasks/{tid3}", headers=h).json()["status"] == "FAILED")
+ok(
+    "escaping path refused, task FAILED",
+    client.get(f"/api/v1/tasks/{tid3}", headers=h).json()["status"] == "FAILED",
+)
 ok("nothing named evil.py exists anywhere", not list(work.rglob("evil.py")))
 print("\nPHASE 2 DEMO: ALL CHECKS PASSED")

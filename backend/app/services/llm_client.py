@@ -190,10 +190,50 @@ class FakeLLMClient:
         return LLMResult(parse_output(raw, response_model), usage)
 
 
+class _SlowFakeLLM(FakeLLMClient):
+    """The fake model with latency, for drills (chaos, load) that need time to interrupt a run.
+
+    It answers by the *kind* of request (plan / build / repair / review) instead of by queue
+    order, so a brand-new process that resumes a half-finished run after a crash gets the right
+    answers.
+    Only reachable with LLM_PROVIDER=fake, which production refuses (config validator).
+    """
+
+    def __init__(self, delay: float) -> None:
+        super().__init__()
+        self.delay = delay
+
+    def complete_json(
+        self, *, system: str, user: str, response_model: type[T], model: str | None = None
+    ) -> LLMResult[T]:
+        from app.demo import employee_management as demo
+
+        factories: dict[str, Callable[[], BaseModel]] = {
+            "ProjectPlan": demo.demo_plan,
+            "BuilderOutput": demo.builder_output,
+            "RepairOutput": demo.repair_output,
+            "ReviewOutput": demo.review_output,
+        }
+        time.sleep(self.delay)
+        name = response_model.__name__
+        if name not in factories:
+            raise LLMError(f"slow fake LLM has no canned answer for {name}")
+        self.responses.clear()
+        self.responses.append(factories[name]())
+        return super().complete_json(
+            system=system, user=user, response_model=response_model, model=model
+        )
+
+
 def get_llm_client() -> LLMClient:
     """Factory/dependency. `fake` serves the built-in demo (never allowed in production)."""
     if settings.llm_provider == "fake":
         from app.demo.employee_management import demo_responses
 
-        return FakeLLMClient().queue(*demo_responses())
+        client = (
+            _SlowFakeLLM(settings.fake_llm_delay_seconds)
+            if settings.fake_llm_delay_seconds > 0
+            else FakeLLMClient()
+        )
+        return client.queue(*demo_responses())
     return OpenAIClient()

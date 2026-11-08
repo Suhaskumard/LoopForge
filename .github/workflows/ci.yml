@@ -1,6 +1,10 @@
 name: CI
 on: [push, pull_request]
 
+# Least privilege: no job here needs to write to the repository.
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -42,9 +46,57 @@ jobs:
       - name: Acceptance checklist (spec 15.1)
         working-directory: .
         run: python scripts/acceptance_check.py
+      - name: Static security scan (bandit, medium and above fail the build)
+        run: bandit -r app -ll -q
+      - name: Crash-recovery drill (kill a real worker, another finishes the task)
+        working-directory: .
+        run: python scripts/chaos_drill.py
+      - name: Backup and restore drill
+        working-directory: .
+        run: python scripts/backup_drill.py
+      - name: Slow tests (live-server load and isolation smoke)
+        run: pytest -q -m slow
       - name: Image builds
         working-directory: .
         run: docker build -t loopforge-backend backend
+
+  # Supply chain: dependency vulnerabilities, SBOMs and an image scan. These need the network and are
+  # reported by CI only; they were never run in the development environment.
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python dependency vulnerabilities (runtime requirements)
+        run: |
+          pip install pip-audit==2.7.3
+          pip-audit -r backend/requirements-runtime.txt --strict
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Frontend dependency vulnerabilities (production dependencies, high and above)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: SBOMs (CycloneDX)
+        run: |
+          pip install cyclonedx-bom==4.6.1
+          cyclonedx-py requirements backend/requirements-runtime.txt --of JSON -o sbom-backend.json
+          cd frontend && npm ci --ignore-scripts && npx --yes @cyclonedx/cyclonedx-npm@1.19.3 --omit dev --output-file ../sbom-frontend.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sboms
+          path: sbom-*.json
+      - name: Build the backend image
+        run: docker build -t loopforge-backend:ci backend
+      - name: Scan the image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: loopforge-backend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
 
   frontend:
     runs-on: ubuntu-latest

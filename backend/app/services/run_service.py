@@ -6,6 +6,7 @@ FAILED (or ESCALATED when a hard budget stopped it) and records an audit event. 
 moves the task to COMPLETED / ESCALATED / CANCELLED when the Decision Engine says so.
 """
 
+import functools
 import json
 import logging
 import threading
@@ -40,6 +41,7 @@ from app.services import (
 from app.services.llm_client import LLMClient
 from app.services.repo_import import RepoImportError
 from app.services.task_service import TaskStatus
+from app.utils.logging import bind, request_id_var
 from app.utils.redact import redact
 from app.utils.token_tracker import TokenTracker
 
@@ -91,7 +93,8 @@ def dispatch(
         from app.services import job_service
 
         with factory() as db:
-            job_service.enqueue(db, task_id, kind)
+            rid = request_id_var.get()
+            job_service.enqueue(db, task_id, kind, None if rid == "-" else rid)
         return
     fn = execute_run if kind == "start" else resume_run
     background.add_task(fn, factory, task_id, llm, sandbox)
@@ -300,6 +303,18 @@ def _document(session_factory: sessionmaker[Session], task_id: Any, llm: LLMClie
         log.exception("documentation failed for task %s", task_id)
 
 
+def _task_scoped(fn: Any) -> Any:
+    """Run `fn(session_factory, task_id, ...)` with `task_id` bound to the log context."""
+
+    @functools.wraps(fn)
+    def inner(session_factory: Any, task_id: Any, *args: Any, **kwargs: Any) -> Any:
+        with bind(task_id=task_id):
+            return fn(session_factory, task_id, *args, **kwargs)
+
+    return inner
+
+
+@_task_scoped
 def execute_run(
     session_factory: sessionmaker[Session],
     task_id: Any,
@@ -347,6 +362,7 @@ def execute_run(
         _release(task_id, session_factory)
 
 
+@_task_scoped
 def resume_run(
     session_factory: sessionmaker[Session], task_id: Any, llm: LLMClient, sandbox: Sandbox
 ) -> bool:

@@ -1,4 +1,4 @@
-# LoopForge — Security Model (Phase 1 scope)
+# LoopForge — Security Model
 
 | Threat | Control | Where / proof |
 |---|---|---|
@@ -45,6 +45,13 @@
 ## Phase 6
 Secret redaction, approval gates, budgets and the expanded injection suite are described and evidenced in `docs/security_review.md` (threat table, tests, residual risks).
 
+## Phase 12 (operations)
+`/metrics` is off by default and token-protected when configured; it exports no ids (route templates only). The worker
+metrics port is unauthenticated: restrict it by network policy. Migrations run once per release under a PostgreSQL
+advisory lock; the production image contains runtime dependencies only. Backups are verified by checksum before a
+restore and refuse path-escaping archives, but are **not encrypted** by the scripts. Details, the dependency and
+static-analysis results, and the sandbox flag review: `docs/security_review.md` (Phase 12 additions), ADR-0019.
+
 ## Known limits (honest list)
 - Rate-limit key uses the direct peer address unless `TRUSTED_PROXY_COUNT=N` is set; then the Nth `X-Forwarded-For` entry from the right is used and anything further left (client-forged) is ignored (Phase 7, `utils/client_ip.py`).
 - LoopForge's own tokens are HS256 with a shared secret (key rotation not built). SSO ID tokens are verified with the provider's asymmetric keys.
@@ -54,5 +61,5 @@ Secret redaction, approval gates, budgets and the expanded injection suite are d
 - WebSocket tokens travel in the URL query: keep access logs from recording query strings; tokens expire in 15 minutes.
 - Prompt-injection defences reduce, but do not eliminate, the chance a real model is misled; the hard guarantees are the schema/workspace refusals and the absence of any shell or network capability in agents.
 - Cancel is cooperative: the loop checks before each step, so an in-flight sandbox run finishes (bounded by its timeout) before the task stops.
-- Resume is guarded per process only; two server processes could resume the same task (see ADR-0009).
+- A task run is guarded across processes by a lease with a heartbeat (ADR-0014): a second process cannot drive a live run, and a dead owner's run is taken over after the lease expires and resumes from its checkpoint (proved by `scripts/chaos_drill.py`).
 - Repair/Reviewer prompts reduce but cannot eliminate model misjudgement; the hard guarantees are the deterministic checks above.

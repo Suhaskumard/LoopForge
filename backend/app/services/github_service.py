@@ -7,6 +7,7 @@ with one backed by `httpx.MockTransport`; that is the "mock Git server".
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -81,7 +82,7 @@ class GitHubClient:
         base_sha = str(base_ref["object"]["sha"])  # type: ignore[index]
         base_commit = self._call("GET", f"/repos/{repo}/git/commits/{base_sha}")
         base_tree = str(base_commit["tree"]["sha"])  # type: ignore[index]
-        entries = [
+        entries: list[dict[str, Any]] = [
             {
                 "path": p,
                 "mode": "100644",

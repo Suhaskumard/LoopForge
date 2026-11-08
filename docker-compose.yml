@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: loopforge
       POSTGRES_PASSWORD: loopforge
@@ -14,7 +15,8 @@ services:
       interval: 5s
       retries: 10
 
-  backend:
+  # One-shot: apply migrations once per release (advisory-locked on PostgreSQL). The backend waits for it.
+  migrate:
     build: ./backend
     env_file: .env
     environment:
@@ -22,24 +24,69 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    command: alembic upgrade head
+    restart: "no"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://loopforge:loopforge@db:5432/loopforge
+      WORKSPACE_ROOT: /data/workspaces
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - workspaces:/data/workspaces
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
 
   worker:
     build: ./backend
     profiles: ["workers"]
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://loopforge:loopforge@db:5432/loopforge
+      WORKSPACE_ROOT: /data/workspaces
       RUN_MODE: queue
+      WORKER_METRICS_PORT: "9100"
+      WORKER_METRICS_HOST: "0.0.0.0"
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - workspaces:/data/workspaces
     command: python -m app.worker
+    # A task run takes minutes. On stop the worker finishes the job it is on if it can; if the grace period
+    # ends first it is killed and the run is resumed from its checkpoint by another worker (ADR-0014).
+    stop_grace_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2g
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     depends_on:
       - backend
     ports:
@@ -47,3 +94,4 @@ services:
 
 volumes:
   pgdata:
+  workspaces:

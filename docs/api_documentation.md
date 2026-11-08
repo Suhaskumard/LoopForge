@@ -97,3 +97,11 @@ Work endpoints take the organization from the `X-Org-Id` header (default: your f
 | GET | `/orgs/{org_id}/webhooks/{id}/deliveries` | admin | last 50 deliveries |
 
 Authenticate with `Authorization: Bearer lfk_...`; a token is bound to its organization and capped at its scope. Webhook signature: `X-LoopForge-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<body>")>`.
+
+## Phase 12 - operations
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | /metrics | bearer `METRICS_TOKEN` when set | Prometheus text. **404 unless `METRICS_ENABLED=true`.** No user data or ids; HTTP series use route templates. Workers expose their own on `WORKER_METRICS_PORT`. |
+
+Every response carries `X-Request-ID` (your own is honoured); the same id appears in the JSON logs, and in the worker's logs for any job that request created.

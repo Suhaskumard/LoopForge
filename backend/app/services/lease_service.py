@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
 from app.database.models import RunLease
+from app.utils.logging import thread_target
+from app.utils.metrics import LEASE_TAKEOVERS
 
 log = logging.getLogger("loopforge.lease")
 
@@ -39,6 +41,9 @@ def acquire(
 ) -> bool:
     now = _now()
     expires = now + _ttl(ttl)
+    previous = db.get(RunLease, task_id)
+    previous_owner = previous.owner if previous is not None else None
+    db.expire_all()
     taken = db.execute(
         update(RunLease)
         .where(RunLease.task_id == task_id, or_(RunLease.owner == owner, RunLease.expires_at < now))
@@ -46,6 +51,12 @@ def acquire(
     )
     if taken.rowcount == 1:
         db.commit()
+        if previous_owner is not None and previous_owner != owner:
+            LEASE_TAKEOVERS.inc()
+            log.warning(
+                "lease takeover: task %s from %s to %s (the previous owner stopped renewing)",
+                task_id, previous_owner, owner,
+            )  # fmt: skip
         return True
     try:
         db.add(RunLease(task_id=task_id, owner=owner, expires_at=expires, acquired_at=now))
@@ -84,7 +95,7 @@ class Heartbeat:
         self._factory, self._task_id, self._owner = factory, task_id, owner
         self._stop = threading.Event()
         self.lost = False
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = threading.Thread(target=thread_target(self._run), daemon=True)
 
     def _run(self) -> None:
         interval = max(settings.lease_ttl_seconds / 3, 0.05)

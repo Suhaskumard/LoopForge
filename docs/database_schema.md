@@ -1,4 +1,4 @@
-# Database schema (migrations `0001`-`0007`)
+# Database schema (migrations `0001`-`0008`)
 
 Phase 11 (`0007`): `org_integrations` (encrypted git token), `publish_requests` (status CHECK), `api_tokens` (SHA-256 hash, scope CHECK), `webhook_endpoints`, `webhook_deliveries`.
 
@@ -37,3 +37,5 @@ users 1─N refresh_tokens          login_attempts (standalone, keyed by "ip|ema
 Task lifecycle: `PENDING → PLANNING → GENERATING → EXECUTING → TESTING → REVIEWING → (REPAIRING → EXECUTING) → COMPLETED | FAILED | ESCALATED | CANCELLED`.
 
 A test (`test_migrations.py`) fails if the models and migration ever drift, and checks the downgrade is clean.
+
+Phase 12 (`0008`): `jobs.request_id` (nullable) - the id of the HTTP request that enqueued the job; the worker logs with it so API and worker lines can be correlated.

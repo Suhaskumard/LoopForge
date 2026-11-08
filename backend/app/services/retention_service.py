@@ -12,6 +12,7 @@ Not covered (documented limits): LangGraph checkpoint files and backups outside 
 
 import io
 import json
+import logging
 import shutil
 import uuid
 import zipfile
@@ -33,6 +34,8 @@ from app.database.models import (
     User,
 )
 from app.services import report_service, workspace
+
+log = logging.getLogger("loopforge.retention")
 
 FINISHED = ("COMPLETED", "FAILED", "ESCALATED", "CANCELLED")
 
@@ -139,6 +142,7 @@ def export_org(db: Session, org: Organization) -> bytes:
                 report_service.build_report(db, task).model_dump_json()
             )
         except Exception:  # a task without a report yet (e.g. pending) simply has none
+            log.warning("export: no report for task %s", task.id)
             continue
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:

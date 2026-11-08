@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from typing import Any
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,7 +9,15 @@ from app.config import settings
 
 def make_engine(url: str | None = None) -> Engine:
     url = url or settings.database_url
-    kwargs = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
+    kwargs: dict[str, Any] = {"pool_pre_ping": settings.db_pool_pre_ping}
+    if url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+    else:  # server databases: a bounded pool that heals itself after a restart or failover
+        kwargs.update(
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_recycle=settings.db_pool_recycle_seconds,
+        )
     return create_engine(url, **kwargs)
 
 

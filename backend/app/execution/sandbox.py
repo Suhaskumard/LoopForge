@@ -17,6 +17,7 @@ from typing import Protocol
 
 from app.config import settings
 from app.execution.languages import image_for_argv
+from app.utils.metrics import SANDBOX_DURATION, SANDBOX_RUNS
 
 log = logging.getLogger("loopforge.sandbox")
 
@@ -63,7 +64,7 @@ def build_run_args(name: str, workspace: Path, out_dir: Path, argv: list[str]) -
         "--network", "none",
         "--user", f"{SANDBOX_UID}:{SANDBOX_UID}",
         "--read-only",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",  # nosec B108 - path inside the container
         "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges",
         "--memory", mem,
@@ -110,14 +111,18 @@ class DockerSandbox:
             # The container never ran the command (daemon down, image missing, bad command). That
             # is an infrastructure failure, not a failing test: the loop must not "repair" code.
             detail = _text(stderr).strip()[:300] or f"exit {code}"
+            SANDBOX_RUNS.inc(outcome="infrastructure_error")
             raise SandboxError(f"docker could not run the sandbox: {detail}")
         limit = settings.sandbox_max_output_bytes
+        elapsed = time.perf_counter() - started
+        SANDBOX_DURATION.observe(elapsed)
+        SANDBOX_RUNS.inc(outcome="timeout" if timed_out else ("ok" if code == 0 else "nonzero"))
         return ExecResult(
             stdout=truncate(_text(stdout), limit),
             stderr=truncate(_text(stderr), limit),
             exit_code=code,
             timed_out=timed_out,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=elapsed,
         )
 
     @staticmethod

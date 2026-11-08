@@ -2,7 +2,7 @@
 
 Autonomous, feedback-driven AI software-engineering platform: natural-language requirement → plan → generated Python → sandboxed tests → independent review → deterministic retry/accept/escalate, until measurable acceptance criteria are met.
 
-**Status:** Phases 1–10 built (foundation, agents, sandbox, feedback loop, dashboard + analytics, hardening + evaluation harness, scale-out worker, existing repositories + JavaScript, smarter repair loop, organizations/roles/SSO/audit). **No benchmark result has been measured yet** (needs an API key): see `docs/evaluation_report.md`. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise); 11–12 (integrations, production ops + real evaluation) are drafted in `docs/roadmap_phases_8_12.md`.
+**Status:** Phases 1–12 built (foundation, agents, sandbox, feedback loop, dashboard + analytics, hardening + evaluation harness, scale-out worker, existing repositories + JavaScript, smarter repair loop, organizations/roles/SSO/audit, integrations, operations). **No benchmark result has been measured yet** (needs an API key): see `docs/evaluation_report.md`. Roadmap: spec phases 1–6, then post-MVP phases 7–10 (scale, languages/repos, advanced intelligence, enterprise); 11–12 (integrations, production ops + real evaluation) are drafted in `docs/roadmap_phases_8_12.md`.
 
 ## Quick start
 ```bash
@@ -19,6 +19,12 @@ make acceptance                            # the 15.1 checklist with evidence (P
 make demo-final                            # clean-environment rehearsal in a fresh virtualenv
 make ui-demo                               # scripted API on :8000, then `cd frontend && npm install && npm run dev` -> http://localhost:5173
 Docs: `docs/architecture.md`, `api_documentation.md`, `database_schema.md`, `security_model.md`, `docs/adr/`.
+
+## Phase 12 - production operations and the real-evaluation kit
+- **Observability:** JSON logs carry `request_id` (and `job_id`/`task_id` while work is processed); the API request id follows the job to the worker. `GET /metrics` (`METRICS_ENABLED`, optional `METRICS_TOKEN`) and a worker metrics port expose Prometheus series; alert rules, a Grafana dashboard and a KEDA example are in `deploy/observability/`. Operator guide: `docs/operations.md`.
+- **Reliability:** pooled DB connections are pinged and recycled; migrations run once per release (`migrate` service, PostgreSQL advisory lock); the image ships runtime dependencies only. Drills you can run: `python scripts/chaos_drill.py` (kills a real worker mid-task; another finishes it), `python scripts/backup_drill.py`, `python scripts/load_test.py`; `scripts/backup.sh`/`restore.sh` for PostgreSQL (not run here).
+- **Security:** bandit (medium+ fails), `scripts/security_scan.sh`, CI jobs for pip-audit/npm audit/SBOM/Trivy (CI only). A real scan found HIGH advisories in `react-router-dom`; fixed.
+- **Real evaluation:** `make eval` runs `benchmarks/preflight.py` (lists every blocker, spends nothing) then E1-E3; manifests record the git commit and hashes. **No results exist yet: still "To be measured".** ADR-0019, `make gate12`.
 
 ## Phase 11 - integrations and delivery
 - **GitHub pull requests behind an approval**: a developer requests a publish for a COMPLETED task (`POST /tasks/{id}/publish`), an approver (not the requester) approves, and only then is a branch + PR opened with the final report as the description. Change set is scanned for secrets; every step is in `audit_log`. CI check results are shown as an informational signal.

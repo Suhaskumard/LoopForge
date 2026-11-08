@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database.models import AgentRun, AuditEvent, Iteration, Task
 from app.services.llm_client import LLMClient, LLMError, LLMOutputError, LLMTimeout
+from app.utils.metrics import LLM_CALLS, LLM_TOKENS
 from app.utils.redact import redact
 from app.utils.token_tracker import TokenBudgetExceeded, TokenTracker
 
@@ -166,6 +167,8 @@ def call_agent(
 
     run.tokens_used = tokens
     run.duration_seconds = time.perf_counter() - started
+    LLM_TOKENS.inc(tokens, agent=agent_name)
+    LLM_CALLS.inc(agent=agent_name, outcome="success" if result is not None else "failed")
     if result is not None:
         run.status, run.output_summary = "success", f"{response_model.__name__} accepted"
         ctx.db.commit()

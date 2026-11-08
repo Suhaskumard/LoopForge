@@ -69,10 +69,15 @@ print("=== A1. Generated project executed through the sandbox; evidence stored =
 tid = run_task(FakeSandbox())
 res = client.get(f"/api/v1/tasks/{tid}/iterations/1/test-results", headers=h).json()[0]
 logs = client.get(f"/api/v1/tasks/{tid}/iterations/1/logs", headers=h).json()
-print(f"   tests: {res['passed']} passed / {res['failed']} failed; logs: {[x['name'] for x in logs]}")
+print(
+    f"   tests: {res['passed']} passed / {res['failed']} failed; logs: {[x['name'] for x in logs]}"
+)
 ok("test_results row stored", res["total_tests"] == 3)
 ok("execution logs stored as artifacts", len(logs) == 2)
-ok("task COMPLETED (green first run)", client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"] == "COMPLETED")
+ok(
+    "task COMPLETED (green first run)",
+    client.get(f"/api/v1/tasks/{tid}", headers=h).json()["status"] == "COMPLETED",
+)
 
 print("\n=== A2. Deliberately broken code -> captured failure with stack trace ===")
 tid = run_task(FakeSandbox(failing_report()))
@@ -119,7 +124,10 @@ else:
 
     src, out = project("broken", "def test_b():\n    assert {}['k']\n")
     s, _ = run_tests(DockerSandbox(), src, out, 60)
-    ok("broken file: failure + stack trace", s.failed == 1 and "KeyError" in s.failures[0].traceback)
+    ok(
+        "broken file: failure + stack trace",
+        s.failed == 1 and "KeyError" in s.failures[0].traceback,
+    )
     src, out = project("loop", "def test_l():\n    while True:\n        pass\n")
     s, _ = run_tests(DockerSandbox(), src, out, 8)
     left = subprocess.run(

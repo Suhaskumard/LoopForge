@@ -23,7 +23,36 @@ The only runs executed were **harness checks** with the synthetic `oracle` model
 defects). They prove the pipeline, e.g. that E1 cannot repair, E3 can, a hopeless defect makes E3 escalate early, and
 a loop-accepted/hidden-rejected result is counted as a false accept. They say nothing about LoopForge's quality.
 
-## How to produce the results
+## How to produce the results (Phase 12: one command, preflight first)
+```bash
+export OPENAI_API_KEY=... OPENAI_MODEL=... COST_PER_1K_TOKENS=<your model's blended price per 1k tokens>
+docker build -t loopforge-sandbox backend/sandbox
+MAX_TOTAL_COST=25 TRIALS=3 make eval              # or: WITH_ABLATIONS=1 ... to add A1-A4 and P0-P4
+```
+`make eval` (= `scripts/run_evaluation.sh`) runs `benchmarks/preflight.py` first and **refuses to spend anything** until
+every blocker is cleared: key, model, an explicit price per 1k tokens (the built-in default is a placeholder), a
+spending cap, a reachable Docker daemon, the sandbox image, the task set, disk space. It then prints the worst-case cost,
+runs E1/E2/E3 (resumable, stops at the cap), and writes `docs/results_e1_e3.md`. Preflight on its own:
+`python benchmarks/preflight.py --max-total-cost 25` (use `--provider oracle` to see the harness-only view).
+
+### What the run records (so the numbers can be reproduced and challenged)
+`manifest.json` of every run carries a `provenance` block: the **git commit** and whether the tree was dirty, a hash of
+the **task set**, a hash of every **loop configuration** (all switches), a hash of the **runtime requirements**, and the
+Python/OS. A result from a dirty tree, or from a task set or configuration that has since changed, must not be reported as
+if it were from the current code.
+
+### Results (fill in ONLY from `trials.jsonl`; leave "To be measured" until then)
+| Metric | E1 single-shot | E2 one correction | E3 full loop |
+|---|---|---|---|
+| Task success rate (hidden tests) | To be measured | To be measured | To be measured |
+| Average iterations | To be measured | To be measured | To be measured |
+| Tokens per trial | To be measured | To be measured | To be measured |
+| Cost per successful task | To be measured | To be measured | To be measured |
+| False-accept rate | To be measured | To be measured | To be measured |
+Failure analysis (what kinds of tasks fail, and why): **To be measured.** A feature whose ablation is not
+distinguishable from noise is reported as *not shown to help*.
+
+### Manual steps (what `make eval` automates)
 ```bash
 # 1. build the sandbox image once (Docker running)
 docker build -t loopforge-sandbox backend/sandbox

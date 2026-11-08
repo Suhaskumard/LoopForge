@@ -6,6 +6,7 @@ langgraph's PostgresSaver on the same database. `:memory:` falls back to an in-p
 (not durable, development only).
 """
 
+import logging
 import sqlite3
 import threading
 from typing import Any
@@ -17,6 +18,8 @@ from sqlalchemy.engine import URL
 _lock = threading.Lock()
 _cache: dict[str, BaseCheckpointSaver[Any]] = {}
 _closers: list[Any] = []
+
+log = logging.getLogger("loopforge.checkpoint")
 
 
 def _sqlite_saver(path: str) -> BaseCheckpointSaver[Any]:
@@ -68,7 +71,7 @@ def close_checkpointers() -> None:
         for c in _closers:
             try:
                 c.close()
-            except Exception:  # already closed
-                pass
+            except Exception:  # already closed: nothing to do at shutdown
+                log.debug("checkpointer was already closed")
         _closers.clear()
         _cache.clear()

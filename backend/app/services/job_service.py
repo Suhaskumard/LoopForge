@@ -17,6 +17,7 @@ from app.config import settings
 from app.database.models import Job, RunLease, Task
 from app.services import lease_service, run_service
 from app.services.task_service import TaskStatus
+from app.utils.metrics import JOBS_FINISHED
 
 log = logging.getLogger("loopforge.jobs")
 
@@ -31,12 +32,15 @@ def _pending(db: Session, task_id: uuid.UUID) -> Job | None:
     ).first()
 
 
-def enqueue(db: Session, task_id: uuid.UUID, kind: str) -> Job:
-    """Queue a job unless one for the task is already pending (idempotent for double clicks)."""
+def enqueue(db: Session, task_id: uuid.UUID, kind: str, request_id: str | None = None) -> Job:
+    """Queue a job unless one for the task is already pending (idempotent for double clicks).
+
+    `request_id` is the HTTP request that caused the job; the worker logs with it (Phase 12).
+    """
     existing = _pending(db, task_id)
     if existing is not None:
         return existing
-    job = Job(task_id=task_id, kind=kind)
+    job = Job(task_id=task_id, kind=kind, request_id=request_id)
     db.add(job)
     db.commit()
     return job
@@ -66,6 +70,7 @@ def finish(db: Session, job_id: uuid.UUID, status: str, error: str = "") -> None
         .values(status=status, error=error[:500], finished_at=_now())
     )
     db.commit()
+    JOBS_FINISHED.inc(status=status)
 
 
 def recover(db: Session) -> int:

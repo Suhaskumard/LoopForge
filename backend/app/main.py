@@ -8,7 +8,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import ws
+from app.api import metrics, ws
 from app.api.errors import install_error_handlers
 from app.api.v1 import (
     agents,
@@ -28,7 +28,7 @@ from app.api.v1 import (
 from app.config import settings
 from app.database import session
 from app.middleware import RequestContextMiddleware
-from app.utils.logging import configure_logging
+from app.utils.logging import configure_logging, thread_target
 
 configure_logging()
 
@@ -72,7 +72,7 @@ def _resume_interrupted() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.resume_on_startup:
-        threading.Thread(target=_resume_interrupted, daemon=True).start()
+        threading.Thread(target=thread_target(_resume_interrupted), daemon=True).start()
     yield
 
 
@@ -93,6 +93,7 @@ app.add_middleware(
 install_error_handlers(app)
 app.include_router(api_v1)
 app.include_router(ws.router)
+app.include_router(metrics.router)
 
 
 @app.get("/health", tags=["ops"])

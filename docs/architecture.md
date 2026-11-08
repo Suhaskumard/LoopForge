@@ -45,6 +45,11 @@ PENDING ─start→ PLANNING ─Planner (LLM → ProjectPlan)→ GENERATING ─B
 - `TRUSTED_PROXY_COUNT` for correct login rate-limit keys behind proxies. Details and limits: ADR-0014.
 - `make gate7` = Phase 6 gate + the Phase 7 tests.
 
+## Phase 12 - operations
+- **Observability:** `utils/logging.py` (ids in every JSON line, carried to the worker through `jobs.request_id`), `utils/metrics.py` + `api/metrics.py` + `services/ops_metrics.py` (Prometheus text; DB-derived gauges at scrape time), `utils/metrics_server.py` (worker). Alerts/dashboard/autoscaling examples: `deploy/observability/`.
+- **Reliability:** `database/migration_lock.py` (PostgreSQL advisory lock around migrations), pooled connections with pre-ping, compose `migrate` service, runtime-only image (`requirements-runtime.txt`).
+- **Drills:** `scripts/chaos_drill.py`, `backup_drill.py`, `load_test.py`; **evaluation kit:** `benchmarks/preflight.py`, `benchmarks/provenance.py`, `scripts/run_evaluation.sh`. Guide: `docs/operations.md`; decisions and limits: ADR-0019.
+
 ## Phase 10 - organizations, roles, SSO, audit, quotas
 - **Multi-tenant**: every project/task belongs to an organization; users can be in several and pick one (`X-Org-Id`, org switcher in the UI). Roles `viewer < developer < approver < admin`, read from the database per request. Non-members get 404 (path) / 403 (header). Registering creates a personal organization; migration `0006` moves existing data into one.
 - **Audit log** (`audit_log`): who did what, redacted, **append-only via DB triggers**; admins read it at `GET /orgs/{id}/audit` and in the Admin page.

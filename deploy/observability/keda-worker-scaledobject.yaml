@@ -1,0 +1,23 @@
+# EXAMPLE autoscaling for the worker Deployment (Phase 12, ADR-0019). Not applied or tested here.
+# Scales workers on queue depth from the API's /metrics (needs METRICS_ENABLED=true and a Prometheus
+# that scrapes it). Adjust names, namespace, thresholds and the Prometheus address to your cluster.
+#
+# One job = one task run, which can take minutes: scale on queued jobs, keep a small minimum, and
+# set a generous cooldown so a worker finishing a long run is not scaled away mid-iteration (a killed
+# worker is recovered from its checkpoint, but that costs a lease timeout).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: loopforge-worker
+spec:
+  scaleTargetRef:
+    name: loopforge-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  cooldownPeriod: 600
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        query: sum(loopforge_jobs_queued) + sum(loopforge_jobs_running)
+        threshold: "2"   # target roughly 2 jobs per worker

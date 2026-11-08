@@ -358,6 +358,7 @@ class Job(Base):
     kind: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="queued")
     claimed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String, nullable=True)  # Phase 12 tracing
     error: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(default=_now)
     claimed_at: Mapped[datetime | None] = mapped_column(nullable=True)

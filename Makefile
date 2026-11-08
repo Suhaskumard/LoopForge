@@ -4,7 +4,7 @@ PY = .venv/bin/python
 endif
 TEST_PG ?= postgresql+psycopg://loopforge:loopforge@localhost:5432/loopforge_test
 
-.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 bench-validate bench-harness acceptance demo-final
+.PHONY: up down test test-pg lint fmt typecheck migrate gate gate2 demo2 gate3 demo3 sandbox-image gate4 demo4 gate5 demo5 ui-demo gate6 gate7 gate8 gate9 gate10 gate11 gate12 preflight eval bench-validate bench-harness acceptance demo-final
 
 up:        ## start Postgres + backend
 	docker compose up -d --build
@@ -83,6 +83,15 @@ gate11:    ## everything above + GitHub PR delivery, API tokens, webhooks, CLI
 
 bench-validate:  ## prove all 30 benchmark tasks are sound
 	$(PY) benchmarks/validate_tasks.py
+
+gate12:    ## everything above + metrics, ids, chaos/backup/load drills, security scan, evaluation kit
+	bash scripts/phase12_gate.sh
+
+preflight:       ## real-evaluation preflight: lists every blocker, spends nothing (needs MAX_TOTAL_COST)
+	$(PY) benchmarks/preflight.py --max-total-cost $${MAX_TOTAL_COST:-0}
+
+eval:            ## the real evaluation: preflight, E1-E3 (+ ablations with WITH_ABLATIONS=1); needs a key, Docker, MAX_TOTAL_COST
+	bash scripts/run_evaluation.sh
 
 bench-harness:   ## synthetic harness check (NOT a measurement); real runs: see docs/evaluation_report.md
 	$(PY) benchmarks/run_benchmarks.py --config E1,E3 --trials 2 --provider oracle --tasks crud-01-employees,dv-01-isbn13 --out /tmp/lf_harness

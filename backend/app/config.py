@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     max_token_budget: int = 30000
     documentation_agent_enabled: bool = True  # README generation after a terminal state
     approval_max_repair_files: int = 5  # larger repairs wait for a human
+    # Phase 12: operations (ADR-0019)
+    metrics_enabled: bool = False  # GET /metrics is 404 unless enabled
+    metrics_token: str = ""  # when set, /metrics needs `Authorization: Bearer <token>`
+    worker_metrics_port: int = 0  # >0: a worker serves its own process metrics on this port
+    worker_metrics_host: str = "127.0.0.1"  # containers set 0.0.0.0 so a scraper can reach it
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_recycle_seconds: int = 1800  # recycle before a proxy/DB idle timeout kills the socket
+    db_pool_pre_ping: bool = True  # test a pooled connection before use (survives DB failover)
+    fake_llm_delay_seconds: float = (
+        0.0  # slows the built-in fake LLM; only honoured with LLM_PROVIDER=fake
+    )
     # Phase 10: generic OpenID Connect login (disabled while OIDC_ISSUER is empty)
     oidc_issuer: str = ""
     oidc_client_id: str = ""
@@ -80,13 +92,14 @@ class Settings(BaseSettings):
     run_mode: Literal["inline", "queue"] = "inline"
     lease_ttl_seconds: float = 30.0
     worker_poll_seconds: float = 1.0
+    worker_recover_seconds: float = 10.0  # how often a worker scans for orphaned jobs/tasks
     # Number of reverse proxies in front of the API whose X-Forwarded-For entry is trusted.
     trusted_proxy_count: int = 0
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> Self:
         if self.environment == "production" and (
-            self.jwt_secret == "change-me" or len(self.jwt_secret) < 32
+            self.jwt_secret == "change-me"  # nosec B105 - the default we refuse in production or len(self.jwt_secret) < 32
         ):
             raise ValueError("JWT_SECRET must be set to a random value (>=32 chars) in production")
         if self.environment == "production" and self.llm_provider == "fake":

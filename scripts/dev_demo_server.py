@@ -81,7 +81,10 @@ def fresh_llm() -> FakeLLMClient:
     )
     if NEVER_PASS:
         return SlowLLM().queue(
-            demo_plan(), defective_builder_output(), *[repair_output() for _ in range(NEVER_PASS_RUNS)], readme
+            demo_plan(),
+            defective_builder_output(),
+            *[repair_output() for _ in range(NEVER_PASS_RUNS)],
+            readme,
         )
     return SlowLLM().queue(
         demo_plan(), defective_builder_output(), repair_output(), review_output(), readme
@@ -100,4 +103,6 @@ app.dependency_overrides[get_sandbox] = fresh_sandbox
 if __name__ == "__main__":
     Base.metadata.create_all(engine)
     print(f"demo data in {work}")
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8000")), log_level="warning")
+    uvicorn.run(
+        app, host="127.0.0.1", port=int(os.environ.get("PORT", "8000")), log_level="warning"
+    )

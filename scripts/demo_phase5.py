@@ -1,6 +1,6 @@
 """Phase 5 demo: evidence for the three exit-gate items (no API key, no Docker, no browser).
 
-    python scripts/demo_phase5.py
+python scripts/demo_phase5.py
 """
 
 import os
@@ -83,13 +83,24 @@ for e in events:
     detail = e.get("agent") or e.get("status") or ""
     print(f"    {e['event']:<20} it.{e.get('iteration', '-')!s:<4} {detail}")
 started = [e["agent"] for e in events if e["event"] == "agent_started"]
-ok("every agent started AND finished", sorted(started) == sorted(
-    e["agent"] for e in events if e["event"] == "agent_completed"))
-ok("agents seen: " + ", ".join(dict.fromkeys(started)),
-   {"Planner", "Builder", "Verifier", "Reviewer", "Repair"} <= set(started))
-ok("sandbox, tests, repair and verdict events present", {
-    "sandbox_started", "tests_completed", "retry_scheduled", "iteration_completed",
-} <= {e["event"] for e in events})
+ok(
+    "every agent started AND finished",
+    sorted(started) == sorted(e["agent"] for e in events if e["event"] == "agent_completed"),
+)
+ok(
+    "agents seen: " + ", ".join(dict.fromkeys(started)),
+    {"Planner", "Builder", "Verifier", "Reviewer", "Repair"} <= set(started),
+)
+ok(
+    "sandbox, tests, repair and verdict events present",
+    {
+        "sandbox_started",
+        "tests_completed",
+        "retry_scheduled",
+        "iteration_completed",
+    }
+    <= {e["event"] for e in events},
+)
 ok("stream ends with task_completed", events[-1]["event"] == "task_completed")
 
 print("== 2. Code differences between any two iterations ==")
@@ -103,14 +114,18 @@ for f in fwd["files"]:
         if line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
             print("      " + line)
 ok("v2 vs v1 shows the repaired line", any("employee_id + 1" in f["diff"] for f in fwd["files"]))
-ok("v1 vs v2 (reverse) is the mirror image", [f["path"] for f in back["files"]] == [f["path"] for f in fwd["files"]])
+ok(
+    "v1 vs v2 (reverse) is the mirror image",
+    [f["path"] for f in back["files"]] == [f["path"] for f in fwd["files"]],
+)
 
 print("== 3. KPIs match figures computed directly from the database ==")
 o = client.get(f"{API}/analytics/overview", headers=h).json()
 with engine.connect() as c:
     done = c.execute(text("SELECT COUNT(*) FROM tasks WHERE status='COMPLETED'")).scalar()
-    eligible = c.execute(text(
-        "SELECT COUNT(*) FROM tasks WHERE status IN ('COMPLETED','FAILED','ESCALATED')")).scalar()
+    eligible = c.execute(
+        text("SELECT COUNT(*) FROM tasks WHERE status IN ('COMPLETED','FAILED','ESCALATED')")
+    ).scalar()
     iters = c.execute(text("SELECT COUNT(*) FROM iterations")).scalar()
     # one test_results row per iteration here; every executed test counts, failing run included
     passed = c.execute(text("SELECT SUM(passed) FROM test_results")).scalar()
