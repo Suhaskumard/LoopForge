@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
+import { TaskExplorer } from "../components/TaskExplorer";
 import { ActivityHeatmap, isRunning, QuickStart, RunningNow, StatusDonut } from "../components/Dashboard";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type { Overview, Task } from "../api/types";
 import { IconHome } from "../components/icons";
-import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader } from "../components/ui";
 import { useAsync } from "../hooks";
 import { money, num, pct, seconds } from "../lib/format";
 
@@ -61,7 +62,7 @@ export function CommandCenter() {
         <Card title="Activity">
           <ActivityHeatmap dates={(tasks.data ?? []).map((t) => t.created_at)} />
         </Card>
-        <Link to="/graph" className="graph-tile" aria-label="Open the Task Graph">
+        <Link to="/graph" className="graph-tile">
           <span className="gt-sky" aria-hidden="true">
             {Array.from({ length: 14 }, (_, i) => <i key={i} style={{ "--i": i } as React.CSSProperties} />)}
           </span>
@@ -78,26 +79,7 @@ export function CommandCenter() {
         {tasks.loading && !tasks.data && <Loading />}
         {tasks.data && tasks.data.length === 0 && <Empty><span className="empty-art" aria-hidden="true">∞</span>No tasks yet. Create one to watch the loop run.</Empty>}
         {tasks.data && tasks.data.length > 0 && (
-          <table className="table" data-testid="task-table">
-            <thead>
-              <tr><th>Requirement</th><th>Status</th><th>Iteration</th><th>Created</th></tr>
-            </thead>
-            <tbody>
-              {tasks.data.map((t) => (
-                <tr key={t.id}>
-                  <td><Link to={`/tasks/${t.id}`}>{t.requirement.slice(0, 90)}</Link></td>
-                  <td><StatusBadge status={t.status} /></td>
-                  <td>
-                    {t.current_iteration} / {t.max_iterations}
-                    <span className="meter" aria-hidden="true">
-                      <i style={{ width: `${Math.min(100, (t.current_iteration / Math.max(1, t.max_iterations)) * 100)}%` }} />
-                    </span>
-                  </td>
-                  <td className="muted">{new Date(t.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TaskExplorer tasks={tasks.data} canAct={can("developer")} onChanged={tasks.reload} />
         )}
       </Card>
     </>

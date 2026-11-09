@@ -565,3 +565,55 @@ export interface Experiment {
   experiment: string;
   variants: Variant[];
 }
+
+// ---- Round 12: failure explainer, pipelines, model routing ----
+
+export interface Explanation {
+  summary: string;
+  root_causes: string[];
+  suggested_fix: string;
+  retry_note: string;
+  confidence: "low" | "medium" | "high";
+  source: "ai" | "evidence";
+  evidence: string[];
+  iteration: number;
+  created_at: string;
+}
+
+export interface PipelineStep {
+  id: string;
+  position: number;
+  requirement: string;
+  acceptance_criteria: string[];
+  max_iterations: number;
+  task_id: string | null;
+  status: "pending" | "running" | "accepted" | "failed";
+  task_status: string | null;
+}
+
+export interface PipelineT {
+  id: string;
+  project_id: string;
+  name: string;
+  status: "draft" | "running" | "paused" | "completed" | "failed";
+  created_at: string;
+  steps: PipelineStep[];
+}
+
+export interface ModelStat {
+  agent: string;
+  model: string;
+  runs: number;
+  tasks: number;
+  accepted: number;
+  accept_rate: number | null;
+  tokens_per_run: number;
+  cost_per_run: number;
+}
+
+export interface Routing {
+  routing: Record<string, string>;
+  stats: ModelStat[];
+  recommendations: { agent: string; model: string | null; reason: string }[];
+  window_days: number;
+}

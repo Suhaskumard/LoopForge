@@ -129,6 +129,17 @@ MATRIX: dict[tuple[str, str], str] = {
     ("POST", f"{API}/tasks/{{task_id}}/rerun"): "developer",
     ("POST", f"{API}/tasks/{{task_id}}/experiments"): "developer",
     ("GET", f"{API}/experiments/{{experiment}}"): "viewer",
+    ("GET", f"{API}/tasks/{{task_id}}/explanation"): "viewer",
+    ("POST", f"{API}/tasks/{{task_id}}/explanation"): "developer",
+    ("POST", f"{API}/tasks/{{task_id}}/explanation/apply"): "developer",
+    ("POST", f"{API}/pipelines"): "developer",
+    ("GET", f"{API}/pipelines"): "viewer",
+    ("GET", f"{API}/pipelines/{{pipeline_id}}"): "viewer",
+    ("POST", f"{API}/pipelines/{{pipeline_id}}/start"): "developer",
+    ("POST", f"{API}/pipelines/{{pipeline_id}}/pause"): "developer",
+    ("POST", f"{API}/pipelines/{{pipeline_id}}/resume"): "developer",
+    ("GET", f"{API}/orgs/{{org_id}}/routing"): "viewer",
+    ("PUT", f"{API}/orgs/{{org_id}}/routing"): "admin",
     ("GET", f"{API}/analytics/tasks/{{task_id}}"): "viewer",
     ("GET", f"{API}/analytics/iterations/{{iteration_id}}"): "viewer",
     ("GET", f"{API}/projects"): "viewer",
@@ -172,8 +183,8 @@ def _walk(routes, prefix: str = ""):
     """Every HTTP route, however the framework nests it.
 
     Older FastAPI flattens included routers into `app.routes`; newer versions keep each include as a
-    lazy `_IncludedRouter` that holds `original_router` and an include prefix. Both are handled, so the
-    completeness check keeps working across framework upgrades.
+    lazy `_IncludedRouter` that holds `original_router` and an include prefix. Both are handled, so
+    the completeness check keeps working across framework upgrades.
     """
     for route in routes:
         if isinstance(route, WebSocketRoute):
@@ -283,6 +294,7 @@ def _url(world, template: str) -> str:
         iteration_id=uuid.uuid4(),
         comment_id=uuid.uuid4(),
         experiment="abcdef012345",
+        pipeline_id=uuid.uuid4(),
         number=1,
         file_path="app/x.py",
         name="Planner",

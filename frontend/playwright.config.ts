@@ -28,7 +28,8 @@ export default defineConfig({
     {
       command: "npx vite --host 127.0.0.1 --port 5173",
       url: "http://127.0.0.1:5173",
-      reuseExistingServer: !process.env.CI,
+      // Never reuse: a leftover `npm run dev` has VITE_DEV_AUTOLOGIN=1 and would sign every test in as the demo user.
+      reuseExistingServer: false,
       timeout: 60_000,
       env: { VITE_BACKEND: "http://127.0.0.1:8000", VITE_DEV_AUTOLOGIN: "0" }, // no dev auto-login: tests sign in themselves
     },

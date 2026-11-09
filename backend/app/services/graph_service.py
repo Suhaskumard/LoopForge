@@ -7,7 +7,7 @@ Everything is scoped to one organization. `learned_from` mirrors the repair agen
 import uuid
 from collections import Counter
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from app.database.models import Iteration, Project, RepairHistory, Task
@@ -172,22 +172,34 @@ def list_repairs(
     failure_class: str | None = None,
     outcome: str | None = None,
     limit: int = 200,
+    offset: int = 0,
 ) -> list[RepairOut]:
     stmt = (
         select(RepairHistory, Task)
         .join(Task, RepairHistory.task_id == Task.id)
         .join(Project, Task.project_id == Project.id)
         .where(Project.org_id == org_id)
-        .order_by(RepairHistory.created_at.desc())
-        .limit(limit)
     )
     if outcome:
         stmt = stmt.where(RepairHistory.outcome == outcome)
-    rows = db.execute(stmt).all()
+    if failure_class:  # same rule as failure_key(), in SQL so limit/offset page the filtered rows
+        unnamed = RepairHistory.failure_class == ""
+        stmt = stmt.where(
+            or_(
+                RepairHistory.failure_class == failure_class,
+                and_(unnamed, RepairHistory.failure_category == failure_class),
+                and_(
+                    unnamed,
+                    RepairHistory.failure_category == "",
+                    literal(failure_class == "unclassified"),
+                ),
+            )
+        )
+    stmt = (
+        stmt.order_by(RepairHistory.created_at.desc(), RepairHistory.id).limit(limit).offset(offset)
+    )
     out = []
-    for h, t in rows:
-        if failure_class and failure_key(h) != failure_class:
-            continue
+    for h, t in db.execute(stmt).all():
         out.append(
             RepairOut(
                 id=h.id,

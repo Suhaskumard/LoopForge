@@ -5,6 +5,19 @@ All notable changes to LoopForge. Format: [Keep a Changelog](https://keepachange
 Schema heads are the Alembic revision at that release (`docs/schema_baselines.json`).
 
 ## [Unreleased]
+Schema head: `0014` (additive: three nullable/defaulted `tasks` columns, `code_comments`, `regression_watches`;
+`tasks.source_type` also accepts `task`).
+
+### Added
+- **Task Graph** (`GET /graph`) and **Lessons** (`GET /repairs`): the workspace and the repair memory as data.
+- **Loop intelligence**: cost/rounds forecast (`GET /forecast`), line notes the Repair agent reads
+  (`/tasks/{id}/comments`), regression watch and re-runs (`/tasks/{id}/watch`, `/tasks/{id}/rerun`),
+  task chains (`TaskCreate.from_task_id`), per-agent model A/B (`/tasks/{id}/experiments`, `/experiments/{id}`).
+- `GET /tasks?order=desc` (newest first; the default stays oldest first).
+- Dashboard: redesigned UI, two-factor sign-in screens, task explorer with bulk actions, A/B code diff.
+
+### Fixed
+- Accessibility: visible labels now match accessible names (axe `label-content-name-mismatch`); light-theme contrast.
 
 ## [1.0.0-rc1] - 2026-11-08 (release candidate; **not** a 1.0.0 - see ADR-0025)
 Schema head: `0013`. Upgrade from the Phase 16 schema (`0011`): `docs/upgrade_guide.md`.

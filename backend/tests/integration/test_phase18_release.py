@@ -82,5 +82,6 @@ def test_the_upgrade_test_passes_from_the_previous_release_schema_with_data():
     )
     assert r.returncode == 0, r.stderr[-3000:]
     result = json.loads(r.stdout)
-    assert result["from"] == "0011" and result["to"] == "0013" and all(result["checks"].values())
+    assert result["from"] == "0011" and result["to"] == "0015", result
+    assert all(result["checks"].values()), result["checks"]
     assert len(result["checks"]) >= 15  # the checks are substantial, not a stub

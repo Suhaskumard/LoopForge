@@ -13,6 +13,7 @@ import "./create.css";
 import "./pages.css";
 import "./features.css";
 import "./intel.css";
+import "./advanced.css";
 
 initTheme();
 createRoot(document.getElementById("root")!).render(

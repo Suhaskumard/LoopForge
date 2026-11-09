@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
-import { api } from "../api/client";
+import { api, MfaRequired } from "../api/client";
 import { useAuth } from "../auth";
 import { PasswordField } from "../components/PasswordField";
 
@@ -23,6 +23,8 @@ export function Login() {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [needCode, setNeedCode] = useState(false); // two-factor step
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -53,10 +55,15 @@ export function Login() {
     setBusy(true);
     setError(undefined);
     try {
-      await (mode === "login" ? login(email, password) : register(email, password));
+      await (mode === "login" ? login(email, password, needCode ? code : undefined) : register(email, password));
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof MfaRequired) {
+        setNeedCode(true); // password accepted: ask for the authenticator code, no error shown
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+        if (needCode) setCode("");
+      }
     } finally {
       setBusy(false);
     }
@@ -107,8 +114,29 @@ export function Login() {
           />
         </label>
         {mode === "register" && <p className="muted small">At least 8 characters, with a letter and a digit.</p>}
+        {needCode && mode === "login" && (
+          <div className="mfa-step">
+            <span className="mfa-shield" aria-hidden="true">⛨</span>
+            <label>
+              Authentication code
+              <input
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123 456"
+                required
+                minLength={6}
+                maxLength={20}
+                className="mfa-code"
+              />
+            </label>
+            <p className="muted small">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+          </div>
+        )}
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="primary" disabled={busy}>{mode === "login" ? "Sign in" : "Create account"}</button>
+        <button className="primary" disabled={busy}>{mode === "login" ? (needCode ? "Verify and sign in" : "Sign in") : "Create account"}</button>
         {mode === "login" && <Link to="/forgot-password">Forgot your password?</Link>}
         <button type="button" className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
           {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}

@@ -24,8 +24,9 @@ def repair_memory(
     failure_class: str | None = Query(None, max_length=200),
     outcome: str | None = Query(None, max_length=40),
     limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     principal: Principal = Depends(get_viewer),
     db: Session = Depends(get_db),
 ) -> list[RepairOut]:
     """What the repair agent tried and learned in this organization, newest first."""
-    return graph_service.list_repairs(db, principal.org_id, failure_class, outcome, limit)
+    return graph_service.list_repairs(db, principal.org_id, failure_class, outcome, limit, offset)

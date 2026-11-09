@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database.models import AgentRun, AuditEvent, Iteration, Task
+from app.database.models import AgentRun, AuditEvent, Iteration, Organization, Project, Task
 from app.services.llm_client import LLMClient, LLMError, LLMOutputError, LLMTimeout
 from app.utils.metrics import LLM_CALLS, LLM_TOKENS
 from app.utils.redact import redact
@@ -79,6 +79,15 @@ def _audit(ctx: AgentContext, event_type: str, data: dict[str, object]) -> None:
     ctx.db.commit()
 
 
+def _org_route(ctx: AgentContext, agent_name: str) -> str | None:
+    """Round 12: the organization's model routing for this agent, if any."""
+    project = ctx.db.get(Project, ctx.task.project_id) if ctx.task.project_id else None
+    org = ctx.db.get(Organization, project.org_id) if project is not None else None
+    routing = (org.model_routing or {}) if org is not None else {}
+    model = routing.get(agent_name)
+    return model if isinstance(model, str) and model else None
+
+
 def call_agent(
     ctx: AgentContext,
     *,
@@ -92,7 +101,7 @@ def call_agent(
     """Run one agent call inside an `agent_runs` row and return validated output."""
     # Round 9: the task's own override (A/B) wins, then Phase 9 routing; None = client default
     overrides = getattr(ctx.task, "model_overrides", None) or {}
-    model = overrides.get(agent_name) or settings.model_for(agent_name)
+    model = overrides.get(agent_name) or _org_route(ctx, agent_name) or settings.model_for(agent_name)
     run = AgentRun(
         id=uuid.uuid4(),
         iteration_id=ctx.iteration.id,

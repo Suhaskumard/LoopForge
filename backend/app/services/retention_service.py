@@ -24,11 +24,15 @@ from sqlalchemy.orm import Session
 
 from app.database.models import (
     ApprovalRequest,
+    CodeComment,
     Job,
     Membership,
     Organization,
+    Pipeline,
+    PipelineStep,
     Project,
     PublishRequest,
+    RegressionWatch,
     RepairHistory,
     RunLease,
     Task,
@@ -53,7 +57,15 @@ def _remove_workspace(task_id: uuid.UUID) -> None:
 # default, PostgreSQL does: a table missing here makes deleting a task fail with a
 # ForeignKeyViolation on PostgreSQL only. A test fails if a new table referencing tasks is added
 # without being listed.
-TASK_DEPENDENTS = (RepairHistory, ApprovalRequest, RunLease, Job, PublishRequest)
+TASK_DEPENDENTS = (
+    RepairHistory,
+    ApprovalRequest,
+    RunLease,
+    Job,
+    PublishRequest,
+    CodeComment,  # Round 9
+    RegressionWatch,  # Round 9
+)
 
 
 def purge_task(db: Session, task: Task) -> None:
@@ -88,11 +100,20 @@ def run_retention(db: Session, org: Organization, now: datetime | None = None) -
     return len(old)
 
 
+def purge_project_pipelines(db: Session, project_id: uuid.UUID) -> None:
+    """Round 12: pipelines reference their project; remove them (and their steps) first."""
+    ids = list(db.scalars(select(Pipeline.id).where(Pipeline.project_id == project_id)))
+    if ids:
+        db.execute(delete(PipelineStep).where(PipelineStep.pipeline_id.in_(ids)))
+        db.execute(delete(Pipeline).where(Pipeline.id.in_(ids)))
+
+
 def delete_org_data(db: Session, org: Organization) -> int:
     tasks = _org_tasks(db, org.id)
     for task in tasks:
         purge_task(db, task)
     for project in db.scalars(select(Project).where(Project.org_id == org.id)):
+        purge_project_pipelines(db, project.id)
         db.delete(project)
     db.commit()
     return len(tasks)

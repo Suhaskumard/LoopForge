@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api/client";
 import type { FinalReport } from "../api/types";
 import { useAuth } from "../auth";
+import { ExplainerCard } from "../components/Explainer";
 import { ExperimentCard, WatchCard } from "../components/Intel";
 import { TaskTabs } from "../components/Layout";
 import { IconDoc } from "../components/icons";
@@ -23,6 +24,7 @@ async function save(blob: Blob, name: string): Promise<void> {
 export function Report() {
   const { id = "" } = useParams();
   const { can } = useAuth();
+  const navigate = useNavigate();
   const report = useAsync(() => api.get<FinalReport>(`/tasks/${id}/report`), [id]);
   const [dlError, setDlError] = useState<string>();
   const r = report.data;
@@ -63,6 +65,7 @@ export function Report() {
             </div>
             <ScoreRing value={r.quality.score} label="Quality" />
           </section>
+          <ExplainerCard taskId={id} status={r.status} canAct={can("developer")} onRetried={() => navigate(`/tasks/${id}`)} />
 
           {r.failure_explanation && (
             <Card title="Why it was not accepted">

@@ -73,6 +73,11 @@ UNNAMED = {
     "orgs/{org_id}/my-usage", "orgs/{org_id}/retention", "orgs/{org_id}/scim-tokens",
     "orgs/{org_id}/webhooks/{webhook_id}/test", "orgs/{org_id}/webhooks/{webhook_id}/deliveries",
     "health/ready", "auth/config", "auth/logout-all", "projects/{project_id}",
+    # Round 8/9: dashboard-facing views and loop intelligence (no SDK wrappers yet)
+    "graph", "repairs", "forecast", "experiments/{experiment}", "tasks/{task_id}/comments",
+    "tasks/{task_id}/watch", "tasks/{task_id}/rerun", "tasks/{task_id}/experiments",
+    # Round 12
+    "tasks/{task_id}/explanation", "pipelines", "orgs/{org_id}/routing",
 }  # fmt: skip
 
 

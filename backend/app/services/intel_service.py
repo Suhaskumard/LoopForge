@@ -155,7 +155,8 @@ def clone_for_rerun(
 ) -> Task:
     """A fresh PENDING copy of `src` (same requirement, criteria, budgets and starting code)."""
     project = db.get(Project, src.project_id)
-    assert project is not None
+    if project is None:  # the task row references it, so this only happens on corrupt data
+        raise IntelError("the task's project no longer exists")
     clone = task_service.create_task(
         db,
         project,

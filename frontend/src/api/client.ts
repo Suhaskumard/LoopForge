@@ -17,6 +17,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Sign-in needs the 6-digit code (or a recovery code) from the user's authenticator app. */
+export class MfaRequired extends ApiError {
+  constructor(message = "Enter the code from your authenticator app") {
+    super(401, "mfa_required", message);
+  }
+}
+
 interface Tokens {
   access_token: string;
   refresh_token: string;
@@ -80,10 +87,16 @@ export class ApiClient {
     this.storage.removeItem(ORG_KEY);
   }
 
-  async login(email: string, password: string): Promise<void> {
+  async login(email: string, password: string, mfaCode?: string): Promise<void> {
     const body = new URLSearchParams({ username: email, password });
+    if (mfaCode) body.set("mfa_code", mfaCode.replace(/\s+/g, ""));
     const res = await this.fetchImpl(`${this.base}/auth/login`, { method: "POST", body });
-    if (!res.ok) throw await toError(res);
+    if (!res.ok) {
+      const err = await toError(res);
+      // the password was right but the account has two-factor sign-in: ask for the code
+      if (res.status === 401 && res.headers.get("X-MFA-Required") === "true") throw new MfaRequired(err.message);
+      throw err;
+    }
     this.setTokens((await res.json()) as Tokens);
   }
 

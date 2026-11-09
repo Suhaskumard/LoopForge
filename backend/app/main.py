@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.api import metrics, ws
 from app.api.errors import install_error_handlers
 from app.api.v1 import (
+    advanced,
     agents,
     analytics,
     approvals,
@@ -56,6 +57,7 @@ api_v1.include_router(agents.router)
 api_v1.include_router(analytics.router)
 api_v1.include_router(graph.router)
 api_v1.include_router(intel.router)
+api_v1.include_router(advanced.router)
 api_v1.include_router(approvals.router)
 api_v1.include_router(reports.router)
 api_v1.include_router(publish.router)

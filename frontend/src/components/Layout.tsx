@@ -1,11 +1,11 @@
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { Toaster } from "./Toast";
 import { prefersReducedMotion } from "./Confetti";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth";
-import { CommandPalette, ShortcutSheet } from "./CommandPalette";
+import { CommandPalette, rememberTask, ShortcutSheet } from "./CommandPalette";
 import { useTheme } from "../theme";
-import { IconBulb, IconGraph, IconChart, IconCheck, IconCode, IconDoc, IconFlow, IconHome, IconMoon, IconPlus, IconShield, IconSun, Logo } from "./icons";
+import { IconBulb, IconGraph, IconRocket, IconChart, IconCheck, IconCode, IconDoc, IconFlow, IconHome, IconMoon, IconPlus, IconShield, IconSun, Logo } from "./icons";
 import { AccountBanners, NotificationBell } from "./Notifications";
 import { Loading } from "./ui";
 
@@ -21,6 +21,16 @@ function Layout() {
   const navigate = useNavigate();
   const [theme, toggleTheme] = useTheme();
   const { pathname } = useLocation();
+  // the palette lists recently opened tasks first
+  useEffect(() => {
+    const m = /^\/tasks\/([0-9a-f-]{36})/.exec(pathname);
+    if (m) rememberTask(m[1]);
+  }, [pathname]);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  const signOut = useCallback(() => {
+    void logout().then(() => navigate("/login"));
+  }, [logout, navigate]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   useEffect(() => {
@@ -40,7 +50,7 @@ function Layout() {
         return;
       }
       if (Date.now() - lastG < 1200) {
-        const to = { c: "/", n: "/tasks/new", a: "/analytics", s: "/settings", g: "/graph", l: "/lessons" }[e.key];
+        const to = { c: "/", n: "/tasks/new", a: "/analytics", s: "/settings", g: "/graph", l: "/lessons", p: "/pipelines" }[e.key];
         lastG = 0;
         if (to) {
           navigate(to);
@@ -82,18 +92,26 @@ function Layout() {
   return (
     <div className="shell">
       <div className="aurora" aria-hidden="true"><i /><i /><i /></div>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={closePalette}
+        onToggleTheme={toggleTheme}
+        onShortcuts={openShortcuts}
+        onSignOut={signOut}
+      />
       <Toaster />
       {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)} />}
       <nav className="nav">
         <strong className="brand"><Logo />LoopForge</strong>
-        <button className="palette-trigger" onClick={() => setPaletteOpen(true)} aria-label="Open quick search">
-          Search… <kbd>Ctrl K</kbd>
+        {/* the visible text is the accessible name (WCAG 2.5.3); the shortcut hint is decoration */}
+        <button className="palette-trigger" onClick={() => setPaletteOpen(true)} aria-haspopup="dialog" title="Quick search (Ctrl K)">
+          Search… <kbd aria-hidden="true">Ctrl K</kbd>
         </button>
         <NavLink to="/" end><IconHome />Command Center</NavLink>
         {can("developer") && <NavLink to="/tasks/new"><IconPlus />New task</NavLink>}
         <NavLink to="/graph"><IconGraph />Task Graph</NavLink>
         <NavLink to="/lessons"><IconBulb />Lessons</NavLink>
+        <NavLink to="/pipelines"><IconRocket />Pipelines</NavLink>
         <NavLink to="/analytics"><IconChart />Loop Analytics</NavLink>
         {can("admin") && <NavLink to="/admin"><IconShield />Admin</NavLink>}
         <span className="spacer" />
@@ -116,7 +134,7 @@ function Layout() {
         )}
         {activeOrg && <span className="badge" data-testid="role">{activeOrg.role}</span>}
         <NotificationBell />
-        <button className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
+        <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
           {theme === "dark" ? <IconSun /> : <IconMoon />}
           {theme === "dark" ? "Light mode" : "Dark mode"}
         </button>

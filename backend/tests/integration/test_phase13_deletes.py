@@ -15,9 +15,11 @@ from sqlalchemy import event, func, select
 from app.database.models import (
     ApprovalRequest,
     Base,
+    CodeComment,
     Job,
     Project,
     PublishRequest,
+    RegressionWatch,
     RepairHistory,
     RunLease,
 )
@@ -66,6 +68,19 @@ def _task_with_dependents(client, h, project_id):
                 repo="o/r",
                 branch="loopforge/t",
                 requested_by=uuid.uuid4(),
+            )
+        )
+        project = db.get(Project, uuid.UUID(project_id))
+        db.add(
+            CodeComment(task_id=tid, user_id=project.user_id, file_path="app/x.py", line=1, body="n")
+        )
+        db.add(
+            RegressionWatch(
+                task_id=tid,
+                org_id=project.org_id,
+                interval_hours=24,
+                next_run_at=__import__("datetime").datetime(2999, 1, 1),
+                created_by=project.user_id,
             )
         )
         db.commit()

@@ -16,6 +16,10 @@ const STATUS_CLASS: Record<string, string> = {
   CANCELLED: "muted",
   cancelled: "muted",
   PENDING: "muted",
+  completed: "ok",
+  paused: "warn",
+  draft: "muted",
+  pending: "muted",
 };
 
 export function StatusBadge({ status }: { status: string }) {

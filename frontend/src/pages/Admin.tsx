@@ -4,12 +4,14 @@ import { ROLE_RANK, type AuditEntry, type Invite, type Member, type OrgDetails, 
 import { useAuth } from "../auth";
 import { IconShield } from "../components/icons";
 import { Integrations } from "../components/Integrations";
+import { Spend } from "../components/Spend";
+import { RoutingPanel } from "../components/Routing";
 import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader } from "../components/ui";
 import { useAsync } from "../hooks";
 import { num } from "../lib/format";
 
 const ROLES = Object.keys(ROLE_RANK) as Role[];
-const TABS = ["Members", "Usage & limits", "Integrations", "Audit log", "Data"] as const;
+const TABS = ["Members", "Usage & limits", "Spend", "Models", "Integrations", "Audit log", "Data"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Organization administration (Phase 10). Everything here is enforced server-side as well. */
@@ -42,6 +44,8 @@ export function Admin() {
         </>
       )}
       {tab === "Audit log" && <AuditLog orgId={activeOrg.id} />}
+      {tab === "Spend" && <Spend orgId={activeOrg.id} />}
+      {tab === "Models" && <RoutingPanel orgId={activeOrg.id} canEdit={can("admin")} />}
       {tab === "Integrations" && <Integrations orgId={activeOrg.id} />}
       {tab === "Data" && <DataLifecycle orgId={activeOrg.id} />}
     </>

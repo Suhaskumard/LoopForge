@@ -81,6 +81,8 @@ class Organization(Base):
         Boolean, default=False, server_default=false()
     )  # Ph. 17
     plan: Mapped[str] = mapped_column(String, default="default", server_default="default")  # Ph. 18
+    # Round 12: organization-wide {agent_name: model}; a task's own override still wins.
+    model_routing: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
     created_at: Mapped[datetime] = mapped_column(default=_now)
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="org", cascade="all, delete-orphan"
@@ -428,6 +430,48 @@ class RegressionWatch(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class Pipeline(Base):
+    """Round 12: ordered steps that run one after another; each starts from the previous step's
+    accepted code (a task chain), automatically."""
+
+    __tablename__ = "pipelines"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft','running','paused','completed','failed')", name="ck_pipeline_status"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="draft")
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    steps: Mapped[list["PipelineStep"]] = relationship(
+        back_populates="pipeline", cascade="all, delete-orphan", order_by="PipelineStep.position"
+    )
+
+
+class PipelineStep(Base):
+    __tablename__ = "pipeline_steps"
+    __table_args__ = (
+        UniqueConstraint("pipeline_id", "position", name="uq_pipeline_step_position"),
+        CheckConstraint(
+            "status IN ('pending','running','accepted','failed')", name="ck_pipeline_step_status"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pipelines.id"), index=True)
+    position: Mapped[int] = mapped_column(Integer)
+    requirement: Mapped[str] = mapped_column(Text)
+    acceptance_criteria: Mapped[list[Any]] = mapped_column(JsonType, default=list)
+    max_iterations: Mapped[int] = mapped_column(Integer, default=5)
+    # the task running this step; no FK so deleting a task never trips over a pipeline
+    task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    pipeline: Mapped[Pipeline] = relationship(back_populates="steps")
 
 
 class RateCounter(Base):

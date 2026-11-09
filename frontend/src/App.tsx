@@ -12,6 +12,7 @@ import { Evaluation } from "./pages/Evaluation";
 import { LiveWorkflow } from "./pages/LiveWorkflow";
 import { Login } from "./pages/Login";
 import { Lessons } from "./pages/Lessons";
+import { Pipelines } from "./pages/Pipelines";
 import { Report } from "./pages/Report";
 import { TaskGraph } from "./pages/TaskGraph";
 
@@ -35,6 +36,7 @@ export function App() {
         <Route path="/graph" element={<TaskGraph />} />
         <Route path="/lessons" element={<Lessons />} />
         <Route path="/compare" element={<Compare />} />
+        <Route path="/pipelines" element={<Pipelines />} />
         <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

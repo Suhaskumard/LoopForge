@@ -174,7 +174,7 @@ export function RunningNow({ tasks }: { tasks: Task[] }) {
 
 export function QuickStart() {
   return (
-    <Link to="/tasks/new" className="quickstart" aria-label="Start a new task">
+    <Link to="/tasks/new" className="quickstart">
       <span className="qs-glow" aria-hidden="true" />
       <span className="qs-kicker">New loop</span>
       <span className="qs-prompt">Describe what to build<span className="qs-caret" aria-hidden="true" /></span>

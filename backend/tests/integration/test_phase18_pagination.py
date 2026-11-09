@@ -21,6 +21,7 @@ BOUNDED = {
     "/api/v1/tasks/{task_id}/iterations/{number}/logs": "one iteration's execution logs",
     "/api/v1/tasks/{task_id}/iterations/{number}/test-results": "one iteration's results",
     "/api/v1/tasks/{task_id}/approvals/{approval_id}/comments": "comments on one approval",
+    "/api/v1/tasks/{task_id}/comments": "line notes on one task (people write them by hand)",
 }
 
 

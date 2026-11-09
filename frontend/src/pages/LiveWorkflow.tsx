@@ -8,6 +8,7 @@ import type { Task } from "../api/types";
 import { isTerminal } from "../api/types";
 import { Approvals } from "../components/Approvals";
 import { Confetti } from "../components/Confetti";
+import { ExplainerCard } from "../components/Explainer";
 import { AgentRoster, ago, glyph, groupByIteration, PacketEdge, Reactor, StageRail, TestsBar, useNow } from "../components/LiveViz";
 import { toast } from "../components/Toast";
 import { PlanPanel } from "../components/PlanPanel";
@@ -152,6 +153,9 @@ export function LiveWorkflow() {
       {actionError && <p className="error" role="alert">{actionError}</p>}
       {!t && task.loading && <Loading />}
 
+      {t && (
+        <ExplainerCard taskId={id} status={t.status} canAct={can("developer")} onRetried={() => { task.reload(); reconnect(); }} />
+      )}
       {stalled && (
         <p className="stall-note" role="status">
           No progress for over {Math.round(STALL_MS / 1000)}s. If the server restarted, <b>Resume</b> continues this run from its last checkpoint.

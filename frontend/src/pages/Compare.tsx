@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api/client";
 import type { Experiment } from "../api/types";
 import { isTerminal } from "../api/types";
 import { IconChart } from "../components/icons";
 import { METRICS, verdict, type Metric } from "../components/Intel";
-import { Empty, ErrorBox, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { Card, DiffView, Empty, ErrorBox, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { compareListings, unifiedDiff } from "../lib/linediff";
 import { useAsync } from "../hooks";
 
 const fmt: Record<Metric, (v: number) => string> = {
@@ -15,6 +16,63 @@ const fmt: Record<Metric, (v: number) => string> = {
   cost: (v) => (v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`),
   seconds: (v) => (v < 90 ? `${Math.round(v)}s` : `${Math.round(v / 60)} min`),
 };
+
+interface Listed {
+  path: string;
+  sha256: string;
+}
+
+/** How the two runs' final code differs (files compared by hash; one file diffed at a time). */
+function CodeDiff({ a, b }: { a: string; b: string }) {
+  const files = useAsync(
+    () =>
+      Promise.all([
+        api.get<Listed[]>(`/tasks/${a}/files`).catch(() => [] as Listed[]),
+        api.get<Listed[]>(`/tasks/${b}/files`).catch(() => [] as Listed[]),
+      ]),
+    [a, b],
+  );
+  const listing = useMemo(() => (files.data ? compareListings(files.data[0], files.data[1]) : []), [files.data]);
+  const [pick, setPick] = useState<string | null>(null);
+  const chosen = pick ?? listing.find((f) => f.change !== "same")?.path ?? null;
+  const diff = useAsync(async () => {
+    if (!chosen) return "";
+    const item = listing.find((f) => f.path === chosen);
+    const read = (id: string) =>
+      api.get<{ content: string }>(`/tasks/${id}/files/${chosen}`).then((r) => r.content).catch(() => "");
+    const [ca, cb] = await Promise.all([item?.change === "only-b" ? "" : read(a), item?.change === "only-a" ? "" : read(b)]);
+    return unifiedDiff(ca, cb, `A/${chosen}`, `B/${chosen}`);
+  }, [chosen, a, b, listing]);
+  const changed = listing.filter((f) => f.change !== "same").length;
+  if (files.data && listing.length === 0) return null;
+  return (
+    <Card title="Code differences" actions={<span className="muted small">{changed} of {listing.length} files differ</span>}>
+      {!files.data ? (
+        <Loading what="Comparing the code" />
+      ) : changed === 0 ? (
+        <Empty>Both runs produced identical code.</Empty>
+      ) : (
+        <div className="codediff">
+          <ul className="codediff-files">
+            {listing.map((f) => (
+              <li key={f.path}>
+                <button type="button" className={`cdf ${f.change}${f.path === chosen ? " on" : ""}`} onClick={() => setPick(f.path)}>
+                  <span className="cdf-mark" aria-hidden="true">{f.change === "changed" ? "~" : f.change === "only-a" ? "A" : f.change === "only-b" ? "B" : "="}</span>
+                  <code>{f.path}</code>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="codediff-view">
+            {diff.loading && !diff.data && <Loading what="Diffing" />}
+            {diff.data === "" && chosen && <Empty>This file is identical in both runs.</Empty>}
+            {diff.data && <DiffView diff={diff.data} />}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 /** A/B results: two runs of the same task that differ only in one agent's model. */
 export function Compare() {
@@ -89,6 +147,7 @@ export function Compare() {
               </section>
             ))}
           </div>
+          {!running && <CodeDiff a={variants[0].task_id} b={variants[1].task_id} />}
           {variants[0].rerun_of && (
             <p className="muted small">
               Both runs repeat <Link to={`/tasks/${variants[0].rerun_of}/report`}>the original task</Link>. Lower is better for rounds, tokens, cost and time; higher for quality.

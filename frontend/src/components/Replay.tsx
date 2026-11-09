@@ -83,7 +83,7 @@ export function ReplayBar({ replay, events }: { replay: ReturnType<typeof useRep
             style={{ "--fill": `${replay.total ? (replay.cursor / replay.total) * 100 : 0}%` } as React.CSSProperties}
           />
           <span className="replay-pos mono small">{replay.cursor}/{replay.total}</span>
-          <button type="button" className="replay-btn speed" onClick={replay.cycleSpeed} aria-label={`Speed ${replay.speed}x`}>{replay.speed}×</button>
+          <button type="button" className="replay-btn speed" onClick={replay.cycleSpeed} aria-label={`Speed ${replay.speed}×`}>{replay.speed}×</button>
           <span className="replay-now small">{current ? current.event.replace(/_/g, " ") + (current.agent ? ` · ${current.agent}` : "") : "start"}</span>
           <button type="button" className="link" onClick={replay.stop}>Back to live</button>
         </>

@@ -12,7 +12,7 @@ interface AuthValue {
   can: (minimum: Role) => boolean;
   switchOrg: (id: string) => void;
   reloadOrgs: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   /** Finish an SSO login: the login page passes the tokens it found in the URL fragment. */
   completeSso: (tokens: { access_token: string; refresh_token: string }) => Promise<void>;
@@ -92,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveId(id);
       },
       reloadOrgs: loadOrgs,
-      login: async (email, password) => {
-        await api.login(email, password);
+      login: async (email, password, mfaCode) => {
+        await api.login(email, password, mfaCode);
         await loadUser();
       },
       register: async (email, password) => {

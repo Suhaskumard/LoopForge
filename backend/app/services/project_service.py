@@ -55,6 +55,7 @@ def delete_project(db: Session, project: Project) -> None:
 
     for task in list(project.tasks):
         retention_service.purge_task(db, task)
+    retention_service.purge_project_pipelines(db, project.id)
     db.refresh(project)
     db.delete(project)
     db.commit()

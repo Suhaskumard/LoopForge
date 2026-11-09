@@ -100,7 +100,7 @@ export const LANGS = [
 ] as const;
 
 export const SOURCES = [
-  { id: "none", label: "New project", hint: "Start from scratch", icon: "✦" },
+  { id: "none", label: "New project", hint: "Fresh codebase", icon: "✦" },
   { id: "zip", label: "Upload zip", hint: "Existing repository", icon: "⇪" },
   { id: "git", label: "Git URL", hint: "Public https repo", icon: "⎇" },
   { id: "task", label: "Continue a task", hint: "Build on accepted code", icon: "⛓" },

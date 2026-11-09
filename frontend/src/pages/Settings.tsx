@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { MyUsage, SessionInfo } from "../api/types";
 import { useAuth } from "../auth";
 import { IconGear } from "../components/icons";
+import { TwoFactorCard } from "../components/Mfa";
 import { Card, ErrorBox, Loading, PageHeader } from "../components/ui";
 import { useTheme } from "../theme";
 import { useAsync } from "../hooks";
@@ -45,6 +46,7 @@ export function Settings() {
           ))}
         </div>
       </Card>
+      <TwoFactorCard />
       <Sessions />
       <Preferences />
       {activeOrg && <MyQuota orgId={activeOrg.id} />}

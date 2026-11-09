@@ -148,3 +148,13 @@ button.launch { display: flex; justify-content: center; align-items: center; gap
 @media (prefers-reduced-motion: reduce) {
   .prompt-stage::before, .q-specific .pv-pipe li i, .launching .launch .rocket { animation: none !important; }
 }
+
+/* light theme: the brand tints need more contrast on white (WCAG AA) */
+:root[data-theme="light"] .tile-mark.lang-python { color: #2b5b84; }
+:root[data-theme="light"] .tile-mark.lang-javascript { color: #7a5f00; }
+:root[data-theme="light"] .tile-mark.lang-go { color: #00657e; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tile-mark.lang-python { color: #2b5b84; }
+  :root:not([data-theme]) .tile-mark.lang-javascript { color: #7a5f00; }
+  :root:not([data-theme]) .tile-mark.lang-go { color: #00657e; }
+}
