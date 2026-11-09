@@ -90,7 +90,9 @@ def call_agent(
     validate: Callable[[T], None] | None = None,
 ) -> T:
     """Run one agent call inside an `agent_runs` row and return validated output."""
-    model = settings.model_for(agent_name)  # Phase 9 routing; None = the client's default model
+    # Round 9: the task's own override (A/B) wins, then Phase 9 routing; None = client default
+    overrides = getattr(ctx.task, "model_overrides", None) or {}
+    model = overrides.get(agent_name) or settings.model_for(agent_name)
     run = AgentRun(
         id=uuid.uuid4(),
         iteration_id=ctx.iteration.id,

@@ -6,11 +6,14 @@ import { Admin } from "./pages/Admin";
 import { Analytics } from "./pages/Analytics";
 import { CodeWorkspace } from "./pages/CodeWorkspace";
 import { CommandCenter } from "./pages/CommandCenter";
+import { Compare } from "./pages/Compare";
 import { CreateTask } from "./pages/CreateTask";
 import { Evaluation } from "./pages/Evaluation";
 import { LiveWorkflow } from "./pages/LiveWorkflow";
 import { Login } from "./pages/Login";
+import { Lessons } from "./pages/Lessons";
 import { Report } from "./pages/Report";
+import { TaskGraph } from "./pages/TaskGraph";
 
 export function App() {
   return (
@@ -29,6 +32,9 @@ export function App() {
         <Route path="/tasks/:id/evaluation" element={<Evaluation />} />
         <Route path="/tasks/:id/report" element={<Report />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/graph" element={<TaskGraph />} />
+        <Route path="/lessons" element={<Lessons />} />
+        <Route path="/compare" element={<Compare />} />
         <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

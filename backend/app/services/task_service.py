@@ -133,13 +133,14 @@ def list_task_events(db: Session, task: Task) -> list[AuditEvent]:
 
 
 def list_owned_tasks(
-    db: Session, org_id: uuid.UUID, limit: int = 50, offset: int = 0
+    db: Session, org_id: uuid.UUID, limit: int = 50, offset: int = 0, order: str = "asc"
 ) -> list[Task]:
+    newest = order == "desc"
     stmt = (
         select(Task)
         .join(Project, Task.project_id == Project.id)
         .where(Project.org_id == org_id)
-        .order_by(Task.created_at, Task.id)
+        .order_by(Task.created_at.desc() if newest else Task.created_at, Task.id)
         .limit(limit)
         .offset(offset)
     )

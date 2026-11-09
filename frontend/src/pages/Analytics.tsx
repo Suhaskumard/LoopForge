@@ -13,11 +13,12 @@ import {
 } from "recharts";
 import { api } from "../api/client";
 import type { AgentStat, Overview, TaskAnalytics } from "../api/types";
-import { Card, Empty, ErrorBox, Kpi, Loading } from "../components/ui";
+import { IconChart } from "../components/icons";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader } from "../components/ui";
 import { useAsync } from "../hooks";
 import { money, num, pct } from "../lib/format";
 
-const COLORS = { ok: "#2f9e6b", bad: "#d9534f", blue: "#4c7be8", amber: "#d89b2b" };
+const COLORS = { ok: "var(--ok)", bad: "var(--bad)", blue: "var(--primary)", amber: "var(--warn)" };
 
 /** Screen 6 — Loop Analytics (+ Addendum 22.11 engineering-intelligence views). */
 export function Analytics() {
@@ -57,7 +58,17 @@ export function Analytics() {
 
   return (
     <>
-      <header className="page-head"><h1>Loop Analytics</h1></header>
+      <PageHeader icon={<IconChart />} title="Loop Analytics" sub="How the loop performs: quality per iteration, cost, failures and repairs." />
+      <svg width="0" height="0" className="grad-defs" aria-hidden="true">
+        <defs>
+          {Object.entries({ ok: ["#4ade9a", "#1f9d6b"], bad: ["#ff7b7b", "#c2410c"], blue: ["#8b7bff", "#38d5f5"], amber: ["#fbbf4a", "#ff8a3d"] }).map(([k, [a, b]]) => (
+            <linearGradient key={k} id={`bar-${k}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor={a} />
+              <stop offset="1" stopColor={b} stopOpacity=".75" />
+            </linearGradient>
+          ))}
+        </defs>
+      </svg>
       {overview.error && <ErrorBox error={overview.error} />}
       {!o && overview.loading && <Loading />}
       {o && (
@@ -83,9 +94,9 @@ export function Analytics() {
               <LineChart data={quality}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="iteration" /><YAxis domain={[0, 100]} /><Tooltip /><Legend />
-                <Line type="monotone" dataKey="quality" name="Quality (0–100)" stroke={COLORS.blue} connectNulls />
-                <Line type="monotone" dataKey="passed" name="Tests passed" stroke={COLORS.ok} />
-                <Line type="monotone" dataKey="failed" name="Tests failed" stroke={COLORS.bad} />
+                <Line animationDuration={1200} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} type="monotone" dataKey="quality" name="Quality (0–100)" stroke={COLORS.blue} connectNulls />
+                <Line animationDuration={1200} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} type="monotone" dataKey="passed" name="Tests passed" stroke={COLORS.ok} />
+                <Line animationDuration={1200} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} type="monotone" dataKey="failed" name="Tests failed" stroke={COLORS.bad} />
               </LineChart>
             </ResponsiveContainer></div>
           )}
@@ -98,8 +109,8 @@ export function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="task" /><YAxis yAxisId="l" allowDecimals={false} /><YAxis yAxisId="r" orientation="right" />
                 <Tooltip /><Legend />
-                <Bar yAxisId="l" dataKey="iterations" name="Iterations" fill={COLORS.blue} />
-                <Bar yAxisId="r" dataKey="cost" name="Est. cost ($)" fill={COLORS.amber} />
+                <Bar animationDuration={900} radius={[6, 6, 0, 0]} yAxisId="l" dataKey="iterations" name="Iterations" fill="url(#bar-blue)" />
+                <Bar animationDuration={900} radius={[6, 6, 0, 0]} yAxisId="r" dataKey="cost" name="Est. cost ($)" fill="url(#bar-amber)" />
               </BarChart>
             </ResponsiveContainer></div>
           )}
@@ -111,7 +122,7 @@ export function Analytics() {
               <BarChart data={failureRows} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="category" width={130} />
-                <Tooltip /><Bar dataKey="count" name="Failures" fill={COLORS.bad} />
+                <Tooltip /><Bar animationDuration={900} radius={[0, 6, 6, 0]} dataKey="count" name="Failures" fill="url(#bar-bad)" />
               </BarChart>
             </ResponsiveContainer></div>
           )}
@@ -124,7 +135,7 @@ export function Analytics() {
               <BarChart data={agentRows}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="agent" /><YAxis domain={[0, 100]} /><Tooltip />
-                <Bar dataKey="success" name="Success rate (%)" fill={COLORS.ok} />
+                <Bar animationDuration={900} radius={[6, 6, 0, 0]} dataKey="success" name="Success rate (%)" fill="url(#bar-ok)" />
               </BarChart>
             </ResponsiveContainer></div>
           )}
@@ -151,8 +162,8 @@ export function Analytics() {
             <BarChart data={outcomeRows}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="category" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              <Bar dataKey="resolved" name="Resolved" stackId="a" fill={COLORS.ok} />
-              <Bar dataKey="unresolved" name="Unresolved" stackId="a" fill={COLORS.bad} />
+              <Bar animationDuration={900} dataKey="resolved" name="Resolved" stackId="a" fill="url(#bar-ok)" />
+              <Bar animationDuration={900} radius={[6, 6, 0, 0]} dataKey="unresolved" name="Unresolved" stackId="a" fill="url(#bar-bad)" />
             </BarChart>
           </ResponsiveContainer></div>
         )}

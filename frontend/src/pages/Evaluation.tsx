@@ -3,7 +3,8 @@ import { useParams } from "react-router";
 import { api } from "../api/client";
 import type { Iteration, IterationDetail, Requirement } from "../api/types";
 import { TaskTabs } from "../components/Layout";
-import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
+import { IconCheck } from "../components/icons";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader, ScoreRing, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
 import { pct, score } from "../lib/format";
 
@@ -26,7 +27,7 @@ export function Evaluation() {
 
   return (
     <>
-      <header className="page-head"><h1>Evaluation Center</h1></header>
+      <PageHeader icon={<IconCheck />} title="Evaluation Center" sub="Tests, coverage, quality and acceptance — the evidence behind each verdict." />
       <TaskTabs id={id} />
       {its.error && <ErrorBox error={its.error} />}
       {its.loading && !its.data && <Loading />}
@@ -44,6 +45,12 @@ export function Evaluation() {
             {d?.decision && <span className="muted">Decision Engine: <strong>{d.decision.action}</strong></span>}
           </div>
 
+          <div className="eval-hero card">
+            <ScoreRing value={d?.quality_score} label="Quality" />
+            <ScoreRing value={tests && tests.total_tests > 0 ? (tests.passed / tests.total_tests) * 100 : null} label="Tests" />
+            <ScoreRing value={tests?.coverage} label="Coverage" />
+          </div>
+
           <div className="kpis">
             <Kpi label="Tests passed" value={tests ? `${tests.passed} / ${tests.total_tests}` : "—"} hint={tests ? `${tests.failed} failed · ${tests.skipped} skipped` : ""} />
             <Kpi label="Coverage" value={pct(tests?.coverage ?? null)} />
@@ -55,7 +62,7 @@ export function Evaluation() {
           {failures.length > 0 && (
             <Card title="Failing tests">
               {failures.map((f) => (
-                <details key={f.nodeid} open>
+                <details key={f.nodeid} className="fail" open>
                   <summary><code>{f.nodeid}</code> — {f.message}</summary>
                   <pre className="code terminal">{f.traceback}</pre>
                 </details>

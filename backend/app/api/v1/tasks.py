@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from fastapi import (
     APIRouter,
@@ -23,6 +24,7 @@ from app.database.session import get_db
 from app.schemas.task import AuditEventOut, TaskCreate, TaskOut
 from app.services import (
     audit_service,
+    intel_service,
     notification_service,
     project_service,
     quota_service,
@@ -68,6 +70,16 @@ def create(
             repo_import.validate_git_url_syntax(data.git_url or "")
         except repo_import.RepoImportError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+    chain_from = None
+    if data.from_task_id is not None:  # Round 9 task chain: same organization only
+        chain_from = task_service.get_owned_task(db, principal.org_id, data.from_task_id)
+        if chain_from is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Task to continue from not found")
+        if chain_from.status != "COMPLETED":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"only a COMPLETED task can be continued (that one is {chain_from.status})",
+            )
     task = task_service.create_task(
         db,
         project,
@@ -82,6 +94,13 @@ def create(
         created_by=principal.user.id,
         learn_from_task=data.learn_from_task,
     )
+    if chain_from is not None:
+        try:
+            intel_service.seed_from_task(db, task, chain_from)
+        except intel_service.IntelError as exc:
+            db.delete(task)  # a chain that cannot be seeded must not leave a half-made task behind
+            db.commit()
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
     audit_service.record(
         db, org_id=principal.org_id, actor_id=principal.user.id, action="task.create",
         target_type="task", target_id=task.id, detail={"project": str(project.id)}, request=request,
@@ -94,10 +113,13 @@ def create(
 def list_all(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    order: Literal["asc", "desc"] = Query(
+        "asc", description="by creation time; desc = newest first"
+    ),
     principal: Principal = Depends(get_viewer),
     db: Session = Depends(get_db),
 ) -> list[Task]:
-    return task_service.list_owned_tasks(db, principal.org_id, limit, offset)
+    return task_service.list_owned_tasks(db, principal.org_id, limit, offset, order)
 
 
 @router.get("/{task_id}", response_model=TaskOut)

@@ -148,7 +148,7 @@ class Task(Base):
             name="ck_tasks_status",
         ),
         CheckConstraint("max_iterations >= 1", name="ck_tasks_max_iterations"),
-        CheckConstraint("source_type IN ('none','zip','git')", name="ck_tasks_source_type"),
+        CheckConstraint("source_type IN ('none','zip','git','task')", name="ck_tasks_source_type"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -171,6 +171,11 @@ class Task(Base):
     learn_from_task: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False
     )
+    # Round 9: re-runs (regression watch) and A/B variants point at the task they repeat;
+    # variants of one A/B test share `experiment`; `model_overrides` = {agent_name: model}.
+    rerun_of: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    experiment: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    model_overrides: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {"version_id_col": version}
     created_at: Mapped[datetime] = mapped_column(default=_now)
@@ -387,6 +392,41 @@ class ApprovalComment(Base):
     file_path: Mapped[str] = mapped_column(String, default="")
     line: Mapped[int | None] = mapped_column(Integer, nullable=True)
     body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class CodeComment(Base):
+    """A person's note on a line of generated code (Round 9). Unresolved notes are given to the
+    Repair agent as hints (wrapped as untrusted data, like every other input)."""
+
+    __tablename__ = "code_comments"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), index=True)
+    iteration_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    file_path: Mapped[str] = mapped_column(String, default="")
+    line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    body: Mapped[str] = mapped_column(Text)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class RegressionWatch(Base):
+    """Re-run an accepted task on a schedule and alert when it stops passing (Round 9)."""
+
+    __tablename__ = "regression_watches"
+    __table_args__ = (
+        CheckConstraint("interval_hours IN (24, 168)", name="ck_regression_interval"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), unique=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    interval_hours: Mapped[int] = mapped_column(Integer, default=168)
+    next_run_at: Mapped[datetime] = mapped_column(index=True)
+    last_run_task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    last_result: Mapped[str] = mapped_column(String, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 

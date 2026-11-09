@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
+import { PasswordField } from "../components/PasswordField";
 
 /** What the SSO callback put in the URL fragment: tokens (success) or a safe error message. */
 export function parseSsoFragment(hash: string): { tokens?: { access_token: string; refresh_token: string }; error?: string } {
@@ -62,7 +63,25 @@ export function Login() {
   };
 
   return (
-    <div className="auth">
+    <div className="auth auth-split">
+      <aside className="auth-hero" aria-hidden="true">
+        <div className="orbit"><span /><span /><span /></div>
+        <div className="code-demo">
+          <div className="code-demo-bar"><i /><i /><i /><small>loop · iteration 2</small></div>
+          <code className="l1">def slugify(text: str) -&gt; str:</code>
+          <code className="l2">    return re.sub(r"\W+", "-", text).strip("-").lower()</code>
+          <code className="l3 test">✔ test_basic_slug</code>
+          <code className="l4 test">✔ test_unicode_is_stripped</code>
+          <code className="l5 pass">Reviewer: accepted · quality 94</code>
+        </div>
+        <h2>Ship code that proves itself.</h2>
+        <ul>
+          <li><b>Plan</b> from plain English</li>
+          <li><b>Build &amp; test</b> in a sandbox</li>
+          <li><b>Review</b> independently</li>
+          <li><b>Repair</b> until it passes</li>
+        </ul>
+      </aside>
       <form className="card auth-card" onSubmit={(e) => void submit(e)}>
         <h1>LoopForge</h1>
         <p className="muted">Autonomous, test-driven software engineering — with evidence.</p>
@@ -79,8 +98,7 @@ export function Login() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordField
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

@@ -16,8 +16,10 @@ class TaskCreate(BaseModel):
     require_plan_approval: bool = False
     learn_from_task: bool = True  # Phase 16: False keeps this task's repairs out of shared memory
     # Phase 8: start from an existing repository; a zip is uploaded via /tasks/{id}/source.
-    source_type: Literal["none", "zip", "git"] = "none"
+    # Round 9: "task" continues from another task's accepted code (a task chain).
+    source_type: Literal["none", "zip", "git", "task"] = "none"
     git_url: str | None = Field(default=None, max_length=300)
+    from_task_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _source_consistency(self) -> "TaskCreate":
@@ -25,6 +27,8 @@ class TaskCreate(BaseModel):
             raise ValueError("git_url is required when source_type is 'git'")
         if self.source_type != "git" and self.git_url:
             raise ValueError("git_url is only valid when source_type is 'git'")
+        if (self.source_type == "task") != (self.from_task_id is not None):
+            raise ValueError("from_task_id is required exactly when source_type is 'task'")
         return self
 
 
@@ -44,6 +48,9 @@ class TaskOut(BaseModel):
     source_type: str = "none"
     source_ref: str | None = None
     source_hash: str | None = None
+    rerun_of: uuid.UUID | None = None
+    experiment: str | None = None
+    model_overrides: dict[str, str] = Field(default_factory=dict)
     version: int
     created_at: datetime
 

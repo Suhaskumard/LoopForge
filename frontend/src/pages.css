@@ -1,0 +1,72 @@
+/* LoopForge round 7: shared page header, task tabs, Settings, Admin, Evaluation. */
+
+/* ---------- page header ---------- */
+.ph { align-items: center; margin-bottom: 1.3rem; }
+.ph-main { display: flex; align-items: center; gap: 1rem; min-width: 0; flex: 1; }
+.ph-icon { position: relative; width: 52px; height: 52px; flex: none; border-radius: 15px; display: grid; place-items: center; color: var(--primary-text);
+  background: var(--grad); box-shadow: 0 8px 24px rgba(139, 123, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .25); animation: pop .5s var(--ease) both; }
+.ph-icon::after { content: ""; position: absolute; inset: -5px; border-radius: 19px; border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent); opacity: .6; }
+.ph-icon svg { width: 25px; height: 25px; }
+.ph-text { min-width: 0; display: grid; gap: .2rem; }
+.ph-sub { font-size: .95rem; min-width: 0; }
+.ph-sub p { margin: 0; }
+.ph-sub .clip { margin: 0; max-width: 70ch; }
+.ph-actions { flex: none; }
+@media (max-width: 560px) {
+  .ph-icon { width: 42px; height: 42px; border-radius: 12px; }
+  .ph-icon svg { width: 20px; height: 20px; }
+  h1 { font-size: 1.5rem; }
+}
+
+/* ---------- task tabs: pill segmented control ---------- */
+.task-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 1.2rem; width: fit-content; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: var(--shadow); }
+.task-tabs a { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem .95rem; border-radius: 10px; border: 0; font-size: .88rem; font-weight: 600;
+  color: var(--muted); box-shadow: none !important; transition: background .2s, color .2s; }
+.task-tabs a svg { width: 16px; height: 16px; transition: transform .25s var(--ease); }
+.task-tabs a:hover { background: var(--info-bg); color: var(--text); text-decoration: none; }
+.task-tabs a:hover svg { transform: scale(1.12); }
+.task-tabs a.active { color: var(--primary-text); background: var(--grad); box-shadow: 0 4px 16px rgba(139, 123, 255, .4) !important; animation: tab-in .3s var(--ease); }
+@keyframes tab-in { from { transform: scale(.94); opacity: .6; } }
+@media (max-width: 560px) { .task-tabs { width: 100%; } .task-tabs a { flex: 1 1 45%; justify-content: center; padding: .5rem .5rem; font-size: .8rem; } }
+
+/* ---------- Settings ---------- */
+.profile-hero { display: flex; align-items: center; gap: 1.1rem; padding: 1.3rem 1.5rem; margin-bottom: 1rem; border-radius: 18px; border: 1px solid var(--border);
+  background: radial-gradient(500px 200px at 0% 50%, rgba(139, 123, 255, .2), transparent 70%), linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow); animation: rise .45s var(--ease) both; }
+.profile-avatar { width: 64px; height: 64px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 1.7rem; font-weight: 800;
+  color: var(--primary-text); background: var(--grad); box-shadow: 0 0 0 4px var(--surface), 0 0 0 6px color-mix(in srgb, var(--primary) 50%, transparent), 0 10px 30px rgba(139, 123, 255, .35); }
+.profile-text { display: grid; gap: .3rem; min-width: 0; }
+.profile-text strong { font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; }
+.profile-text .muted { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.profile-verified { margin-left: .2rem; }
+
+.theme-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; }
+.theme-tile { display: grid; gap: .6rem; padding: .7rem; border-radius: 14px; text-align: left; background: var(--bg-2); border: 2px solid var(--border); }
+.theme-tile.on { border-color: var(--primary); box-shadow: var(--glow); }
+.tt-preview { display: grid; grid-template-columns: 30% 1fr; grid-template-rows: 14px 1fr; gap: 5px; height: 84px; padding: 7px; border-radius: 9px; }
+.theme-tile.dark .tt-preview { background: #0a0b10; }
+.theme-tile.light .tt-preview { background: #f4f5fb; }
+.tt-preview i { border-radius: 4px; }
+.tt-preview i:nth-child(1) { grid-row: 1 / 3; }
+.theme-tile.dark .tt-preview i { background: #181b27; }
+.theme-tile.light .tt-preview i { background: #fff; box-shadow: 0 1px 3px rgba(20, 26, 60, .1); }
+.tt-preview i:nth-child(2) { background: linear-gradient(90deg, #8b7bff, #38d5f5) !important; }
+.tt-label { font-weight: 650; display: flex; justify-content: space-between; align-items: center; }
+.theme-tile.on .tt-label::after { content: "✓"; color: var(--primary); font-weight: 800; }
+
+/* ---------- Admin ---------- */
+.org-avatar { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font-weight: 800; font-size: 1.2rem;
+  background: linear-gradient(135deg, var(--ember), #ff7bd5); color: #fff; box-shadow: 0 8px 22px rgba(255, 138, 61, .35); }
+
+/* ---------- Evaluation: failing tests as terminal cards ---------- */
+details { border-radius: 12px; }
+.card details { margin-bottom: .7rem; border: 1px solid var(--border); background: var(--bg-2); overflow: hidden; }
+.card details.fail { border-color: color-mix(in srgb, var(--bad) 35%, var(--border)); }
+.card details > summary { padding: .65rem .85rem; list-style: none; display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+.card details > summary::-webkit-details-marker { display: none; }
+.card details > summary::before { content: "▸"; color: var(--primary); transition: transform .2s; display: inline-block; }
+.card details.fail > summary::before { color: var(--bad); }
+.card details[open] > summary::before { transform: rotate(90deg); }
+.card details > pre { margin: 0 .6rem .6rem; }
+.eval-hero .ring:nth-child(2) { animation-delay: .1s; }

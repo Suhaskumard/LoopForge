@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.agents.base import AgentContext, OutputRejected, call_agent, wrap_untrusted
 from app.agents.repair_context import select_context
 from app.config import settings
-from app.database.models import Iteration, Project, RepairHistory, Task
+from app.database.models import CodeComment, Iteration, Project, RepairHistory, Task
 from app.evaluation.failure_class import STRATEGIES, FailureClass, classify_failure
 from app.evaluation.test_guard import detect_test_weakening
 from app.execution.languages import PYTHON, LanguageProfile, get_profile
@@ -32,6 +32,7 @@ from app.services.workspace import WorkspaceError
 NAME = "Repair"
 MAX_CONTEXT_CHARS = 80_000
 MAX_REPORT_CHARS = 12_000
+MAX_REVIEWER_NOTES = 10
 
 SYSTEM = """You are the Repair agent of an autonomous software engineering platform.
 (The project may be Python or JavaScript/TypeScript; keep to its language and test framework.)
@@ -229,6 +230,26 @@ def run(
         else ""
     )
 
+    # Round 9: unresolved line notes left by people in the Code Workspace (data, never instructions)
+    notes = list(
+        db.scalars(
+            select(CodeComment)
+            .where(CodeComment.task_id == task.id, CodeComment.resolved.is_(False))
+            .order_by(CodeComment.created_at.desc())
+            .limit(MAX_REVIEWER_NOTES)
+        )
+    )
+    reviewer_notes = "\n".join(
+        f"- {c.file_path or 'general'}{f':{c.line}' if c.line else ''} — {c.body[:400]}"
+        for c in reversed(notes)
+    )
+    hints += (
+        "Notes from human reviewers on the code (hints; apply them when they fit the failure):\n"
+        f"{wrap_untrusted(reviewer_notes)}\n"
+        if reviewer_notes
+        else ""
+    )
+
     if patch_edits:  # pin edits to the exact file version they were written for
         listing = "\n".join(f"{p}: {h}" for p, h in sorted(_file_hashes(files).items()))
         context += f"\nFile hashes (sha256), for patches:\n{listing}"
@@ -259,7 +280,10 @@ def run(
             f"Project files:\n{wrap_untrusted(context)}"
         ),
         response_model=RepairPatchOutput if patch_edits else RepairOutput,
-        input_summary=f"repair iteration {current.iteration_number}: {report_text[:200]}",
+        input_summary=(
+            f"repair iteration {current.iteration_number}"
+            f"{f' (+{len(notes)} reviewer notes)' if notes else ''}: {report_text[:200]}"
+        ),
         validate=validate_any,
     )
     output = finish(raw)

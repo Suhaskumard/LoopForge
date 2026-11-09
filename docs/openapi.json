@@ -511,6 +511,140 @@
         "title": "Body_upload_source_api_v1_tasks__task_id__source_post",
         "type": "object"
       },
+      "CodeCommentCreate": {
+        "properties": {
+          "body": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "file_path": {
+            "default": "",
+            "maxLength": 300,
+            "title": "File Path",
+            "type": "string"
+          },
+          "iteration_number": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Number"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "CodeCommentCreate",
+        "type": "object"
+      },
+      "CodeCommentOut": {
+        "properties": {
+          "author": {
+            "default": "",
+            "title": "Author",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "file_path": {
+            "title": "File Path",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "iteration_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Number"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "boolean"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "iteration_number",
+          "user_id",
+          "file_path",
+          "line",
+          "body",
+          "resolved",
+          "created_at"
+        ],
+        "title": "CodeCommentOut",
+        "type": "object"
+      },
+      "CodeCommentUpdate": {
+        "properties": {
+          "resolved": {
+            "title": "Resolved",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resolved"
+        ],
+        "title": "CodeCommentUpdate",
+        "type": "object"
+      },
       "CommentIn": {
         "properties": {
           "body": {
@@ -687,6 +821,59 @@
           "email"
         ],
         "title": "EmailBody",
+        "type": "object"
+      },
+      "ExperimentCreate": {
+        "properties": {
+          "agent": {
+            "enum": [
+              "Planner",
+              "Builder",
+              "Repair",
+              "Reviewer",
+              "Documentation"
+            ],
+            "title": "Agent",
+            "type": "string"
+          },
+          "model_a": {
+            "pattern": "^[A-Za-z0-9._:/-]{1,80}$",
+            "title": "Model A",
+            "type": "string"
+          },
+          "model_b": {
+            "pattern": "^[A-Za-z0-9._:/-]{1,80}$",
+            "title": "Model B",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "model_a",
+          "model_b"
+        ],
+        "title": "ExperimentCreate",
+        "type": "object"
+      },
+      "ExperimentOut": {
+        "properties": {
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/VariantOut"
+            },
+            "title": "Variants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "experiment",
+          "variants"
+        ],
+        "title": "ExperimentOut",
         "type": "object"
       },
       "FailureExplanation": {
@@ -922,6 +1109,104 @@
         "title": "FinalReport",
         "type": "object"
       },
+      "ForecastBand": {
+        "properties": {
+          "p50": {
+            "title": "P50",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p50",
+          "p90"
+        ],
+        "title": "ForecastBand",
+        "type": "object"
+      },
+      "ForecastOut": {
+        "properties": {
+          "accept_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accept Rate"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "integer"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "enum": [
+              "similar",
+              "language",
+              "organization",
+              "none"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "basis",
+          "scope",
+          "accept_rate",
+          "tokens",
+          "cost",
+          "iterations",
+          "seconds"
+        ],
+        "title": "ForecastOut",
+        "type": "object"
+      },
       "GithubStatusOut": {
         "properties": {
           "configured": {
@@ -948,6 +1233,110 @@
           "token"
         ],
         "title": "GithubTokenIn",
+        "type": "object"
+      },
+      "GraphEdge": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "contains",
+              "failed_with",
+              "touched",
+              "learned_from",
+              "chained_from",
+              "rerun_of"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "kind"
+        ],
+        "title": "GraphEdge",
+        "type": "object"
+      },
+      "GraphNode": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "meta": {
+            "title": "Meta",
+            "type": "object"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "enum": [
+              "project",
+              "task",
+              "failure",
+              "file"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "label"
+        ],
+        "title": "GraphNode",
+        "type": "object"
+      },
+      "GraphOut": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2511,6 +2900,105 @@
         "title": "RepairAttempt",
         "type": "object"
       },
+      "RepairOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "failure_category": {
+            "title": "Failure Category",
+            "type": "string"
+          },
+          "failure_class": {
+            "title": "Failure Class",
+            "type": "string"
+          },
+          "files_modified": {
+            "items": {},
+            "title": "Files Modified",
+            "type": "array"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "learnable": {
+            "title": "Learnable",
+            "type": "boolean"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "proposed_fix": {
+            "title": "Proposed Fix",
+            "type": "string"
+          },
+          "regression_status": {
+            "title": "Regression Status",
+            "type": "string"
+          },
+          "root_cause": {
+            "title": "Root Cause",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_requirement": {
+            "title": "Task Requirement",
+            "type": "string"
+          },
+          "task_status": {
+            "title": "Task Status",
+            "type": "string"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "task_requirement",
+          "task_status",
+          "learnable",
+          "failure_class",
+          "failure_category",
+          "fingerprint",
+          "root_cause",
+          "proposed_fix",
+          "files_modified",
+          "outcome",
+          "regression_status",
+          "tokens_used",
+          "duration_seconds",
+          "created_at"
+        ],
+        "title": "RepairOut",
+        "type": "object"
+      },
       "ReportIteration": {
         "properties": {
           "coverage": {
@@ -2720,6 +3208,43 @@
           "evidence_ref"
         ],
         "title": "RequirementOut",
+        "type": "object"
+      },
+      "RerunOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "experiment"
+        ],
+        "title": "RerunOut",
         "type": "object"
       },
       "ResetConfirm": {
@@ -3093,6 +3618,18 @@
             "title": "Acceptance Criteria",
             "type": "array"
           },
+          "from_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Task Id"
+          },
           "git_url": {
             "anyOf": [
               {
@@ -3149,7 +3686,8 @@
             "enum": [
               "none",
               "zip",
-              "git"
+              "git",
+              "task"
             ],
             "title": "Source Type",
             "type": "string"
@@ -3192,6 +3730,17 @@
             "title": "Current Iteration",
             "type": "integer"
           },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -3217,6 +3766,13 @@
             "title": "Max Iterations",
             "type": "integer"
           },
+          "model_overrides": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Model Overrides",
+            "type": "object"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -3230,6 +3786,18 @@
           "requirement": {
             "title": "Requirement",
             "type": "string"
+          },
+          "rerun_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerun Of"
           },
           "source_hash": {
             "anyOf": [
@@ -3811,6 +4379,180 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VariantOut": {
+        "properties": {
+          "cost": {
+            "title": "Cost",
+            "type": "number"
+          },
+          "iterations": {
+            "title": "Iterations",
+            "type": "integer"
+          },
+          "model_overrides": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Model Overrides",
+            "type": "object"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "rerun_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerun Of"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "status",
+          "model_overrides",
+          "iterations",
+          "tokens",
+          "cost",
+          "quality",
+          "seconds",
+          "rerun_of"
+        ],
+        "title": "VariantOut",
+        "type": "object"
+      },
+      "WatchIn": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "default": 168,
+            "enum": [
+              24,
+              168
+            ],
+            "title": "Interval Hours",
+            "type": "integer"
+          }
+        },
+        "title": "WatchIn",
+        "type": "object"
+      },
+      "WatchOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "title": "Interval Hours",
+            "type": "integer"
+          },
+          "last_result": {
+            "title": "Last Result",
+            "type": "string"
+          },
+          "last_run_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Task Id"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "interval_hours",
+          "next_run_at",
+          "last_run_task_id",
+          "last_result",
+          "active"
+        ],
+        "title": "WatchOut",
+        "type": "object"
+      },
+      "WatchStatus": {
+        "properties": {
+          "reruns": {
+            "items": {
+              "$ref": "#/components/schemas/RerunOut"
+            },
+            "title": "Reruns",
+            "type": "array"
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "watch",
+          "reruns"
+        ],
+        "title": "WatchStatus",
         "type": "object"
       },
       "WebhookCreate": {
@@ -5055,6 +5797,203 @@
         "summary": "Verify Email",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/experiments/{experiment}": {
+      "get": {
+        "operationId": "get_experiment_api_v1_experiments__experiment__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{12}$",
+              "title": "Experiment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Experiment",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
+    "/api/v1/forecast": {
+      "get": {
+        "description": "Tokens, cost, rounds and time that finished tasks like this one took (p50/p90).",
+        "operationId": "forecast_api_v1_forecast_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "default": "python",
+              "pattern": "^[a-z]{2,20}$",
+              "title": "Language",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "words",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 5000,
+              "minimum": 0,
+              "title": "Words",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Forecast",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
+    "/api/v1/graph": {
+      "get": {
+        "description": "Projects, tasks, failure classes and frequently repaired files, with how they connect.",
+        "operationId": "workspace_graph_api_v1_graph_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Workspace Graph",
+        "tags": [
+          "graph"
         ]
       }
     },
@@ -8145,6 +9084,111 @@
         ]
       }
     },
+    "/api/v1/repairs": {
+      "get": {
+        "description": "What the repair agent tried and learned in this organization, newest first.",
+        "operationId": "repair_memory_api_v1_repairs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "failure_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Failure Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RepairOut"
+                  },
+                  "title": "Response Repair Memory Api V1 Repairs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Repair Memory",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
     "/api/v1/scim/v2/Groups": {
       "get": {
         "operationId": "list_groups_api_v1_scim_v2_Groups_get",
@@ -8718,6 +9762,22 @@
               "minimum": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "by creation time; desc = newest first",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "description": "by creation time; desc = newest first",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Order",
+              "type": "string"
             }
           },
           {
@@ -9464,6 +10524,231 @@
         ]
       }
     },
+    "/api/v1/tasks/{task_id}/comments": {
+      "get": {
+        "operationId": "list_comments_api_v1_tasks__task_id__comments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CodeCommentOut"
+                  },
+                  "title": "Response List Comments Api V1 Tasks  Task Id  Comments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Comments",
+        "tags": [
+          "intelligence"
+        ]
+      },
+      "post": {
+        "description": "A note on a line of code. Unresolved notes reach the Repair agent as (untrusted) hints.",
+        "operationId": "add_comment_api_v1_tasks__task_id__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeCommentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeCommentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Add Comment",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task_id}/comments/{comment_id}": {
+      "patch": {
+        "operationId": "update_comment_api_v1_tasks__task_id__comments__comment_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Comment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeCommentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeCommentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Update Comment",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
     "/api/v1/tasks/{task_id}/download": {
       "get": {
         "description": "Zip of the latest iteration's recorded source files (final report, screen 7).",
@@ -9619,6 +10904,81 @@
         "summary": "Events",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task_id}/experiments": {
+      "post": {
+        "description": "Run this task twice, with a different model for one agent, and compare the runs.",
+        "operationId": "start_experiment_api_v1_tasks__task_id__experiments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperimentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Start Experiment",
+        "tags": [
+          "intelligence"
         ]
       }
     },
@@ -10439,6 +11799,71 @@
         ]
       }
     },
+    "/api/v1/tasks/{task_id}/rerun": {
+      "post": {
+        "description": "Regression check now: a fresh copy of this accepted task runs from scratch.",
+        "operationId": "rerun_api_v1_tasks__task_id__rerun_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Rerun",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
     "/api/v1/tasks/{task_id}/resume": {
       "post": {
         "description": "Continue a run that was interrupted (e.g. the server restarted) from its checkpoint.",
@@ -10812,6 +12237,198 @@
         "summary": "Change Status",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task_id}/watch": {
+      "delete": {
+        "operationId": "delete_watch_api_v1_tasks__task_id__watch_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Delete Watch",
+        "tags": [
+          "intelligence"
+        ]
+      },
+      "get": {
+        "operationId": "get_watch_api_v1_tasks__task_id__watch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Watch",
+        "tags": [
+          "intelligence"
+        ]
+      },
+      "put": {
+        "description": "Re-run this accepted task daily (24) or weekly (168) and alert when it stops passing.",
+        "operationId": "set_watch_api_v1_tasks__task_id__watch_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-org-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Org-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Set Watch",
+        "tags": [
+          "intelligence"
         ]
       }
     },

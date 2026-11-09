@@ -50,13 +50,6 @@ export interface Template {
   acceptance_criteria: string[];
 }
 
-export interface OnboardingStep {
-  id: string;
-  title: string;
-  done: boolean;
-  hint: string;
-}
-
 export interface QuotaWarning {
   scope: "org" | "member";
   resource: "tokens" | "tasks";
@@ -158,7 +151,10 @@ export interface Task {
   token_budget: number | null;
   max_cost: number | null;
   require_plan_approval: boolean;
-  source_type: "none" | "zip" | "git";
+  source_type: "none" | "zip" | "git" | "task";
+  rerun_of?: string | null;
+  experiment?: string | null;
+  model_overrides?: Record<string, string>;
   source_ref: string | null;
   source_hash: string | null;
   version: number;
@@ -394,4 +390,178 @@ export interface FinalReport {
   approvals: { kind: string; status: string; summary: string; iteration: number }[];
   readme_generated: boolean;
   generated_at: string;
+}
+
+// ---- Round 8: workspace graph, repair memory, publishing, integrations, plan ----
+
+export type GraphNodeType = "project" | "task" | "failure" | "file";
+export type GraphEdgeKind = "contains" | "failed_with" | "touched" | "learned_from" | "chained_from" | "rerun_of";
+
+export interface GraphNode {
+  id: string;
+  type: GraphNodeType;
+  label: string;
+  status: string | null;
+  meta: Record<string, unknown>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  kind: GraphEdgeKind;
+}
+
+export interface WorkspaceGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  truncated: boolean;
+}
+
+export interface RepairRecord {
+  id: string;
+  task_id: string;
+  task_requirement: string;
+  task_status: string;
+  learnable: boolean;
+  failure_class: string;
+  failure_category: string;
+  fingerprint: string | null;
+  root_cause: string;
+  proposed_fix: string;
+  files_modified: string[];
+  outcome: string;
+  regression_status: string;
+  tokens_used: number;
+  duration_seconds: number;
+  created_at: string;
+}
+
+export interface PublishRequest {
+  id: string;
+  task_id: string;
+  repo: string;
+  base_branch: string;
+  branch: string;
+  status: string;
+  requested_by: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  pr_url: string | null;
+  ci_state: string | null;
+  error: string;
+  created_at: string;
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  prefix: string;
+  scope: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  format: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  status: string;
+  attempts: number;
+  response_status: number | null;
+  last_error: string;
+  created_at: string;
+}
+
+export const WEBHOOK_EVENTS = [
+  "task.completed",
+  "task.failed",
+  "task.escalated",
+  "publish.requested",
+  "publish.approved",
+  "publish.rejected",
+  "publish.pushed",
+  "approval.needed",
+  "quota.near_limit",
+] as const;
+
+export interface TaskPlan {
+  iteration: number;
+  plan: {
+    project_name?: string;
+    framework?: string;
+    base?: string;
+    requirements?: { req_id: string; description: string; type?: string; priority?: string }[];
+    acceptance_criteria?: string[];
+    files?: { path: string; purpose: string; implements?: string[]; action?: string }[];
+    dependencies?: string[];
+  };
+}
+
+// ---- Round 9: loop intelligence ----
+
+export interface Band {
+  p50: number;
+  p90: number;
+}
+
+export interface Forecast {
+  basis: number;
+  scope: "similar" | "language" | "organization" | "none";
+  accept_rate: number | null;
+  tokens: Band | null;
+  cost: Band | null;
+  iterations: Band | null;
+  seconds: Band | null;
+}
+
+export interface CodeComment {
+  id: string;
+  task_id: string;
+  iteration_number: number | null;
+  user_id: string;
+  author: string;
+  file_path: string;
+  line: number | null;
+  body: string;
+  resolved: boolean;
+  created_at: string;
+}
+
+export interface WatchStatus {
+  watch: {
+    task_id: string;
+    interval_hours: number;
+    next_run_at: string;
+    last_run_task_id: string | null;
+    last_result: string;
+    active: boolean;
+  } | null;
+  reruns: { id: string; status: string; created_at: string; experiment: string | null }[];
+}
+
+export interface Variant {
+  task_id: string;
+  status: string;
+  model_overrides: Record<string, string>;
+  iterations: number;
+  tokens: number;
+  cost: number;
+  quality: number | null;
+  seconds: number | null;
+  rerun_of: string | null;
+}
+
+export interface Experiment {
+  experiment: string;
+  variants: Variant[];
 }

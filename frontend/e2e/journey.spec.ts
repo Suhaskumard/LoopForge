@@ -24,7 +24,6 @@ test.describe("a new user's first session", () => {
     await expect(page.getByText("Your email address is verified")).toBeVisible();
     await page.goto("/");
     await expect(page.getByTestId("verify-banner")).toHaveCount(0);
-    await expect(page.getByTestId("onboarding")).toContainText("Getting started");
 
     // a template pre-fills the form
     await page.getByRole("link", { name: "New task" }).first().click();

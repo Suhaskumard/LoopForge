@@ -266,6 +266,9 @@ def _notify_terminal(session_factory: sessionmaker[Session], task_id: Any) -> No
             task = db.get(Task, task_id)
             if task is None or task.status not in event:
                 return
+            from app.services import intel_service  # local: intel_service starts runs via us
+
+            intel_service.on_terminal(db, task)  # Round 9: regression watch verdict + alert
             project = db.get(Project, task.project_id)
             if project is not None:
                 webhook_service.emit_safely(

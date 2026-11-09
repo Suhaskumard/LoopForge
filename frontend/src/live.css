@@ -1,0 +1,147 @@
+/* LoopForge round 6: Live Workflow mission control. Loaded last. */
+
+/* ---------- reactor header ---------- */
+.reactor {
+  --hue: var(--primary);
+  --hue2: var(--primary-2);
+  position: relative; overflow: hidden; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.6rem;
+  padding: 1.4rem 1.6rem; margin-bottom: .9rem; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--hue) 45%, var(--border));
+  background:
+    radial-gradient(420px 220px at 8% 50%, color-mix(in srgb, var(--hue) 26%, transparent), transparent 70%),
+    radial-gradient(500px 260px at 100% 0%, color-mix(in srgb, var(--hue2) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow), 0 0 50px color-mix(in srgb, var(--hue) 18%, transparent);
+  animation: rise .5s var(--ease) both;
+}
+.reactor.ok { --hue: var(--ok); --hue2: var(--primary-2); }
+.reactor.bad { --hue: var(--bad); --hue2: var(--warn); }
+.reactor.idle { --hue: var(--muted); --hue2: var(--primary); box-shadow: var(--shadow); }
+.reactor::before { /* faint grid */
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px; mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+}
+.reactor.ok::after, .reactor.bad::after { /* one-shot sweep on finish */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--hue) 35%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%); animation: sweep 1.6s var(--ease) .2s forwards;
+}
+.reactor.bad::after { background: repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--bad) 18%, transparent) 3px 4px); transform: translateY(-100%); animation: scan-down 1.4s ease-out forwards; }
+@keyframes sweep { to { transform: translateX(100%); } }
+@keyframes scan-down { to { transform: translateY(100%); } }
+
+.core { position: relative; width: 96px; height: 96px; flex: none; }
+.core .ring { position: absolute; border-radius: 50%; border: 2px solid transparent; }
+.core .r1 { inset: 0; border-top-color: var(--hue); border-right-color: color-mix(in srgb, var(--hue) 40%, transparent); animation: spin 3.2s linear infinite; }
+.core .r2 { inset: 13px; border-bottom-color: var(--hue2); border-left-color: color-mix(in srgb, var(--hue2) 40%, transparent); animation: spin 2.2s linear infinite reverse; }
+.core .r3 { inset: 26px; border: 2px dashed color-mix(in srgb, var(--hue) 55%, transparent); animation: spin 8s linear infinite; }
+.core .nucleus { position: absolute; inset: 36px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, var(--hue) 45%, var(--hue2));
+  box-shadow: 0 0 22px var(--hue), 0 0 50px color-mix(in srgb, var(--hue) 60%, transparent); animation: heartbeat 1.6s ease-in-out infinite; }
+.reactor.idle .core .ring, .reactor.ok .core .ring, .reactor.bad .core .ring { animation-duration: 14s; }
+.reactor.idle .nucleus { animation: none; opacity: .6; }
+.reactor.ok .nucleus { animation: pop .7s var(--ease) both; }
+@keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(.96); } 45% { transform: scale(1.08); } }
+
+.reactor-text { position: relative; display: grid; gap: .1rem; min-width: 0; }
+.reactor-kicker { display: inline-flex; align-items: center; gap: .4rem; font-size: .7rem; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; color: var(--hue); }
+.reactor.running .reactor-kicker::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--hue); animation: beacon 1.2s ease-out infinite; }
+.reactor-agent { font-size: 2.2rem; line-height: 1.1; font-weight: 800; letter-spacing: -.035em; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: linear-gradient(90deg, var(--text), var(--hue)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: agent-in .5s var(--ease) both; }
+@keyframes agent-in { from { opacity: 0; transform: translateY(8px); filter: blur(6px); letter-spacing: .05em; } }
+
+.reactor-stats { position: relative; display: flex; gap: 1.4rem; margin: 0; align-items: center; }
+.reactor-stats > div { display: grid; gap: .1rem; }
+.reactor-stats dt { font-size: .66rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.reactor-stats dd { margin: 0; font-size: 1.35rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.reactor-stats dd small { font-size: .8rem; color: var(--muted); font-weight: 500; }
+.mono { font-family: var(--mono); }
+.stat-ring { display: flex !important; align-items: center; gap: .6rem !important; }
+.stat-ring svg { width: 52px; height: 52px; transform: rotate(-90deg); }
+.sr-track { fill: none; stroke: var(--border); stroke-width: 6; }
+.sr-bar { fill: none; stroke: var(--hue); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset .8s var(--ease); filter: drop-shadow(0 0 4px var(--hue)); }
+
+@media (max-width: 1000px) {
+  .reactor { grid-template-columns: auto minmax(0, 1fr); }
+  .reactor-stats { grid-column: 1 / -1; flex-wrap: wrap; justify-content: space-between; }
+}
+@media (max-width: 520px) {
+  .reactor { gap: 1rem; padding: 1.1rem; }
+  .core { width: 64px; height: 64px; }
+  .core .r2 { inset: 9px; } .core .r3 { inset: 17px; } .core .nucleus { inset: 24px; }
+  .reactor-agent { font-size: 1.5rem; }
+  .reactor-stats { gap: .8rem; }
+}
+
+/* ---------- stage rail ---------- */
+.rail-wrap { position: relative; margin-bottom: 1rem; }
+.rail { list-style: none; margin: 0; padding: .9rem 1rem; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--border);
+  border-radius: 14px; background: color-mix(in srgb, var(--surface) 80%, transparent); }
+.stage { position: relative; display: grid; justify-items: center; gap: .35rem; text-align: center; }
+.stage::before { /* connector to the previous stage */
+  content: ""; position: absolute; top: 13px; right: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+.stage:first-child::before { display: none; }
+.stage.success::before, .stage.running::before, .stage.failed::before { background: var(--grad); box-shadow: 0 0 8px var(--primary); }
+.stage.running::before { background: linear-gradient(90deg, var(--primary), var(--primary-2), var(--primary)); background-size: 200% 100%; animation: text-flow 1s linear infinite; }
+.stage-dot { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800;
+  background: var(--bg-2); border: 2px solid var(--border); color: var(--primary-text); transition: all .3s var(--ease); }
+.stage.success .stage-dot { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 12px color-mix(in srgb, var(--ok) 60%, transparent); animation: pop .45s var(--ease) both; }
+.stage.failed .stage-dot { background: var(--bad); border-color: var(--bad); }
+.stage.running .stage-dot { border-color: var(--primary-2); background: var(--surface); box-shadow: 0 0 0 4px var(--info-bg), 0 0 16px var(--primary-2); animation: beacon-c 1.3s ease-out infinite; }
+.stage.running .stage-dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-2); }
+.stage-label { font-size: .74rem; font-weight: 650; letter-spacing: .04em; color: var(--muted); }
+.stage.running .stage-label, .stage.success .stage-label { color: var(--text); }
+.retry-arc { position: absolute; right: 1rem; top: -.75rem; display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .65rem; border-radius: 999px;
+  font-size: .72rem; font-weight: 650; color: var(--warn); background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.retry-arc span { display: inline-block; }
+.retry-arc.on span { animation: spin 1.2s linear infinite reverse; }
+
+/* ---------- graph + roster ---------- */
+.lw-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(240px, 1fr); gap: 1rem; margin-bottom: 1rem; }
+.lw-grid > .card { margin: 0; }
+@media (max-width: 1000px) { .lw-grid { grid-template-columns: 1fr; } }
+.flow { height: 380px; }
+.packet { fill: var(--primary-2); filter: drop-shadow(0 0 5px var(--primary-2)) drop-shadow(0 0 2px #fff); }
+.react-flow__node:hover .flow-node, .flow-node:hover { transform: translateY(-2px); }
+
+.roster { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.agent-chip { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: .6rem; align-items: center;
+  padding: .6rem .75rem; border-radius: 11px; border: 1px solid var(--border); background: var(--bg-2); transition: border-color .3s, box-shadow .3s; }
+.agent-chip .ac-dot { grid-row: 1 / 3; width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.agent-chip strong { font-size: .9rem; }
+.agent-chip .muted { grid-column: 2; text-transform: capitalize; }
+.agent-chip .ac-tokens { grid-column: 3; grid-row: 1 / 3; color: var(--muted); }
+.agent-chip.success .ac-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.agent-chip.failed .ac-dot { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.agent-chip.running { border: 1px solid transparent;
+  background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, conic-gradient(from var(--angle), var(--primary), var(--primary-2), var(--ember), var(--primary)) border-box;
+  animation: angle 2.2s linear infinite; box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 30%, transparent); }
+.agent-chip.running .ac-dot { background: var(--primary-2); animation: beacon-c 1.2s ease-out infinite; }
+
+.tests-bar { display: flex; height: 5px; margin-top: .4rem; border-radius: 4px; overflow: hidden; background: var(--border); }
+.tests-bar i { display: block; height: 100%; animation: grow .9s var(--ease) both; }
+.tests-bar .pass { background: var(--ok); }
+.tests-bar .fail { background: var(--bad); }
+
+/* ---------- timeline v2 ---------- */
+.timeline { max-height: 480px; }
+.timeline li.ev { grid-template-columns: 110px minmax(150px, 210px) minmax(0, 1fr); animation: slide-in .35s var(--ease) both, flash 1.4s ease-out both; }
+@keyframes flash { 0% { background: color-mix(in srgb, var(--primary-2) 22%, transparent); } 100% { background: transparent; } }
+.timeline time { display: grid; line-height: 1.25; }
+.timeline time small { font-size: .7rem; color: var(--muted); opacity: .8; }
+.tl-glyph { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-right: .45rem; border-radius: 6px; font-size: .72rem;
+  background: var(--info-bg); color: var(--primary); vertical-align: 1px; }
+.ev.task_completed .tl-glyph, .ev.iteration_completed .tl-glyph, .ev.agent_completed .tl-glyph { background: var(--ok-bg); color: var(--ok); }
+.ev.task_failed .tl-glyph, .ev.escalated .tl-glyph, .ev.task_cancelled .tl-glyph { background: var(--bad-bg); color: var(--bad); }
+.ev.retry_scheduled .tl-glyph { background: var(--warn-bg); color: var(--warn); }
+.timeline li.tl-head { display: block; position: sticky; top: 0; z-index: 2; padding: .5rem .4rem .35rem; margin-top: .3rem; border-bottom: 1px solid var(--border);
+  font-size: .7rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; color: var(--primary-2);
+  background: linear-gradient(180deg, var(--surface) 70%, transparent); animation: none; }
+.timeline li.tl-head::before, .timeline li.tl-head::after { display: none; }
+.timeline li.tl-head:first-child { margin-top: 0; }
+@media (max-width: 760px) { .timeline li.ev { grid-template-columns: 1fr; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .core .ring, .core .nucleus, .stage.running .stage-dot, .stage.running::before, .agent-chip.running, .retry-arc.on span { animation: none !important; }
+  .reactor::after { display: none; }
+}

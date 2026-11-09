@@ -15,7 +15,9 @@ from app.api.v1 import (
     analytics,
     approvals,
     auth,
+    graph,
     guide,
+    intel,
     mfa,
     notifications,
     orgs,
@@ -52,6 +54,8 @@ api_v1.include_router(runs.router)
 api_v1.include_router(runs.iterations_router)
 api_v1.include_router(agents.router)
 api_v1.include_router(analytics.router)
+api_v1.include_router(graph.router)
+api_v1.include_router(intel.router)
 api_v1.include_router(approvals.router)
 api_v1.include_router(reports.router)
 api_v1.include_router(publish.router)
@@ -81,11 +85,34 @@ def _resume_interrupted() -> None:
         log.exception("resume on startup failed")
 
 
+def _inline_starter() -> Any:
+    from app.execution.sandbox import get_sandbox_backend
+    from app.services import intel_service, run_service
+    from app.services.llm_client import get_llm_client
+
+    def start(task_id: Any) -> None:
+        run_service.dispatch(
+            intel_service.ThreadBackground(), session.SessionLocal, "start", task_id,
+            get_llm_client(), get_sandbox_backend(),
+        )  # fmt: skip
+
+    return start
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    from app.services.intel_service import RegressionScheduler
+
     if settings.resume_on_startup:
         threading.Thread(target=thread_target(_resume_interrupted), daemon=True).start()
+    scheduler = None
+    # Round 9: queue mode re-runs from the worker; an inline server runs its own small scheduler
+    if settings.run_mode == "inline" and settings.regression_poll_seconds > 0:
+        scheduler = RegressionScheduler(session.SessionLocal, _inline_starter)
+        threading.Thread(target=thread_target(scheduler.loop), daemon=True).start()
     yield
+    if scheduler is not None:
+        scheduler.stop.set()
 
 
 app = FastAPI(

@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { api } from "../api/client";
 import type { FinalReport } from "../api/types";
+import { useAuth } from "../auth";
+import { ExperimentCard, WatchCard } from "../components/Intel";
 import { TaskTabs } from "../components/Layout";
-import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
+import { IconDoc } from "../components/icons";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader, ScoreRing, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
 import { money, pct, score } from "../lib/format";
 
@@ -19,6 +22,7 @@ async function save(blob: Blob, name: string): Promise<void> {
 /** Screen 7 — Final Report. Everything shown comes from stored execution records (GET /report). */
 export function Report() {
   const { id = "" } = useParams();
+  const { can } = useAuth();
   const report = useAsync(() => api.get<FinalReport>(`/tasks/${id}/report`), [id]);
   const [dlError, setDlError] = useState<string>();
   const r = report.data;
@@ -35,22 +39,29 @@ export function Report() {
   const unmet = r?.acceptance_criteria.filter((c) => !c.met).length ?? 0;
   return (
     <>
-      <header className="page-head">
-        <div>
-          <h1>Final Report</h1>
-          {r && <p className="muted clip">{r.requirement}</p>}
-        </div>
+      <PageHeader icon={<IconDoc />} title="Final Report" sub={r && <p className="clip">{r.requirement}</p>}>
         {r && <StatusBadge status={r.status} />}
-      </header>
+      </PageHeader>
       <TaskTabs id={id} />
       {report.error && <ErrorBox error={report.error} />}
       {!r && report.loading && <Loading />}
 
       {r && (
         <>
-          <section className={`banner ${r.status === "COMPLETED" ? "ok" : ""}`} data-testid="outcome">
-            <strong>{r.outcome}</strong>
-            {r.escalation_reason && <span>Reason: {r.escalation_reason}</span>}
+          <section className={`report-hero ${r.status === "COMPLETED" ? "win" : "loss"}`}>
+            <div className="report-hero-main">
+              <span className="report-kicker">{r.status === "COMPLETED" ? "Accepted" : r.status.replace(/_/g, " ").toLowerCase()}</span>
+              <div className={`banner ${r.status === "COMPLETED" ? "ok" : ""}`} data-testid="outcome">
+                <strong>{r.outcome}</strong>
+                {r.escalation_reason && <span>Reason: {r.escalation_reason}</span>}
+              </div>
+              <div className="report-facts">
+                <span><b>{r.iterations.length}</b> iteration{r.iterations.length === 1 ? "" : "s"}</span>
+                <span><b>{r.tests.passed}/{r.tests.total}</b> tests</span>
+                <span><b>{money(r.estimated_cost)}</b> est. cost</span>
+              </div>
+            </div>
+            <ScoreRing value={r.quality.score} label="Quality" />
           </section>
 
           {r.failure_explanation && (
@@ -142,6 +153,27 @@ export function Report() {
               </table>
             )}
           </Card>
+
+          {r.status === "COMPLETED" && (
+            <section className="next-steps" aria-label="What next">
+              {can("developer") && (
+                <Link className="next-card chain-next" to={`/tasks/new?from=${id}`}>
+                  <span className="nc-icon" aria-hidden="true">⛓</span>
+                  <span><strong>Continue from this task</strong><small className="muted">Start a new task that extends this accepted code</small></span>
+                  <span className="nc-go" aria-hidden="true">→</span>
+                </Link>
+              )}
+              <Link className="next-card" to={`/graph?focus=${encodeURIComponent(`t:${id}`)}`}>
+                <span className="nc-icon" aria-hidden="true">◎</span>
+                <span><strong>See it in the Task Graph</strong><small className="muted">Its project, failures, fixes and follow-ups</small></span>
+                <span className="nc-go" aria-hidden="true">→</span>
+              </Link>
+            </section>
+          )}
+          <div className="grid2">
+            <WatchCard taskId={id} status={r.status} canEdit={can("developer")} />
+            {r.status === "COMPLETED" && <ExperimentCard taskId={id} canRun={can("developer")} />}
+          </div>
 
           {r.approvals.length > 0 && (
             <Card title="Human approvals">

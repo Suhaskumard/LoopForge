@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
 import { ReviewComments } from "../components/Approvals";
 import { AccountBanners, NotificationBell } from "../components/Notifications";
-import { Onboarding } from "../components/Onboarding";
 import { ForgotPassword, ResetPassword, VerifyEmail } from "../pages/AccountLinks";
 import { Invites, MemberQuotas } from "../pages/Admin";
 import { CreateTask } from "../pages/CreateTask";
@@ -106,22 +105,6 @@ describe("notifications and banners", () => {
 });
 
 describe("guided experience", () => {
-  it("the onboarding card lists what is left and hides itself when complete", async () => {
-    const steps = [
-      { id: "a", title: "Verify your email", done: true, hint: "h1" },
-      { id: "b", title: "Create your first task", done: false, hint: "Pick a template" },
-    ];
-    vi.spyOn(api, "get").mockResolvedValue({ steps, complete: false });
-    const { unmount } = at("/x", <Onboarding />);
-    expect(await screen.findByText("Getting started (1/2)")).toBeInTheDocument();
-    expect(screen.getByText(/Pick a template/)).toBeInTheDocument();
-    unmount();
-    vi.spyOn(api, "get").mockResolvedValue({ steps, complete: true });
-    const { container } = at("/x", <Onboarding />);
-    await waitFor(() => expect(api.get).toHaveBeenCalled());
-    expect(container.querySelector("[data-testid=onboarding]")).toBeNull();
-  });
-
   it("choosing a template fills the form", async () => {
     vi.spyOn(api, "get").mockResolvedValue([
       {

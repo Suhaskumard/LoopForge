@@ -3,12 +3,23 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { api } from "../api/client";
 import type { User } from "../api/types";
 import { useAuth } from "../auth";
+import { PasswordField } from "../components/PasswordField";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 
 function Shell({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="auth">
+    <div className="auth auth-split">
+      <aside className="auth-hero" aria-hidden="true">
+        <div className="orbit"><span /><span /><span /></div>
+        <h2>Ship code that proves itself.</h2>
+        <ul>
+          <li><b>Plan</b> from plain English</li>
+          <li><b>Build &amp; test</b> in a sandbox</li>
+          <li><b>Review</b> independently</li>
+          <li><b>Repair</b> until it passes</li>
+        </ul>
+      </aside>
       <main className="card auth-card">
         <h1>{title}</h1>
         {children}
@@ -105,7 +116,7 @@ export function ResetPassword() {
         <form className="form" onSubmit={(e) => void submit(e)}>
           <label>
             New password
-            <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <PasswordField required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
           </label>
           <p className="muted small">At least 8 characters, with a letter and a digit.</p>
           {error && <p className="error" role="alert">{error}</p>}

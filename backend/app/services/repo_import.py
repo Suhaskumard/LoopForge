@@ -131,6 +131,18 @@ def _strip_common_root(names: list[str]) -> str:
     return ""
 
 
+def import_files(files: dict[str, str]) -> RepoImport:
+    """Apply the same import rules (paths, sizes, secret scan) to files already in hand.
+
+    Round 9 task chains seed a new task from another task's accepted code through this, so even
+    our own generated files are checked exactly like an uploaded repository.
+    """
+    ingest = _Ingest()
+    for path in sorted(files):
+        ingest.add(path, files[path].encode("utf-8"))
+    return ingest.finish()
+
+
 def import_zip(blob: bytes) -> RepoImport:
     if len(blob) > settings.repo_max_archive_bytes:
         raise RepoImportError("archive is larger than the allowed upload size")

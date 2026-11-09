@@ -2,12 +2,14 @@ import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import { ROLE_RANK, type AuditEntry, type Invite, type Member, type OrgDetails, type Role, type Usage } from "../api/types";
 import { useAuth } from "../auth";
-import { Card, Empty, ErrorBox, Kpi, Loading } from "../components/ui";
+import { IconShield } from "../components/icons";
+import { Integrations } from "../components/Integrations";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader } from "../components/ui";
 import { useAsync } from "../hooks";
 import { num } from "../lib/format";
 
 const ROLES = Object.keys(ROLE_RANK) as Role[];
-const TABS = ["Members", "Usage & limits", "Audit log", "Data"] as const;
+const TABS = ["Members", "Usage & limits", "Integrations", "Audit log", "Data"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Organization administration (Phase 10). Everything here is enforced server-side as well. */
@@ -17,10 +19,9 @@ export function Admin() {
   if (!activeOrg || !can("admin")) return <Empty>Organization settings are for admins.</Empty>;
   return (
     <>
-      <header className="page-head">
-        <h1>Administration</h1>
-        <span className="muted">{activeOrg.name}</span>
-      </header>
+      <PageHeader icon={<IconShield />} title="Administration" sub={<>Members, limits, audit and data for <b>{activeOrg.name}</b></>}>
+        <span className="org-avatar" aria-hidden="true">{activeOrg.name.slice(0, 1).toUpperCase()}</span>
+      </PageHeader>
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
@@ -41,6 +42,7 @@ export function Admin() {
         </>
       )}
       {tab === "Audit log" && <AuditLog orgId={activeOrg.id} />}
+      {tab === "Integrations" && <Integrations orgId={activeOrg.id} />}
       {tab === "Data" && <DataLifecycle orgId={activeOrg.id} />}
     </>
   );
@@ -82,7 +84,7 @@ export function Members({ orgId }: { orgId: string }) {
         <tbody>
           {(list.data ?? []).map((m) => (
             <tr key={m.user_id}>
-              <td>{m.email}</td>
+              <td className="member">{m.email}</td>
               <td>
                 <select
                   aria-label={`Role of ${m.email}`}

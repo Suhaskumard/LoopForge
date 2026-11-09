@@ -9,6 +9,7 @@ import logging
 import signal
 import threading
 import time
+from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -17,6 +18,7 @@ from app.database import session
 from app.execution.sandbox import Sandbox
 from app.services import (
     idempotency_service,
+    intel_service,
     job_service,
     lease_service,
     rate_limit,
@@ -57,6 +59,15 @@ def run_once(
     return True
 
 
+def _queue_starter(factory: sessionmaker[Session], llm: LLMClient, sandbox: Sandbox) -> Any:
+    def start(task_id: Any) -> None:
+        run_service.dispatch(
+            intel_service.ThreadBackground(), factory, "start", task_id, llm, sandbox
+        )
+
+    return start
+
+
 def serve(
     factory: sessionmaker[Session],
     llm: LLMClient,
@@ -75,6 +86,8 @@ def serve(
                     # Phase 18: expired idempotency keys and old rate-limit windows are housekeeping
                     idempotency_service.purge(db)
                     rate_limit.purge(db)
+                    # Round 9: due regression re-runs are queued as ordinary start jobs
+                    intel_service.run_due(db, _queue_starter(factory, llm, sandbox))
             except Exception:
                 log.exception("recovery scan failed")
         try:

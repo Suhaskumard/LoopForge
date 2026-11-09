@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
+import { ActivityHeatmap, isRunning, QuickStart, RunningNow, StatusDonut } from "../components/Dashboard";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type { Overview, Task } from "../api/types";
-import { Onboarding } from "../components/Onboarding";
-import { Card, Empty, ErrorBox, Kpi, Loading, StatusBadge } from "../components/ui";
+import { IconHome } from "../components/icons";
+import { Card, Empty, ErrorBox, Kpi, Loading, PageHeader, StatusBadge } from "../components/ui";
 import { useAsync } from "../hooks";
 import { money, num, pct, seconds } from "../lib/format";
 
@@ -11,19 +13,30 @@ import { money, num, pct, seconds } from "../lib/format";
 export function CommandCenter() {
   const { can } = useAuth();
   const overview = useAsync(() => api.get<Overview>("/analytics/overview"), []);
-  const tasks = useAsync(() => api.get<Task[]>("/tasks", { limit: 50 }), []);
+  const tasks = useAsync(() => api.get<Task[]>("/tasks", { limit: 50, order: "desc" }), []); // newest first
   const o = overview.data;
+  const runningCount = (tasks.data ?? []).filter(isRunning).length;
+
+  // keep the "Running now" panel live: refresh every 4s while anything is running
+  const reload = tasks.reload;
+  useEffect(() => {
+    if (runningCount === 0) return;
+    const timer = window.setInterval(() => reload(), 4000);
+    return () => window.clearInterval(timer);
+  }, [runningCount, reload]);
 
   return (
     <>
-      <header className="page-head">
-        <h1>Command Center</h1>
+      <PageHeader icon={<IconHome />} title="Command Center" sub="Every loop, every test, every decision — live.">
         {can("developer") && <Link className="button primary" to="/tasks/new">New task</Link>}
-      </header>
+      </PageHeader>
 
-      <Onboarding />
       {overview.error && <ErrorBox error={overview.error} />}
-      {!o && overview.loading && <Loading />}
+      {!o && overview.loading && (
+        <div className="kpis" role="status" aria-label="Loading">
+          {Array.from({ length: 6 }, (_, i) => <div key={i} className="kpi kpi-skel"><span className="skeleton" /><span className="skeleton big" /></div>)}
+        </div>
+      )}
       {o && (
         <div className="kpis">
           <Kpi label="Task success rate" value={pct(o.task_success_rate)} hint={`${o.completed} of ${o.eligible_finished} finished`} />
@@ -35,10 +48,35 @@ export function CommandCenter() {
         </div>
       )}
 
+      <div className={`bento${can("developer") ? "" : " no-qs"}`}>
+        <Card title="Running now" actions={runningCount > 0 && <span className="badge live-run">{runningCount} live</span>}>
+          <div className="b-run">
+            {tasks.data ? <RunningNow tasks={tasks.data} /> : <span className="skeleton" />}
+          </div>
+        </Card>
+        {can("developer") && <div className="b-qs"><QuickStart /></div>}
+        <Card title="Status mix">
+          <StatusDonut counts={o?.tasks_by_status ?? {}} />
+        </Card>
+        <Card title="Activity">
+          <ActivityHeatmap dates={(tasks.data ?? []).map((t) => t.created_at)} />
+        </Card>
+        <Link to="/graph" className="graph-tile" aria-label="Open the Task Graph">
+          <span className="gt-sky" aria-hidden="true">
+            {Array.from({ length: 14 }, (_, i) => <i key={i} style={{ "--i": i } as React.CSSProperties} />)}
+          </span>
+          <span className="gt-text">
+            <strong>Task Graph</strong>
+            <span className="muted small">{(tasks.data ?? []).length} tasks mapped with their failures, files and reused fixes</span>
+          </span>
+          <span className="gt-go" aria-hidden="true">→</span>
+        </Link>
+      </div>
+
       <Card title="Tasks">
         {tasks.error && <ErrorBox error={tasks.error} />}
         {tasks.loading && !tasks.data && <Loading />}
-        {tasks.data && tasks.data.length === 0 && <Empty>No tasks yet. Create one to watch the loop run.</Empty>}
+        {tasks.data && tasks.data.length === 0 && <Empty><span className="empty-art" aria-hidden="true">∞</span>No tasks yet. Create one to watch the loop run.</Empty>}
         {tasks.data && tasks.data.length > 0 && (
           <table className="table" data-testid="task-table">
             <thead>
@@ -49,7 +87,12 @@ export function CommandCenter() {
                 <tr key={t.id}>
                   <td><Link to={`/tasks/${t.id}`}>{t.requirement.slice(0, 90)}</Link></td>
                   <td><StatusBadge status={t.status} /></td>
-                  <td>{t.current_iteration} / {t.max_iterations}</td>
+                  <td>
+                    {t.current_iteration} / {t.max_iterations}
+                    <span className="meter" aria-hidden="true">
+                      <i style={{ width: `${Math.min(100, (t.current_iteration / Math.max(1, t.max_iterations)) * 100)}%` }} />
+                    </span>
+                  </td>
                   <td className="muted">{new Date(t.created_at).toLocaleString()}</td>
                 </tr>
               ))}
