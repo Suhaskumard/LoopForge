@@ -101,7 +101,9 @@ def call_agent(
     """Run one agent call inside an `agent_runs` row and return validated output."""
     # Round 9: the task's own override (A/B) wins, then Phase 9 routing; None = client default
     overrides = getattr(ctx.task, "model_overrides", None) or {}
-    model = overrides.get(agent_name) or _org_route(ctx, agent_name) or settings.model_for(agent_name)
+    model = (
+        overrides.get(agent_name) or _org_route(ctx, agent_name) or settings.model_for(agent_name)
+    )
     run = AgentRun(
         id=uuid.uuid4(),
         iteration_id=ctx.iteration.id,

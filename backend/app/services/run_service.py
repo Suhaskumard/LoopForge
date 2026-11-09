@@ -272,7 +272,9 @@ def _notify_terminal(session_factory: sessionmaker[Session], task_id: Any) -> No
             try:  # Round 12: a finished pipeline step starts the next one (or pauses the pipeline)
                 from app.services import pipeline_service
 
-                pipeline_service.advance(db, task, pipeline_service.default_starter(session_factory))
+                pipeline_service.advance(
+                    db, task, pipeline_service.default_starter(session_factory)
+                )
             except Exception:
                 log.exception("pipeline advance failed for task %s", task_id)
                 db.rollback()

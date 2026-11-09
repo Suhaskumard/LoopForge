@@ -28,13 +28,23 @@ class PipelineError(Exception):
 
 
 def create(
-    db: Session, org_id: uuid.UUID, project: Project, name: str, steps: list[StepIn], actor: uuid.UUID
+    db: Session,
+    org_id: uuid.UUID,
+    project: Project,
+    name: str,
+    steps: list[StepIn],
+    actor: uuid.UUID,
 ) -> Pipeline:
-    p = Pipeline(org_id=org_id, project_id=project.id, name=name.strip(), status="draft", created_by=actor)
+    p = Pipeline(
+        org_id=org_id, project_id=project.id, name=name.strip(), status="draft", created_by=actor
+    )
     p.steps = [
         PipelineStep(
-            position=i, requirement=s.requirement.strip(), acceptance_criteria=list(s.acceptance_criteria),
-            max_iterations=s.max_iterations, status="pending",
+            position=i,
+            requirement=s.requirement.strip(),
+            acceptance_criteria=list(s.acceptance_criteria),
+            max_iterations=s.max_iterations,
+            status="pending",
         )  # fmt: skip
         for i, s in enumerate(steps)
     ]
@@ -51,7 +61,9 @@ def _project(db: Session, p: Pipeline) -> Project:
     return project
 
 
-def _launch(db: Session, p: Pipeline, step: PipelineStep, after: Task | None, actor: Any, starter: Any) -> Task:
+def _launch(
+    db: Session, p: Pipeline, step: PipelineStep, after: Task | None, actor: Any, starter: Any
+) -> Task:
     """Create and start the task for `step`, chained from `after` when there is one."""
     task = task_service.create_task(
         db, _project(db, p), step.requirement, step.max_iterations, list(step.acceptance_criteria),
@@ -158,7 +170,8 @@ def advance(db: Session, task: Task, starter: Any) -> None:
         p.status = "completed"
         db.commit()
         notification_service.notify_safely(
-            db, p.org_id, "pipeline.completed", f"Pipeline “{p.name}” finished: every step accepted",
+            db, p.org_id, "pipeline.completed",
+            f"Pipeline “{p.name}” finished: every step accepted",
             {"pipeline_id": str(p.id)}, user_ids=[owner], dedupe_key=f"pipeline:{p.id}:done",
         )  # fmt: skip
         return
@@ -172,7 +185,8 @@ def advance(db: Session, task: Task, starter: Any) -> None:
         p.status = "paused"
         db.commit()
         notification_service.notify_safely(
-            db, p.org_id, "pipeline.paused", f"Pipeline “{p.name}” paused: the next step could not start",
+            db, p.org_id, "pipeline.paused",
+            f"Pipeline “{p.name}” paused: the next step could not start",
             {"pipeline_id": str(p.id), "error": str(exc)[:200]}, user_ids=[owner],
             dedupe_key=f"pipeline:{p.id}:{nxt.id}:start",
         )  # fmt: skip

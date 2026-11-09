@@ -72,7 +72,9 @@ def _task_with_dependents(client, h, project_id):
         )
         project = db.get(Project, uuid.UUID(project_id))
         db.add(
-            CodeComment(task_id=tid, user_id=project.user_id, file_path="app/x.py", line=1, body="n")
+            CodeComment(
+                task_id=tid, user_id=project.user_id, file_path="app/x.py", line=1, body="n"
+            )
         )
         db.add(
             RegressionWatch(

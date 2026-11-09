@@ -3,6 +3,7 @@
 Revision ID: 0015
 Revises: 0014
 """
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -16,7 +17,9 @@ JSON = sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgres
 
 
 def upgrade() -> None:
-    op.add_column("organizations", sa.Column("model_routing", JSON, nullable=False, server_default="{}"))
+    op.add_column(
+        "organizations", sa.Column("model_routing", JSON, nullable=False, server_default="{}")
+    )
     op.create_table(
         "pipelines",
         sa.Column("id", sa.Uuid(), primary_key=True),

@@ -87,7 +87,9 @@ def explain(
 
 
 @router.post(
-    "/tasks/{task_id}/explanation/apply", response_model=TaskOut, status_code=status.HTTP_202_ACCEPTED
+    "/tasks/{task_id}/explanation/apply",
+    response_model=TaskOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def retry_with_fix(
     task_id: uuid.UUID,
@@ -247,7 +249,9 @@ def put_routing(
     """Organization-wide model per agent. A task's own A/B override still wins."""
     for model in data.routing.values():
         if model and not re.match(MODEL_NAME, model):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"invalid model name {model!r}")
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, f"invalid model name {model!r}"
+            )
     org = db.get(Organization, p.org_id)
     if org is None:  # the dependency already resolved it; only a concurrent delete gets here
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")

@@ -26,14 +26,19 @@ API = "/api/v1"
 
 def escalated(client, email="why@x.com"):
     h, tid, _ = run(
-        client, [failing_update_report()], [PLAN, DEFECTIVE, repair_output(), repair_output()], email=email
+        client,
+        [failing_update_report()],
+        [PLAN, DEFECTIVE, repair_output(), repair_output()],
+        email=email,
     )
     assert client.get(f"{API}/tasks/{tid}", headers=h).json()["status"] == "ESCALATED"
     return h, tid
 
 
 def completed(client, email):
-    h, tid, _ = run(client, [failing_update_report(), passing_report_for_demo()], HAPPY_LLM, email=email)
+    h, tid, _ = run(
+        client, [failing_update_report(), passing_report_for_demo()], HAPPY_LLM, email=email
+    )
     assert client.get(f"{API}/tasks/{tid}", headers=h).json()["status"] == "COMPLETED"
     return h, tid
 
@@ -59,7 +64,9 @@ def test_the_explainer_writes_an_ai_explanation_from_the_evidence(client):
     assert exp["evidence"]  # the facts the model was given are returned too
     prompt = client.llm.calls[-1]
     assert prompt.response_model == "ExplainOutput" and "Evidence:" in prompt.user
-    assert client.get(f"{API}/tasks/{tid}/explanation", headers=h).json()["summary"] == exp["summary"]
+    assert (
+        client.get(f"{API}/tasks/{tid}/explanation", headers=h).json()["summary"] == exp["summary"]
+    )
     with client.factory() as db:
         assert db.scalars(select(AgentRun).where(AgentRun.agent_name == "Explainer")).first()
 
@@ -81,7 +88,9 @@ def test_retry_with_the_fix_hands_the_note_to_repair_and_runs_again(client):
     assert r.status_code == 202, r.text
     with client.factory() as db:
         notes = db.scalars(select(CodeComment).where(CodeComment.task_id == uuid.UUID(tid))).all()
-        assert len(notes) == 1 and notes[0].body.startswith("Suggested fix from the failure analysis")
+        assert len(notes) == 1 and notes[0].body.startswith(
+            "Suggested fix from the failure analysis"
+        )
         assert not notes[0].resolved
 
 
@@ -99,7 +108,8 @@ def test_only_failed_tasks_can_be_explained_and_only_in_the_org(client):
 def _pipeline(client, h, steps=2):
     pid = client.post(f"{API}/projects", json={"name": "pipe"}, headers=h).json()["id"]
     body = {"project_id": pid, "name": "API then client",
-            "steps": [{"requirement": f"Step {i + 1}: build the next part"} for i in range(steps)]}  # fmt: skip
+            "steps": [{"requirement": f"Step {i + 1}: build the next part"}
+                      for i in range(steps)]}  # fmt: skip
     r = client.post(f"{API}/pipelines", json=body, headers=h)
     assert r.status_code == 201, r.text
     return r.json()
@@ -128,10 +138,15 @@ def test_an_accepted_step_starts_the_next_one_from_its_code(client):
         pipeline_service.advance(db, nxt, started.append)
         db.refresh(p)
         assert p.status == "completed"
-        assert db.scalars(select(Notification).where(Notification.kind == "pipeline.completed")).first()
+        assert db.scalars(
+            select(Notification).where(Notification.kind == "pipeline.completed")
+        ).first()
 
     out = client.get(f"{API}/pipelines/{pl['id']}", headers=h).json()
-    assert out["status"] == "completed" and [s["task_status"] for s in out["steps"]] == ["COMPLETED", "COMPLETED"]
+    assert out["status"] == "completed" and [s["task_status"] for s in out["steps"]] == [
+        "COMPLETED",
+        "COMPLETED",
+    ]
     assert [p["id"] for p in client.get(f"{API}/pipelines", headers=h).json()] == [pl["id"]]
 
 
@@ -145,12 +160,16 @@ def test_a_failed_step_pauses_the_pipeline_and_resume_retries_it(client):
         pipeline_service.advance(db, db.get(Task, uuid.UUID(bad_tid)), lambda _id: None)
         db.refresh(p)
         assert p.status == "paused" and p.steps[0].status == "failed"
-        assert db.scalars(select(Notification).where(Notification.kind == "pipeline.paused")).first()
+        assert db.scalars(
+            select(Notification).where(Notification.kind == "pipeline.paused")
+        ).first()
     client.llm.queue(PLAN, DEFECTIVE, repair_output(), repair_output())
     r = client.post(f"{API}/pipelines/{pl['id']}/resume", headers=h)
     assert r.status_code == 200, r.text
     assert r.json()["steps"][0]["status"] == "running"
-    assert client.post(f"{API}/pipelines/{pl['id']}/start", headers=h).status_code == 409  # not a draft
+    assert (
+        client.post(f"{API}/pipelines/{pl['id']}/start", headers=h).status_code == 409
+    )  # not a draft
 
 
 def test_pipelines_are_validated_and_private_to_the_org(client):
@@ -179,12 +198,18 @@ def test_org_routing_is_used_unless_the_task_overrides_it(client):
 
     h, tid = new_task(client, "route@x.com")
     oid = _org(client, h)
-    r = client.put(f"{API}/orgs/{oid}/routing", json={"routing": {"Planner": "cheap-model", "Builder": ""}}, headers=h)
+    r = client.put(
+        f"{API}/orgs/{oid}/routing",
+        json={"routing": {"Planner": "cheap-model", "Builder": ""}},
+        headers=h,
+    )
     assert r.status_code == 200 and r.json()["routing"] == {"Planner": "cheap-model"}
     with client.factory() as db:
         db.get(Task, uuid.UUID(tid)).model_overrides = {"Builder": "task-model"}
         db.commit()
-    app.dependency_overrides[get_sandbox] = lambda: ScriptedSandbox([failing_update_report(), passing_report_for_demo()])
+    app.dependency_overrides[get_sandbox] = lambda: ScriptedSandbox(
+        [failing_update_report(), passing_report_for_demo()]
+    )
     client.llm.queue(*HAPPY_LLM)
     client.post(f"{API}/tasks/{tid}/start", headers=h)
     with client.factory() as db:
@@ -192,16 +217,23 @@ def test_org_routing_is_used_unless_the_task_overrides_it(client):
     assert models["Planner"] == "cheap-model" and models["Builder"] == "task-model"
     bad = client.put(f"{API}/orgs/{oid}/routing", json={"routing": {"Wizard": "x"}}, headers=h)
     assert bad.status_code == 422
-    assert client.put(f"{API}/orgs/{oid}/routing", json={"routing": {"Planner": "bad model!"}}, headers=h).status_code == 422
+    assert (
+        client.put(
+            f"{API}/orgs/{oid}/routing", json={"routing": {"Planner": "bad model!"}}, headers=h
+        ).status_code
+        == 422
+    )
 
 
 def test_recommendation_picks_the_cheapest_model_that_is_nearly_as_good():
     def stat(model, rate, cost, tasks=8):
-        return ModelStat(agent="Repair", model=model, runs=tasks * 2, tasks=tasks, accepted=round(rate * tasks),
-                         accept_rate=rate, tokens_per_run=100, cost_per_run=cost)  # fmt: skip
+        return ModelStat(agent="Repair", model=model, runs=tasks * 2, tasks=tasks,
+                         accepted=round(rate * tasks), accept_rate=rate, tokens_per_run=100,
+                         cost_per_run=cost)  # fmt: skip
 
     recs = {r.agent: r for r in routing_service.recommend([
-        stat("big", 0.9, 0.05), stat("medium", 0.85, 0.01), stat("tiny", 0.5, 0.001), stat("new", 1.0, 0.0001, tasks=2),
+        stat("big", 0.9, 0.05), stat("medium", 0.85, 0.01), stat("tiny", 0.5, 0.001),
+        stat("new", 1.0, 0.0001, tasks=2),
     ])}  # fmt: skip
     assert recs["Repair"].model == "medium"  # within 10 points of the best, and cheaper than big
     assert recs["Planner"].model is None and "Not enough evidence" in recs["Planner"].reason

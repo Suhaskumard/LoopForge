@@ -63,11 +63,16 @@ def stats(db: Session, org_id: uuid.UUID, now: datetime | None = None) -> list[M
 def recommend(all_stats: list[ModelStat]) -> list[Recommendation]:
     out = []
     for agent in ROUTABLE_AGENTS:
-        cands = [s for s in all_stats if s.agent == agent and s.tasks >= MIN_TASKS and s.accept_rate is not None]
+        cands = [
+            s
+            for s in all_stats
+            if s.agent == agent and s.tasks >= MIN_TASKS and s.accept_rate is not None
+        ]
         if not cands:
             out.append(
                 Recommendation(
-                    agent=agent, model=None,
+                    agent=agent,
+                    model=None,
                     reason=f"Not enough evidence yet: needs {MIN_TASKS}+ finished tasks per model.",
                 )  # fmt: skip
             )
@@ -80,7 +85,10 @@ def recommend(all_stats: list[ModelStat]) -> list[Recommendation]:
             f"${pick.cost_per_run:.4f}/run"
         )
         if len(good) > 1:
-            reason += f"; the cheapest within {round(TOLERANCE * 100)} points of the best ({round(best * 100)}%)."
+            reason += (
+                f"; the cheapest within {round(TOLERANCE * 100)} points of the best "
+                f"({round(best * 100)}%)."
+            )
         out.append(Recommendation(agent=agent, model=pick.model, reason=reason))
     return out
 
@@ -94,7 +102,9 @@ def set_routing(db: Session, org: Organization, routing: dict[str, str]) -> dict
     clean = {}
     for agent, model in routing.items():
         if agent not in ROUTABLE_AGENTS:
-            raise ValueError(f"unknown agent {agent!r}; expected one of {', '.join(ROUTABLE_AGENTS)}")
+            raise ValueError(
+                f"unknown agent {agent!r}; expected one of {', '.join(ROUTABLE_AGENTS)}"
+            )
         if model:
             clean[agent] = model
     org.model_routing = clean

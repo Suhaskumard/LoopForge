@@ -65,7 +65,10 @@ def evidence(db: Session, task: Task) -> tuple[list[str], Any]:
     if fe:
         for a in fe.repair_attempts[-4:]:
             files = f" (files: {', '.join(a.files[:4])})" if a.files else ""
-            facts.append(f"Repair attempt [{a.failure_class or 'failure'}]: {a.root_cause}{files} -> {a.outcome}")
+            facts.append(
+                f"Repair attempt [{a.failure_class or 'failure'}]: "
+                f"{a.root_cause}{files} -> {a.outcome}"
+            )
     return facts or ["The run stopped without recording any test or repair evidence."], fe
 
 
@@ -83,7 +86,9 @@ def _from_evidence(facts: list[str], fe: Any) -> dict[str, Any]:
     fix = next_steps[0] if next_steps else "Refine the requirement and run again."
     note_parts = []
     if failing:
-        note_parts.append("Make these pass: " + "; ".join(f.removeprefix("Failing test ") for f in failing))
+        note_parts.append(
+            "Make these pass: " + "; ".join(f.removeprefix("Failing test ") for f in failing)
+        )
     if causes:
         note_parts.append(f"Earlier repairs tried: {causes[-1]}; take a different approach.")
     note = " ".join(note_parts) or fix
@@ -98,7 +103,9 @@ def _from_evidence(facts: list[str], fe: Any) -> dict[str, Any]:
 
 def explain(db: Session, task: Task, llm: LLMClient | None) -> Explanation:
     if task.status not in EXPLAINABLE:
-        raise ExplainError(f"only FAILED or ESCALATED tasks can be explained (this one is {task.status})")
+        raise ExplainError(
+            f"only FAILED or ESCALATED tasks can be explained (this one is {task.status})"
+        )
     last = _last_iteration(db, task)
     if last is None:
         raise ExplainError("this task never ran an iteration, so there is nothing to explain")
@@ -122,7 +129,11 @@ def explain(db: Session, task: Task, llm: LLMClient | None) -> Explanation:
     if body is None:
         body = _from_evidence(facts, fe)
     out = Explanation(
-        **body, source=source, evidence=facts[:20], iteration=last.iteration_number, created_at=_now()
+        **body,
+        source=source,
+        evidence=facts[:20],
+        iteration=last.iteration_number,
+        created_at=_now(),
     )
     feedback = dict(last.feedback or {})
     feedback["explanation"] = out.model_dump(mode="json")
