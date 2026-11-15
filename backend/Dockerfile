@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 WORKDIR /build
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 # Runtime dependencies only: no pytest/ruff/mypy/bandit in the production image (Phase 12).
 COPY requirements-runtime.txt .
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install -r requirements-runtime.txt
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 RUN useradd --system --uid 10001 --create-home loopforge
 WORKDIR /app
